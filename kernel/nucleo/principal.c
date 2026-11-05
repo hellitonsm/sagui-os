@@ -241,10 +241,31 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
         kprintf("[ERRO] ramdisk SGFS invalido: o sistema segue sem arquivos\n");
         console_cor(COR_CINZA, COR_PRETO);
     }
-    /* Rede: adaptador Intel e1000 de QEMU; camada Ethernet em polling. */
-    if (!e1000_iniciar()) {
+    /* Rede: placa Ethernet (Intel 8254x ou AMD PCnet) e endereço por DHCP.
+     * A mesma pilha atende a NAT do VirtualBox e do QEMU (10.0.2.x) e as
+     * redes Bridge/Host-only do VirtualBox, onde o DHCP dá o endereço. */
+    if (rede_iniciar()) {
+        const rede_info_t *r = rede_info();
+        char linha[96];
+        snformatar(linha, sizeof linha,
+                   "Rede: placa %s (%x:%x), MAC %x:%x:%x:%x:%x:%x, link %s",
+                   r->driver, r->id_fabricante, r->id_modelo,
+                   r->mac[0], r->mac[1], r->mac[2], r->mac[3], r->mac[4], r->mac[5],
+                   r->link ? "ligado" : "sem sinal");
+        etapa(linha);
+        snformatar(linha, sizeof linha, "Rede: IP %u.%u.%u.%u/%u.%u.%u.%u (%s), gateway %u.%u.%u.%u, DNS %u.%u.%u.%u",
+                   (r->ip >> 24) & 0xFF, (r->ip >> 16) & 0xFF, (r->ip >> 8) & 0xFF, r->ip & 0xFF,
+                   (r->mascara >> 24) & 0xFF, (r->mascara >> 16) & 0xFF,
+                   (r->mascara >> 8) & 0xFF, r->mascara & 0xFF,
+                   r->dhcp ? "DHCP" : "endereco fixo",
+                   (r->gateway >> 24) & 0xFF, (r->gateway >> 16) & 0xFF,
+                   (r->gateway >> 8) & 0xFF, r->gateway & 0xFF,
+                   (r->dns >> 24) & 0xFF, (r->dns >> 16) & 0xFF,
+                   (r->dns >> 8) & 0xFF, r->dns & 0xFF);
+        etapa(linha);
+    } else {
         console_cor(COR_AMARELO, COR_PRETO);
-        kprintf("[aviso] Adaptador Intel e1000 ausente ou nao inicializou.\n");
+        kprintf("[aviso] Nenhuma placa de rede conhecida (Intel 8254x ou AMD PCnet).\n");
         console_cor(COR_CINZA, COR_PRETO);
     }
     /* H29-H31: USB 2.0 (EHCI), hubs e pendrives de dados. */

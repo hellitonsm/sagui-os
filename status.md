@@ -1,14 +1,14 @@
 # Status do SaguiOS
 
-_Atualizado em 2026-11-04T00:20:45_
+_Atualizado em 2026-11-05T15:40:00_
 
-- **Situação:** Fase 7 confirmada no hardware. Seguindo para a fase 8.
+- **Situação:** Rede do VirtualBox suportada (e1000 e PCnet) com DHCP/ARP/DNS e o comando rede
 - **Fase atual:** 7
 - **História atual:** -
 - **Progresso geral:** 100.0%
 - **Bloqueio:** nenhum
-- **Imagem:** 575488 bytes úteis (meta 1474560 bytes = 1,44 MB)
-- **Linhas de código:** boot 903, kernel 9614, userland 6317
+- **Imagem:** 613888 bytes úteis (meta 1474560 bytes = 1,44 MB)
+- **Linhas de código:** boot 903, kernel 11140, userland 6414
 
 ## Fases
 
@@ -64,9 +64,11 @@ _Atualizado em 2026-11-04T00:20:45_
 | B2 | Bônus: boot por UEFI | Cancelado pelo Eli: o objetivo do SaguiOS é rodar em computadores antigos, com BIOS tradicional. |  |
 | B3 | Bônus: bip | feito | 5 |
 | B4 | Bônus: Sagui 3D | feito | 43 |
+| H35 | Rede no VirtualBox (e1000, PCnet, DHCP, ARP) | feito | 220 |
 
 ## Últimas ações
 
+- 2026-11-05T15:40:00: H35 concluída: rede nas placas do VirtualBox (Intel PRO/1000 e AMD PCnet), DHCP, ARP, DNS e comando rede
 - 2026-11-04T00:19:30: Eli confirmou: funcionou tudo perfeitamente (bônus)
 - 2026-11-03T23:45:56: Fase 7 entregue. Aguardando teste do Eli.
 - 2026-11-03T23:45:56: B4 concluída: Sagui 3D: motor 2,5D próprio, três fases em texto, macacos-prego, sementes, cascas, porteira da banana, cacho dourado, sons com o bip; teste automático e capturas
@@ -81,4 +83,3 @@ _Atualizado em 2026-11-04T00:20:45_
 - 2026-11-03T21:36:41: Fase 6 entregue. Aguardando teste do Eli.
 - 2026-11-03T21:26:31: Erro corrigido: FAT32 criada depois da partição do SaguiOS não é vista
 - 2026-11-03T21:26:31: Erro corrigido: G470: pendrive não aparece; usb mostra porta ocupada sem pendrive
-- 2026-11-03T21:21:11: Bloqueio: G470: o pendrive não aparece (fase 6). Correção em andamento: H30-fix

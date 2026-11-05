@@ -7,7 +7,7 @@ int principal(int argc,char **argv)
     char *r = (char *)aloca(65536);
     if (!r) { imprimir("wget: sem memoria\n"); return 1; }
     int n = http_obter(argv[1], r, 65536);
-    if (n < 0) { imprimir("wget: falha de rede/HTTP (%d). Requer QEMU e1000 + NAT; somente HTTP.\n", n); libera(r); return 1; }
+    if (n < 0) { imprimir("wget: falha de rede/HTTP (%d). Veja a placa com \"rede\"; so HTTP.\n", n); libera(r); return 1; }
     int sep = -1;
     for (int i=0; i+3<n; i++)
         if (r[i]=='\r' && r[i+1]=='\n' && r[i+2]=='\r' && r[i+3]=='\n') { sep=i+4; break; }

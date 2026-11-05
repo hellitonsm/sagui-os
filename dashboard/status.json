@@ -1,7 +1,7 @@
 {
   "titulo": "SaguiOS: um sistema operacional escrito do zero por IA",
-  "atualizado": "2026-11-04T00:20:45",
-  "situacao": "Fase 7 confirmada no hardware. Seguindo para a fase 8.",
+  "atualizado": "2026-11-05T15:40:00",
+  "situacao": "Rede do VirtualBox suportada (e1000 e PCnet) com DHCP/ARP/DNS e o comando rede",
   "fase_atual": 7,
   "historia_atual": null,
   "bloqueio": "",
@@ -551,6 +551,19 @@
       "fim": "2026-11-03T23:45:56",
       "minutos": 43,
       "resultado": "Sagui 3D: motor 2,5D próprio, três fases em texto, macacos-prego, sementes, cascas, porteira da banana, cacho dourado, sons com o bip; teste automático e capturas"
+    },
+    {
+      "id": "H35",
+      "fase": 7,
+      "titulo": "Rede no VirtualBox (e1000, PCnet, DHCP, ARP)",
+      "objetivo": "Funcionar a rede nas placas do VirtualBox (Intel PRO/1000 e AMD PCnet), com endereço por DHCP e ARP de verdade.",
+      "aceite": "Boot reconhece a placa e pega IP por DHCP; rede mostra placa, MAC, IP, gateway e DNS; wget baixa página nas duas placas; sem placa o sistema avisa e continua.",
+      "estado": "feito",
+      "bonus": false,
+      "inicio": "2026-11-05T12:00:00",
+      "fim": "2026-11-05T15:40:00",
+      "minutos": 220,
+      "resultado": "Drivers e1000 (82540EM/82545EM/82543GC) e pcnet (Am79C970A/973), DHCP com reserva 10.0.2.x, ARP com cache, DNS, camada pacotes.c, chamada SIS_REDE_INFO e o programa rede; teste h35 nas duas placas"
     }
   ],
   "tanenbaum": [
@@ -634,6 +647,10 @@
     }
   ],
   "acoes": [
+    {
+      "data": "2026-11-05T15:40:00",
+      "texto": "H35 concluída: rede nas placas do VirtualBox (Intel PRO/1000 e AMD PCnet), DHCP, ARP, DNS e comando rede"
+    },
     {
       "data": "2026-11-04T00:19:30",
       "texto": "Eli confirmou: funcionou tudo perfeitamente (bônus)"
@@ -869,10 +886,6 @@
     {
       "data": "2026-11-03T18:08:12",
       "texto": "Bloqueio: G470: teclado não responde na fase 4 e o touchpad não respondeu (correção em andamento: H19-fix)"
-    },
-    {
-      "data": "2026-11-03T17:40:18",
-      "texto": "Fase 4 entregue. Aguardando teste do Eli."
     }
   ],
   "erros": [
@@ -1368,12 +1381,12 @@
   ],
   "linhas": {
     "boot": 903,
-    "kernel": 9614,
-    "userland": 6317,
-    "ferramentas": 3591
+    "kernel": 11140,
+    "userland": 6414,
+    "ferramentas": 3736
   },
   "imagem": {
-    "bytes_util": 575488,
+    "bytes_util": 613888,
     "bytes_arquivo": 1048576,
     "meta_bytes": 1474560
   },

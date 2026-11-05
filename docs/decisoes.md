@@ -904,3 +904,86 @@ e depois ele volta a caçar. Ninguém se machuca.
   paredes; o escurecimento vai para o verde da mata, não para o preto.
 - Nenhum código, tutorial ou repositório de jogo foi consultado: as contas
   partiram da geometria descrita acima.
+
+## D031. Rede no VirtualBox: duas placas, DHCP e ARP de verdade (H35)
+
+O pedido foi "suportar o sistema de rede do VirtualBox". O que existia dava
+`wget` na NAT do QEMU, e só nela: o endereço `10.0.2.15` e o MAC do gateway
+`52:55:0a:00:02:02` estavam escritos no código, o único driver era o da Intel
+82540EM, e a inicialização não esperava o fim do reset. Três coisas, então:
+mais de uma placa, endereço negociado e ARP de verdade.
+
+### Quais placas
+
+O VirtualBox oferece seis tipos de placa, e o tipo escolhido depende do sistema
+que se declara ao criar a máquina. Como o SaguiOS não é "Windows" nem "Linux",
+o VirtualBox cai em "Outro/Desconhecido" e escolhe sozinho a **AMD PCnet-FAST
+III** — exatamente a placa que o driver não conhecia. Por isso o driver novo,
+`kernel/dispositivos/pcnet.c`, e a lista de drivers em `kernel/rede/rede.c`:
+
+1. `e1000` — Intel 82540EM (MT Desktop), 82545EM (MT Server) e 82543GC
+   (T Server). É a recomendada, e a mesma `-device e1000` do QEMU.
+2. `pcnet` — AMD Am79C970A/79C973 (PCnet-PCI e PCnet-FAST III), a placa padrão
+   do VirtualBox e a `-device pcnet` do QEMU.
+
+A "Paravirtualized Network (virtio-net)" ficou de fora: exigiria um driver de
+virtqueue e não traz nada para o que o projeto faz. Está documentado como não
+suportado, com a recomendação de trocar para a Intel.
+
+### O que faltava no e1000 para funcionar fora do QEMU
+
+- **Esperar o reset terminar** (ler `CTRL.RST` até ele se apagar, com prazo) em
+  vez de contar voltas fixas. O QEMU emulado aceitava o `CTRL.SLU` mesmo com o
+  reset em andamento; o VirtualBox pode não aceitar, e o link nunca subiria.
+- **Gravar RAL/RAH** (com o bit `AV`) depois de ler o MAC: é essa tabela que o
+  controlador usa para decidir quais quadros aceita. O driver antigo só lia.
+- **Ligar UPE/MPE** (promíscuo): ARP, DHCP e broadcast passam sempre, mesmo que
+  a filtragem de endereços de alguma versão do VirtualBox discorde do que foi
+  gravado.
+- **Ler o MAC pela EEPROM** (`EERD`) quando os registradores vêm zerados, e, em
+  último caso, usar um MAC local. Placa muda é pior do que MAC inventado.
+
+### Endereço: DHCP, com a NAT como reserva
+
+O endereço fixo amarrou o sistema ao QEMU. O cliente DHCP de
+`kernel/rede/dhcp.c` faz o roteiro DORA (descobrir, ofertar, pedir, confirmar)
+em UDP sobre Ethernet, sem IP próprio (0.0.0.0 → broadcast), com três
+tentativas de 600 ms. Isso é o que faz a rede funcionar também em
+**Bridge** e **Host-only** do VirtualBox, onde o endereço não é `10.0.2.x`.
+Se ninguém responder, fica valendo `10.0.2.15/24`, gateway `10.0.2.2` e DNS
+`10.0.2.3` — que é o padrão da NAT do VirtualBox e da user-net do QEMU — e o
+`wget` continua funcionando numa rede isolada.
+
+O MAC do próximo salto agora vem de **ARP** (`kernel/rede/rede.c`, com cache de
+8 entradas e validade de 300 s), então o gateway pode ser qualquer roteador com
+qualquer MAC — o antigo `52:55:0a:00:02:02` do slirp não existe numa rede
+bridge.
+
+### A pilha, separada em camadas pequenas
+
+- `kernel/inc/rede.h` + `kernel/rede/rede.c`: escolhe a placa, guarda a
+  configuração IP, faz ARP e conta os quadros.
+- `kernel/inc/pacotes.h` + `kernel/rede/pacotes.c`: somas de verificação,
+  campos de 16/32 bits, "manda um IPv4", "espera um IPv4" e prazos em
+  milissegundos que também terminam se o relógio parar de andar.
+- `kernel/rede/dhcp.c`: o cliente DHCP.
+- `kernel/rede/http.c`: DNS por UDP, TCP básico e HTTP/1.0, agora usando a
+  configuração de `rede_info()` em vez de constantes.
+- `kernel/inc/abi.h` (`SIS_REDE_INFO`) e o programa `rede`: placa, MAC, link,
+  IP, máscara, gateway, DNS e contadores, para conferir dentro da máquina
+  virtual sem adivinhar.
+
+Tudo continua em *polling*, sem IRQ, com anéis e buffers estáticos abaixo de
+4 GiB (o modelo de DMA dos dois controladores) e uma placa por vez — a pilha é
+serializada pela chamada de sistema, como já era.
+
+### Como isso foi conferido
+
+O VirtualBox não roda dentro da máquina de desenvolvimento, mas as duas placas
+que ele usa são as mesmas que o QEMU emula. `tests/h35_rede.py` liga o sistema
+com `-device e1000` e com `-device pcnet`, confere o DHCP (`10.0.2.15`), o
+comando `rede`, o ARP até o gateway e um `wget` completo (TCP + HTTP) servido
+por um HTTP local, além do caso sem placa nenhuma. Foi assim que apareceram os
+dois erros 20 e 21 de `docs/erros.md`, que o teste da versão antiga não pegava.
+O passo a passo para o VirtualBox está em `docs/virtualbox.md`, e
+`make rodar-pcnet` abre o QEMU com a placa padrão do VirtualBox.

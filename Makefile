@@ -4,7 +4,9 @@
 #   make            -> gera build/saguios.img (imagem para pendrive)
 #   make vdi        -> gera também build/saguios.vdi (VirtualBox)
 #   make test       -> roda todos os testes automáticos no QEMU
-#   make rodar      -> abre o sistema no QEMU (precisa de janela; na VPS use os testes)
+#   make rodar      -> abre o sistema no QEMU com a placa Intel e1000
+#   make rodar-pcnet-> abre no QEMU com a placa AMD PCnet (a padrão do VirtualBox)
+#   make vbox       -> gera o .vdi e mostra como ligar a rede no VirtualBox
 #   make entrega FASE=N -> copia .img, .vdi e SHA-256 para entrega/faseN/
 #   make vazio      -> alvo vazio (critério da H01)
 #   make limpar     -> apaga build/
@@ -55,7 +57,7 @@ SAGUI3D_OBJ := $(patsubst userland/sagui3d/%.c,$(B)/userland/sagui3d/%.o,$(wildc
 PROGRAMAS += $(B)/userland/bin/sagui3d
 PROG_TESTE := $(patsubst userland/testes/%.c,$(B)/userland/testes/%,$(wildcard userland/testes/*.c))
 
-.PHONY: all vazio vdi test rodar entrega limpar dashboard
+.PHONY: all vazio vdi test rodar rodar-pcnet vbox entrega limpar dashboard
 
 all: $(B)/saguios.img
 
@@ -157,9 +159,25 @@ vdi: $(B)/saguios.vdi
 test: $(B)/saguios.img
 	$(PY) tests/rodar_todos.py
 
+# As duas placas que o VirtualBox oferece (e o QEMU imita) precisam do mesmo
+# driver genérico: e1000 -> Intel 8254x, pcnet -> AMD PCnet-FAST III.
 rodar: $(B)/saguios.img
 	qemu-system-i386 -m 512M -drive format=raw,file=$< -serial stdio \\
 	    -netdev user,id=net0 -device e1000,netdev=net0
+
+rodar-pcnet: $(B)/saguios.img
+	qemu-system-i386 -m 512M -drive format=raw,file=$< -serial stdio \\
+	    -netdev user,id=net0 -device pcnet,netdev=net0
+
+# Liga a imagem no VirtualBox: anexa o .vdi e explica a configuração da rede.
+vbox: $(B)/saguios.vdi
+	@echo "VirtualBox (o sistema já sabe falar com as duas placas):"
+	@echo "  1. Novo -> tipo \"Outro/Outro (32 bits)\" -> use um disco existente:"
+	@echo "       $(abspath $(B)/saguios.vdi)"
+	@echo "  2. Configurações -> Rede -> Adaptador 1 -> habilitado, ligado a NAT"
+	@echo "     (aceita também \"Bridge\" e \"Host-only\", que usam DHCP):"
+	@echo "       Intel PRO/1000 MT Desktop  ou  PCnet-FAST III"
+	@echo "  3. Ligue a máquina. O boot mostra a placa e o IP; no shell: rede / wget"
 
 entrega: $(B)/saguios.img $(B)/saguios.vdi
 	@test -n "$(FASE)" || (echo "use: make entrega FASE=N" && false)

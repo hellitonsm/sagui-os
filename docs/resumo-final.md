@@ -18,7 +18,7 @@ Um sistema operacional para PCs x86 de 32 bits, escrito do zero por uma IA (Clau
 
 | Item | Valor |
 | --- | --- |
-| Imagem (bytes úteis) | **575.488 bytes = 562 KB (39% de 1,44 MB)**, com o Sagui 3D e as três fases incluídos. O arquivo `.img` tem 1 MB porque é completado com zeros (D004). |
+| Imagem (bytes úteis) | **613.888 bytes = 600 KB (41,6% de 1,44 MB)**, com o Sagui 3D e as três fases incluídos. O arquivo `.img` tem 1 MB porque é completado com zeros (D004). |
 | Linhas de código | boot 903, kernel 9.614, userland 6.317 (total 16.834), mais 3.591 de scripts de build e testes |
 | Programas | 31 em `/bin` (shell, 22 comandos e 8 programas gráficos) e 6 de teste em `/testes` |
 | Testes automáticos | 37, um por história (mais um de dois controladores USB), todos no QEMU (IDE e pendrive USB quando a história mexe no boot) |

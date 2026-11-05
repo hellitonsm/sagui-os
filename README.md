@@ -77,12 +77,12 @@ na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 
 | | |
 | --- | --- |
-| Imagem de boot | **575.488 bytes** úteis (39% de 1,44 MB) |
-| Linhas de código | boot 903, kernel 9.614, programas 6.317 (mais 3.591 de ferramentas e testes) |
-| Programas | 31 em `/bin`: shell, comandos e 8 programas gráficos |
-| Testes automáticos | 37, um por história, todos no QEMU |
-| Decisões registradas | 30, com o raciocínio de cada uma |
-| Erros registrados | 19, com sintoma, causa e correção |
+| Imagem de boot | **613.888 bytes** úteis (41,6% de 1,44 MB) |
+| Linhas de código | boot 903, kernel 11.145, programas 6.414 (mais 3.736 de ferramentas e testes) |
+| Programas | 32 em `/bin`: shell, comandos e 8 programas gráficos |
+| Testes automáticos | 38, um por história, todos no QEMU |
+| Decisões registradas | 31, com o raciocínio de cada uma |
+| Erros registrados | 21, com sintoma, causa e correção |
 | Commits | ~55, um por história |
 
 ## Experimentar
@@ -95,9 +95,28 @@ As imagens prontas estão em [`entrega/final/`](entrega/final/):
 
 O passo a passo está em [`docs/como-gravar.md`](docs/como-gravar.md).
 
-### Rede (experimental)
+### Rede (NAT do VirtualBox e do QEMU, Bridge e Host-only)
 
-O kernel detecta a placa Intel e1000 de QEMU, transmite e recebe quadros Ethernet, resolve o gateway de QEMU e implementa uma pilha HTTP/1.0 mínima sobre TCP. O comando `wget http://IP/caminho [arquivo]` recebe respostas sem TLS; nomes DNS ainda podem não resolver em alguns ambientes. Não há DHCP, HTTPS/TLS, redirecionamentos nem tratamento completo de transferência em blocos/chunked. `make rodar` conecta a placa à rede NAT do QEMU.
+O SaguiOS fala com as duas placas que o VirtualBox oferece num sistema caseiro:
+**Intel PRO/1000 MT Desktop** (82540EM; também 82545EM e 82543GC) e **AMD
+PCnet-PCI/FAST III**, que é a placa que o VirtualBox escolhe sozinho quando a
+máquina é criada como "Outro/Desconhecido". No QEMU são as `-device e1000` e
+`-device pcnet`.
+
+Depois de achar a placa (pelo PCI, com MAC e link), o kernel pede endereço por
+**DHCP** e resolve os MACs por **ARP** — não há mais endereço nem MAC de gateway
+fixos no código. Numa NAT (VirtualBox ou QEMU) o DHCP entrega `10.0.2.15/24`,
+gateway `10.0.2.2` e DNS `10.0.2.3`; em "Bridge" e "Host-only" vem o endereço da
+rede de verdade. Se não houver servidor DHCP, o sistema assume o endereço padrão
+da NAT e continua funcionando.
+
+Por cima disso há uma pilha mínima de IPv4/UDP/TCP com HTTP/1.0 sem TLS: o
+comando `rede` mostra placa, MAC, IP, máscara, gateway, DNS e os contadores, e
+`wget http://IP/caminho [arquivo]` baixa uma página ou arquivo (nomes também
+resolvem, pelo DNS do DHCP). Não há HTTPS/TLS, fragmentação de IPv4,
+redirecionamentos nem `chunked`. Para conferir no VirtualBox, veja
+[`docs/virtualbox.md`](docs/virtualbox.md); `make rodar` e `make rodar-pcnet`
+abrem o sistema no QEMU com cada uma das duas placas.
 
 ## Compilar e testar
 
@@ -136,7 +155,7 @@ Os arquivos ficam em `build/saguios.img` (disco raw), `build/saguios.vdi` (Virtu
 
 ```
 boot/        estágio 1 (MBR) e estágio 2 do carregador, em NASM
-kernel/      kernel em C freestanding + NASM: núcleo, memória, drivers, USB, arquivos, janelas
+kernel/      kernel em C freestanding + NASM: núcleo, memória, drivers, rede, USB, arquivos, janelas
 userland/    libsagui e os programas; userland/sagui3d/ é o jogo do bônus B4
 rootfs/      arquivos que vão para o disco na RAM (textos, fases do Sagui 3D)
 tools/       build (mksgfs.py, mkimagem.py), painel (status.py), verificador de fases
@@ -152,8 +171,9 @@ testes_eli/  fotos dos testes do Eli no G470
 | Documento | O que tem |
 | --- | --- |
 | [`docs/resumo-final.md`](docs/resumo-final.md) | Resumo do projeto, tempo de cada fase e a tabela de conceitos do livro do Tanenbaum preenchida |
-| [`docs/decisoes.md`](docs/decisoes.md) | As 30 decisões de projeto e a seção do Sagui 3D |
-| [`docs/erros.md`](docs/erros.md) | Os 19 erros encontrados, inclusive os achados no G470 |
+| [`docs/decisoes.md`](docs/decisoes.md) | As 31 decisões de projeto e a seção do Sagui 3D |
+| [`docs/erros.md`](docs/erros.md) | Os 21 erros encontrados, inclusive os achados no G470 |
+| [`docs/virtualbox.md`](docs/virtualbox.md) | Como ligar a rede no VirtualBox (placas, NAT, Bridge, Host-only) |
 | [`docs/diario.md`](docs/diario.md) | O diário do projeto, fase a fase |
 | [`docs/historias/`](docs/historias/) | Uma página por história (H01 a H34, B1 a B4) |
 | [`status.md`](status.md) e [`dashboard/`](dashboard/index.html) | Situação de cada fase e história |

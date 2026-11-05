@@ -57,6 +57,7 @@
 /* Jogos (bônus B4) */
 #define SIS_TECLAS_SEGURADAS 59 /* (&mapa[32]) -> 1 se a janela do processo está em foco */
 #define SIS_HTTP_OBTER      60 /* (url, buffer, capacidade) -> resposta HTTP bruta */
+#define SIS_REDE_INFO       61 /* (&info_rede) -> 1 se ha placa, 0 se nao */
 #define SIS_MAX            64
 
 /* Erros (sempre negativos) */
@@ -161,6 +162,18 @@ typedef struct {
     unsigned int montado;
     unsigned int suportado;
 } info_disco_t;
+
+/* SIS_REDE_INFO: como a rede está neste boot (placa, MAC, endereço, DHCP). */
+typedef struct {
+    unsigned int  presente;
+    unsigned int  link;
+    unsigned int  dhcp;
+    unsigned char mac[6];
+    char          driver[16];      /* "e1000" ou "pcnet" */
+    unsigned int  fabricante, modelo;   /* identificação PCI da placa */
+    unsigned int  ip, mascara, gateway, dns, servidor;
+    unsigned int  enviados, recebidos, descartados;
+} info_rede_t;
 
 /* SIS_TECLAS_SEGURADAS: posição de algumas teclas no mapa (código de
  * varredura do conjunto 1; 128 + código para as teclas estendidas E0). */
