@@ -153,6 +153,27 @@ Para compilar, gerar o VDI e rodar os testes automáticos:
 
 Os arquivos ficam em `build/saguios.img` (disco raw), `build/saguios.vdi` (VirtualBox) e `build/saguios.vdi.sha256`.
 
+### Gerar a imagem e rodar no Windows
+
+No Windows não é preciso WSL, QEMU nem instalar o compilador cruzado à mão. Com
+**Git para Windows** e **VirtualBox** instalados, clone o repositório e rode:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\windows\build-e-rodar.ps1
+```
+
+Na primeira execução o script baixa GNU make, NASM e o i686-elf GCC para
+`.local\windows-tools\` (ignorado pelo Git; cerca de 750 MB), compila, gera
+`build\saguios.img` e `build\saguios.vdi` e cria/atualiza a VM `saguiOS` com a
+placa Intel em NAT. Opções: `-SemRodar` (não liga), `-SoRodar` (só liga),
+`-Limpar` (apaga `build\`), `-Apagar` (remove a VM) e `-ForcarDownload`.
+
+A toolchain pré-compilada para Windows não tem libiconv, então o script usa
+`tools\windows\cc-latin1.py` como `CC`: ele transforma os acentos dos literais
+em escapes Latin-1 antes de chamar o GCC, gerando os mesmos bytes do build no
+Linux. O restante do shell (`bash`, `find`, `cp`, `sha256sum`) vem do Git para
+Windows.
+
 ## Estrutura
 
 ```

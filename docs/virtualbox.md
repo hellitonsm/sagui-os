@@ -144,6 +144,22 @@ nome dessa opção muda entre as versões do `VBoxManage`; se nenhuma funcionar,
 avisa para configurar a placa pela interface gráfica. `make vbox` continua
 existindo, mas só imprime os passos (não mexe no VirtualBox).
 
+### No Windows
+
+O mesmo trabalho é feito por `tools\windows\build-e-rodar.ps1` (PowerShell),
+sem WSL nem QEMU:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\windows\build-e-rodar.ps1 -SemRodar
+powershell -ExecutionPolicy Bypass -File tools\windows\build-e-rodar.ps1
+```
+
+Ele baixa GNU make, NASM e o i686-elf GCC para `.local\windows-tools\` na
+primeira vez, compila, gera o `.vdi` com `VBoxManage convertfromraw` (no lugar
+do `qemu-img`) e cria/atualiza a VM `saguiOS` com a mesma configuração descrita
+acima. As opções são `-SemRodar`, `-SoRodar`, `-Limpar`, `-Apagar` e
+`-ForcarDownload`; `-Apagar` remove a VM, mas deixa o `.vdi` em `build\`.
+
 ## Pela linha de comando, à mão
 
 ```bash

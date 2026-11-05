@@ -25,16 +25,19 @@ if ! command -v VBoxManage >/dev/null 2>&1; then
     exit 1
 fi
 
-if [[ ! -f "$VDI" ]]; then
+Acao="${1:---criar}"
+
+if [[ "$Acao" != "--apagar" && ! -f "$VDI" ]]; then
     echo "ERRO: $VDI não encontrado. Rode 'make vdi' (ou tools/gerar-linux.sh) primeiro." >&2
     exit 1
 fi
 
-Acao="${1:---criar}"
-
 case "$Acao" in
 --apagar)
     echo "Apagando VM '$VM_NAME' (se existir)..."
+    # Sem desanexar, "unregistervm --delete" apaga também o .vdi do build/.
+    VBoxManage storageattach "$VM_NAME" --storagectl "IDE Controller" \
+        --port 0 --device 0 --type hdd --medium none >/dev/null 2>&1 || true
     VBoxManage unregistervm "$VM_NAME" --delete 2>/dev/null || true
     echo "Pronto. O disco $VDI continua no lugar."
     exit 0

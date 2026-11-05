@@ -1,5 +1,7 @@
 # Saída do build (regenerável com make)
 /build/
+# Ferramentas baixadas localmente no Windows (download-windows-tools.ps1)
+/.local/
 # Lixo de editores e Python
 __pycache__/
 *.pyc
