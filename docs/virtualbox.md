@@ -157,6 +157,43 @@ VBoxManage modifyvm SaguiOS --nic1 nat --nictype1 82540EM --cableconnected1 on
 VBoxManage startvm SaguiOS
 ```
 
+## O link demora ~5 segundos (e isso é normal)
+
+O VirtualBox não levanta o link do controlador na hora: ele espera
+`LinkUpDelay` ms depois do reset do adaptador — **5000 ms por padrão**, igual
+para a Intel e para a PCnet. Enquanto o link está fora, o controlador emulado
+**descarta todo quadro recebido e não transmite nada**, então quem pede DHCP
+logo depois de inicializar a placa fica sem endereço sem mensagem nenhuma
+(foi assim que a primeira versão se comportou aqui).
+
+O SaguiOS espera: no boot você vê uma destas linhas no serial
+
+```
+Rede: link ligado
+Rede: link ligado depois de 5002 ms de espera
+```
+
+Se o link não aparecer em 6 s (cabo desconectado, `--cableconnected1 off`,
+adaptador desligado):
+
+```
+[aviso] Rede: link sem sinal depois de 6010 ms (cabo/adaptador desconectado?)
+```
+
+Nesse caso o sistema **segue normalmente** com o endereço fixo da NAT
+(`10.0.2.15`) e você pode religar o cabo e rodar `rede` — o comando relê o
+link na placa, então ele mostra `Link: ligado` assim que o cabo volta (o
+endereço, porém, só é negociado de novo no próximo boot). Para conferir a
+configuração do adaptador:
+
+```bash
+VBoxManage showvminfo saguiOS --machinereadable | grep -i nic
+VBoxManage modifyvm saguiOS --cableconnected1 on
+```
+
+O mesmo atraso acontece ao "puxar o cabo" numa máquina ligada: os contadores
+`Quadros` do comando `rede` param de subir até o link voltar.
+
 ## Como isso é testado aqui
 
 O QEMU emula as duas mesmas placas, então o teste automático `tests/h35_rede.py`
@@ -164,3 +201,10 @@ roda o sistema com `-device e1000` e com `-device pcnet`, confere o endereço po
 DHCP, o comando `rede`, e baixa uma página de um servidor HTTP local pelo
 `wget`. O caminho do código é exatamente o mesmo que roda no VirtualBox; o que
 não dá para automatizar aqui é o VirtualBox em si.
+
+O atraso do link também é imitado: `tests/h36_link_atrasado.py` usa o monitor
+do QEMU (`set_link net0 off` / `set_link net0 on`) para derrubar o link durante
+o boot e levantá-lo 3 s depois, nas duas placas — o teste exige a espera, o
+DHCP, o `rede` e o `wget` funcionando. O mesmo teste confere o caso do link que
+só aparece depois do limite (8 s): aviso no boot, endereço fixo e `rede`
+mostrando o link relido.

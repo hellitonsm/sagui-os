@@ -70,6 +70,12 @@
 #define TX_COLD    0x00040000u
 #define TX_CRS     0x00080000u
 
+/* O VirtualBox emula o "LinkUpDelay" do 8254x: ele só liga STATUS.LU uns
+ * 5 segundos depois do reset (padrão LinkUpDelay=5000 ms) e, enquanto LU está
+ * em 0, descarta todo quadro recebido e não transmite nada. Esperar o link
+ * aqui é o que faz o DHCP e o ARP funcionarem dentro do VirtualBox. */
+#define ESPERA_LINK_MS 6000u
+
 #define DESC_DD    0x01u
 #define DESC_EOP   0x01u
 #define DESC_IFCS  0x02u
@@ -112,6 +118,26 @@ static bool esperar_reg(uint32_t reg, uint32_t mascara, uint32_t esperado, uint3
     while ((ler(reg) & mascara) != esperado) {
         if ((int32_t)(relogio_tiques() - fim) >= 0 || ++voltas > 5000000u) return false;
         pausa();
+    }
+    return true;
+}
+
+/* Espera STATUS.LU ficar ligado, até "ms" milissegundos. Alterna entre dormir
+ * no tique do relógio (quando ele está andando) e girar com "pause", para não
+ * queimar a CPU nem travar se as interrupções estiverem desligadas. */
+static bool esperar_link(uint32_t ms)
+{
+    uint32_t fim = relogio_tiques() + ms / 10u + 1u;
+    uint32_t voltas = 0;
+    uint32_t visto = relogio_tiques();
+    bool relogio_anda = false;
+    while (!(ler(REG_STATUS) & STATUS_LU)) {
+        if ((int32_t)(relogio_tiques() - fim) >= 0) return false;
+        if (++voltas > 200000000u) return false;
+        if (relogio_anda) relogio_dormir_ms(5);
+        else pausa();
+        uint32_t agora = relogio_tiques();
+        if (agora != visto) { visto = agora; relogio_anda = true; }
     }
     return true;
 }
@@ -228,6 +254,18 @@ bool e1000_iniciar(void)
 
     kprintf("Rede: Intel %x:%x, MAC %x:%x:%x:%x:%x:%x (Ethernet polling)\n",
             d->fabricante, d->modelo, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    /* O QEMU sobe o link na hora; o VirtualBox demora ~5 s. Só depois disso
+     * adianta tentar DHCP/ARP. */
+    uint32_t inicio = relogio_tiques();
+    bool link = esperar_link(ESPERA_LINK_MS);
+    uint32_t esperou = (relogio_tiques() - inicio) * 10u;
+    if (link && esperou >= 200)
+        kprintf("Rede: link ligado depois de %u ms de espera\n", esperou);
+    else if (link)
+        kprintf("Rede: link ligado\n");
+    else
+        kprintf("[aviso] Rede: link sem sinal depois de %u ms (cabo/adaptador desconectado?)\n", esperou);
     return true;
 }
 

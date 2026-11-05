@@ -97,8 +97,36 @@ static void pausa(void) { __asm__ volatile("pause"); }
 static void rap(uint16_t r) { porta_escreve16(io + PC_RAP, r); }
 static uint16_t csr_le(uint16_t r) { rap(r); return porta_le16(io + PC_RDP); }
 static void csr_escreve(uint16_t r, uint16_t v) { rap(r); porta_escreve16(io + PC_RDP, v); }
+/* BCR4 (LNKST): o bit 15 só aparece quando o link está de pé, tanto no QEMU
+ * quanto no VirtualBox (o bit 6 sozinho engana: o QEMU o deixa ligado mesmo
+ * com o cabo fora). */
+#define LNKST_LIGADO (1u << 15)
+#define ESPERA_LINK_MS 6000
+
 static uint16_t bcr_le(uint16_t r) { rap(r); return porta_le16(io + PC_BDP); }
 static void bcr_escreve(uint16_t r, uint16_t v) { rap(r); porta_escreve16(io + PC_BDP, v); }
+
+/* O link da PCnet também pode levar alguns segundos para aparecer (e, como no
+ * e1000, sem link o controlador não transmite). No VirtualBox ele só sobe
+ * ~5 s depois do reset, então a espera é a mesma do e1000: dorme no tique do
+ * relógio enquanto ele anda e gira com "pause" se as interrupções estiverem
+ * desligadas. */
+static bool esperar_link(uint32_t ms)
+{
+    uint32_t fim = relogio_tiques() + ms / 10u + 1u;
+    uint32_t voltas = 0;
+    uint32_t visto = relogio_tiques();
+    bool relogio_anda = false;
+    while (!(bcr_le(BCR_LNKST) & LNKST_LIGADO)) {
+        if ((int32_t)(relogio_tiques() - fim) >= 0) return false;
+        if (++voltas > 200000000u) return false;
+        if (relogio_anda) relogio_dormir_ms(5);
+        else pausa();
+        uint32_t agora = relogio_tiques();
+        if (agora != visto) { visto = agora; relogio_anda = true; }
+    }
+    return true;
+}
 
 /* Espera até "ms" milissegundos por (csr_le(reg) & mascara) == esperado. */
 static bool esperar(uint16_t reg, uint16_t mascara, uint16_t esperado, uint32_t ms)
@@ -196,14 +224,21 @@ bool pcnet_iniciar(void)
 
     kprintf("Rede: AMD PCnet %x:%x, MAC %x:%x:%x:%x:%x:%x (Ethernet polling)\n",
             d->fabricante, d->modelo, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    /* Só depois do link é que adianta tentar DHCP/ARP. */
+    uint32_t inicio = relogio_tiques();
+    bool link = esperar_link(ESPERA_LINK_MS);
+    uint32_t esperou = (relogio_tiques() - inicio) * 10u;
+    if (link && esperou >= 200) kprintf("Rede: link ligado depois de %u ms de espera\n", esperou);
+    else if (link) kprintf("Rede: link ligado\n");
+    else kprintf("[aviso] Rede: link sem sinal depois de %u ms (cabo/adaptador desconectado?)\n", esperou);
     return true;
 }
 
 bool pcnet_link(void)
 {
     if (!ativo) return false;
-    uint16_t lnkst = bcr_le(BCR_LNKST);
-    return (lnkst & 0x0040u) != 0 || (lnkst & 0x8000u) != 0;
+    return (bcr_le(BCR_LNKST) & LNKST_LIGADO) != 0;
 }
 
 const uint8_t *pcnet_mac(void) { return mac; }

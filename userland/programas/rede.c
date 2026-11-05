@@ -38,6 +38,9 @@ int principal(int argc, char **argv)
     imprimir("MAC......: %x:%x:%x:%x:%x:%x\n", r.mac[0], r.mac[1], r.mac[2],
              r.mac[3], r.mac[4], r.mac[5]);
     imprimir("Link.....: %s\n", r.link ? "ligado" : "sem sinal");
+    if (!r.link)
+        imprimir("           (no VirtualBox o link sobe ~5 s depois do boot;\n"
+                 "            confira Adaptador 1 ligado e com \"Cabo conectado\")\n");
 
     imprimir("Endereco.: ");
     mostrar_ip(r.ip);
@@ -57,6 +60,7 @@ int principal(int argc, char **argv)
     }
     imprimir("Quadros..: %u enviados, %u recebidos\n", r.enviados, r.recebidos);
     if (r.descartados) imprimir("           %u descartados\n", r.descartados);
-    imprimir("Teste....: wget http://10.0.2.2/ (NAT) ou http://<ip da rede>/\n");
+    imprimir("Teste....: wget http://10.0.2.2:8000/arquivo (NAT, com um servidor\n"
+             "           HTTP rodando no anfitriao) ou http://<ip da rede>/\n");
     return 0;
 }

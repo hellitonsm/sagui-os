@@ -35,6 +35,8 @@ typedef struct {
  * pilha pronta. Devolve false se nenhuma placa conhecida foi encontrada. */
 bool rede_iniciar(void);
 bool rede_disponivel(void);
+/* Relê o link na placa (no VirtualBox ele só sobe segundos depois do reset). */
+bool rede_link_atual(void);
 const rede_info_t *rede_info(void);
 const uint8_t *rede_mac(void);
 

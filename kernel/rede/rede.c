@@ -152,6 +152,17 @@ bool rede_proximo_salto(uint32_t destino, uint8_t *mac)
 
 /* --------------------------------------------------- interface da placa */
 bool rede_disponivel(void) { return cfg.presente; }
+
+/* Relê o link na placa: no VirtualBox ele só sobe uns segundos depois do
+ * reset, então guardar o valor lido na inicialização dava "sem sinal" para
+ * sempre. O comando `rede` chama isto para mostrar o estado de agora. */
+bool rede_link_atual(void)
+{
+    if (!cfg.presente || !placa || !placa->link) return false;
+    cfg.link = placa->link();
+    return cfg.link;
+}
+
 const rede_info_t *rede_info(void) { return &cfg; }
 const uint8_t *rede_mac(void) { return cfg.mac; }
 
@@ -190,6 +201,8 @@ bool rede_iniciar(void)
     for (int i = 0; i < 6; i++) cfg.mac[i] = m[i];
     cfg.link = placa->link ? placa->link() : true;
     placa->ids(&cfg.id_fabricante, &cfg.id_modelo);
+    /* Os drivers já esperam o link subir (no VirtualBox ele demora ~5 s);
+     * aqui só se relê o estado no fim. */
 
     uint32_t ip = 0, mascara = 0, gateway = 0, dns = 0, servidor = 0;
     cfg.dhcp = dhcp_negociar(&ip, &mascara, &gateway, &dns, &servidor);
@@ -209,6 +222,7 @@ int32_t sis_rede_info(uint32_t destino, uint32_t b, uint32_t c, uint32_t d, uint
     (void)b; (void)c; (void)d; (void)e;
     if (!usuario_ok((void *)destino, sizeof(info_rede_t), true)) return ERRO_ENDERECO;
     info_rede_t *r = (info_rede_t *)destino;
+    rede_link_atual();
     memset(r, 0, sizeof *r);
     r->presente = cfg.presente ? 1u : 0u;
     r->link = cfg.link ? 1u : 0u;

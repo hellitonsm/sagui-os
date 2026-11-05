@@ -987,3 +987,34 @@ por um HTTP local, além do caso sem placa nenhuma. Foi assim que apareceram os
 dois erros 20 e 21 de `docs/erros.md`, que o teste da versão antiga não pegava.
 O passo a passo para o VirtualBox está em `docs/virtualbox.md`, e
 `make rodar-pcnet` abre o QEMU com a placa padrão do VirtualBox.
+
+## D032. Esperar o link subir (correção da H35 no VirtualBox)
+
+O primeiro teste de verdade no VirtualBox (com a placa padrão dele) mostrou
+`Link: sem sinal` e nenhum quadro trocado, com o mesmo `.vdi` funcionando no
+QEMU. A causa está no modelo emulado: tanto o e1000 (`DevE1000.cpp`) quanto a
+PCnet (`DevPCNet.cpp`) do VirtualBox deixam o link **fora do ar por
+`LinkUpDelay` ms depois do reset — 5000 por padrão** — e, enquanto o link está
+fora, todo quadro recebido é descartado e a transmissão não acontece. O QEMU
+levanta o link na hora, então pedir DHCP logo depois de inicializar a placa
+funcionava lá e falhava aqui, sem mensagem nenhuma.
+
+O que mudou:
+
+- `esperar_link()` nos dois drivers (até 6 s, dormindo 5 ms por vez com
+  `relogio_dormir_ms`), com três mensagens possíveis no serial: `link ligado`,
+  `link ligado depois de N ms de espera` e
+  `[aviso] Rede: link sem sinal depois de N ms`.
+- A PCnet passou a olhar o **bit 15** de `BCR4` (`LNKST`), que só aparece com o
+  link de pé. O bit 6 sozinho não serve: o QEMU o deixa ligado mesmo com o
+  `set_link off`.
+- `rede_link_atual()` (kernel) relê o estado na hora do comando `rede`, então o
+  relatório mostra o link de agora, não o do boot.
+- Se o link só subir depois do prazo, o boot avisa e o sistema segue com o
+  endereço fixo da NAT (10.0.2.15) — não trava e não fica esperando para sempre.
+
+`tests/h36_link_atrasado.py` reproduz o caso no QEMU com `set_link net0 off` e
+`set_link net0 on` 3 s depois (as duas placas: espera, DHCP, `rede`, `wget`) e
+8 s depois (aviso, endereço fixo, `rede` mostrando o link relido). O passo a
+passo do VirtualBox está em `docs/virtualbox.md`.
+

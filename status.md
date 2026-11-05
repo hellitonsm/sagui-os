@@ -1,14 +1,14 @@
 # Status do SaguiOS
 
-_Atualizado em 2026-11-05T15:40:00_
+_Atualizado em 2026-11-05T16:34:12_
 
 - **Situação:** Rede do VirtualBox suportada (e1000 e PCnet) com DHCP/ARP/DNS e o comando rede
 - **Fase atual:** 7
 - **História atual:** -
 - **Progresso geral:** 100.0%
 - **Bloqueio:** nenhum
-- **Imagem:** 613888 bytes úteis (meta 1474560 bytes = 1,44 MB)
-- **Linhas de código:** boot 903, kernel 11140, userland 6414
+- **Imagem:** 614400 bytes úteis (meta 1474560 bytes = 1,44 MB)
+- **Linhas de código:** boot 903, kernel 11229, userland 6418
 
 ## Fases
 
