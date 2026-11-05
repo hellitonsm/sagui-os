@@ -1,16 +1,38 @@
-/* gosagui - primeiro compilador nativo do subconjunto Go do SaguiOS.
- * Sem runtime externo: emite ELF32 e chamadas da ABI de abi.h diretamente.
+/* gosagui - compilador nativo do subconjunto Go do SaguiOS.
+ * Gera ELF32 com um bootstrap proprio (init -> main -> saida) e resolve
+ * importacoes de bibliotecas embutidas para a ABI do SaguiOS.
  * Deliberadamente NAO se apresenta como a toolchain oficial do Go. */
 #include "sagui.h"
 
 #define LIMITE 16384
 #define BASE 0x40000000u
 #define CAB 4096u
+#define MAX_IMPORT 16
+#define MAX_FUNCAO 16
+#define MAX_ARGS 16
+
 static char fonte[LIMITE + 1], texto[LIMITE + 1], token[128];
 static unsigned char codigo[LIMITE], dados[LIMITE], imagem[CAB + 2 * LIMITE];
 static unsigned pos, linha, nc, nd, nt;
 static int tipo, erro;
 enum { FIM = 256, NOME, TEXTO, SEP };
+
+typedef struct {
+    char apelido[32];
+    char caminho[32];
+    int  usado;
+} importacao_t;
+static importacao_t imports[MAX_IMPORT];
+static int n_imports;
+
+static unsigned inits[MAX_FUNCAO];
+static int n_inits, tem_main;
+static unsigned pos_main;
+
+typedef struct { unsigned at, n; } arg_t;
+static arg_t args[MAX_ARGS];
+static int n_args;
+static unsigned off_nl, off_esp;
 
 static void falhar(const char *mensagem)
 {
@@ -101,37 +123,262 @@ static void guardar(unsigned off, unsigned v, unsigned n)
 {
     for (unsigned i = 0; i < n; i++) imagem[off+i] = (unsigned char)(v >> (8*i));
 }
+static void guardar_codigo(unsigned off, unsigned v, unsigned n)
+{
+    for (unsigned i = 0; i < n; i++) codigo[off+i] = (unsigned char)(v >> (8*i));
+}
+static void chamar(unsigned alvo)
+{
+    byte(0xe8);
+    unsigned off = nc;
+    inteiro(0);
+    guardar_codigo(off, alvo - (off + 4), 4);
+}
+static void apelido_de(const char *caminho, char *saida, unsigned max)
+{
+    const char *barra = acha_ultimo_char(caminho, '/');
+    copia_texto(saida, barra ? barra + 1 : caminho, max);
+}
+static int pacote_ok(const char *caminho)
+{
+    return !compara_texto(caminho, "fmt") || !compara_texto(caminho, "sagui");
+}
+static void espec_import(void)
+{
+    char apelido[32];
+    if (tipo == NOME) {
+        copia_texto(apelido, token, sizeof apelido);
+        proximo();
+        if (tipo != TEXTO) { falhar("esperado caminho de importacao"); return; }
+    } else if (tipo == TEXTO) {
+        apelido_de(texto, apelido, sizeof apelido);
+    } else {
+        falhar("esperado caminho de importacao");
+        return;
+    }
+    if (n_imports == MAX_IMPORT) { falhar("muitas importacoes"); return; }
+    if (!pacote_ok(texto)) { falhar("pacote importado nao suportado"); return; }
+    for (int i = 0; i < n_imports; i++)
+        if (!compara_texto(imports[i].apelido, apelido)) { falhar("apelido de importacao repetido"); return; }
+    copia_texto(imports[n_imports].apelido, apelido, sizeof imports[0].apelido);
+    copia_texto(imports[n_imports].caminho, texto, sizeof imports[0].caminho);
+    imports[n_imports].usado = 0;
+    n_imports++;
+    proximo();
+}
+static void ler_imports(void)
+{
+    while (!erro && tipo == NOME && !compara_texto(token, "import")) {
+        proximo();
+        if (tipo == '(') {
+            proximo();
+            separadores();
+            while (!erro && tipo != ')' && tipo != FIM) {
+                espec_import();
+                if (erro) return;
+                if (tipo != ')' && tipo != SEP) { falhar("esperado fim de linha na importacao"); return; }
+                separadores();
+            }
+            exigir(')');
+        } else {
+            espec_import();
+        }
+        if (erro) return;
+        if (tipo != SEP && tipo != FIM) { falhar("esperado fim de linha apos importacao"); return; }
+        separadores();
+    }
+}
+static void ler_args_texto(int terminar)
+{
+    n_args = 0;
+    separadores();
+    if (tipo == ')') return;
+    for (;;) {
+        if (tipo != TEXTO) { falhar("esperado literal string"); return; }
+        if (n_args == MAX_ARGS) { falhar("muitos argumentos"); return; }
+        unsigned extra = terminar ? 1 : 0;
+        if (nd + nt + extra > LIMITE) { falhar("dados excedem 16 KiB"); return; }
+        args[n_args].at = nd;
+        args[n_args].n = nt;
+        memcpy(dados + nd, texto, nt);
+        nd += nt;
+        if (terminar) dados[nd++] = 0;
+        n_args++;
+        proximo();
+        separadores();
+        if (tipo == ',') { proximo(); separadores(); continue; }
+        break;
+    }
+}
+enum { ALVO_NENHUM, ALVO_FMT_PRINT, ALVO_FMT_PRINTLN,
+       ALVO_SAGUI_ERRO, ALVO_SAGUI_REGISTRAR, ALVO_SAGUI_LIMPAR };
+static int resolver(const char *apelido, const char *funcao)
+{
+    int i = -1;
+    for (int k = 0; k < n_imports; k++)
+        if (!compara_texto(imports[k].apelido, apelido)) { i = k; break; }
+    if (i < 0) { falhar("pacote nao importado"); return ALVO_NENHUM; }
+    imports[i].usado = 1;
+    if (!compara_texto(imports[i].caminho, "fmt")) {
+        if (!compara_texto(funcao, "Print")) return ALVO_FMT_PRINT;
+        if (!compara_texto(funcao, "Println")) return ALVO_FMT_PRINTLN;
+        falhar("funcao nao suportada no pacote fmt");
+        return ALVO_NENHUM;
+    }
+    if (!compara_texto(imports[i].caminho, "sagui")) {
+        if (!compara_texto(funcao, "Erro")) return ALVO_SAGUI_ERRO;
+        if (!compara_texto(funcao, "Registrar")) return ALVO_SAGUI_REGISTRAR;
+        if (!compara_texto(funcao, "LimparTela")) return ALVO_SAGUI_LIMPAR;
+        falhar("funcao nao suportada no pacote sagui");
+        return ALVO_NENHUM;
+    }
+    falhar("pacote nao suportado");
+    return ALVO_NENHUM;
+}
+static void escrever_dados(unsigned fd, unsigned off, unsigned tam)
+{
+    if (!tam || erro) return;
+    mov(0, SIS_ESCREVER); mov(3, fd);
+    mov(1, BASE + LIMITE + off); mov(2, tam); byte(0xcd); byte(0x80);
+    /* Escrita curta encerra com 1, como no runtime anterior. */
+    byte(0x3d); inteiro(tam);
+    byte(0x74); byte(12);
+    mov(0, SIS_SAIR); mov(3, 1); byte(0xcd); byte(0x80);
+}
+static void registrar_dados(unsigned off)
+{
+    mov(0, SIS_REGISTRAR);
+    mov(3, BASE + LIMITE + off);
+    mov(1, 0);
+    mov(2, 0);
+    byte(0xcd); byte(0x80);
+}
+static void emitir_limpar_tela(void)
+{
+    mov(0, SIS_LIMPAR_TELA);
+    byte(0xcd); byte(0x80);
+}
+static void emitir_chamada(int alvo)
+{
+    switch (alvo) {
+    case ALVO_FMT_PRINT:
+        for (int i = 0; i < n_args; i++) escrever_dados(SAIDA, args[i].at, args[i].n);
+        break;
+    case ALVO_FMT_PRINTLN:
+        for (int i = 0; i < n_args; i++) {
+            if (i) escrever_dados(SAIDA, off_esp, 1);
+            escrever_dados(SAIDA, args[i].at, args[i].n);
+        }
+        escrever_dados(SAIDA, off_nl, 1);
+        break;
+    case ALVO_SAGUI_ERRO:
+        for (int i = 0; i < n_args; i++) escrever_dados(ERROS, args[i].at, args[i].n);
+        break;
+    case ALVO_SAGUI_REGISTRAR:
+        for (int i = 0; i < n_args; i++) registrar_dados(args[i].at);
+        break;
+    case ALVO_SAGUI_LIMPAR:
+        if (n_args) { falhar("LimparTela nao recebe argumentos"); break; }
+        emitir_limpar_tela();
+        break;
+    default:
+        break;
+    }
+}
+static void instrucao(void)
+{
+    if (tipo != NOME) { falhar("instrucao nao suportada"); return; }
+    char nome[128];
+    copia_texto(nome, token, sizeof nome);
+    proximo();
+    int alvo = ALVO_NENHUM;
+    int terminar = 0;
+    if (tipo == '.') {
+        proximo();
+        if (tipo != NOME) { falhar("esperado nome de funcao"); return; }
+        alvo = resolver(nome, token);
+        if (erro) return;
+        if (alvo == ALVO_SAGUI_REGISTRAR) terminar = 1;
+        proximo();
+    } else if (!compara_texto(nome, "print")) {
+        alvo = ALVO_FMT_PRINT;
+    } else if (!compara_texto(nome, "println")) {
+        alvo = ALVO_FMT_PRINTLN;
+    } else {
+        falhar("funcao fora de pacote importado");
+        return;
+    }
+    exigir('(');
+    if (erro) return;
+    ler_args_texto(terminar);
+    if (erro) return;
+    exigir(')');
+    if (erro) return;
+    emitir_chamada(alvo);
+}
+static void ler_funcoes(void)
+{
+    while (!erro && tipo == NOME && !compara_texto(token, "func")) {
+        proximo();
+        if (tipo != NOME) { falhar("esperado nome de funcao"); return; }
+        int eh_init = !compara_texto(token, "init");
+        int eh_main = !compara_texto(token, "main");
+        if (!eh_init && !eh_main) { falhar("somente func main e func init sao suportadas"); return; }
+        proximo();
+        exigir('('); exigir(')'); exigir('{');
+        if (erro) return;
+        separadores();
+        unsigned inicio = nc;
+        while (!erro && tipo != '}' && tipo != FIM) {
+            instrucao();
+            if (erro) return;
+            if (tipo != '}' && tipo != SEP) { falhar("esperado fim de instrucao"); return; }
+            separadores();
+        }
+        exigir('}');
+        if (erro) return;
+        byte(0xc3);
+        if (eh_main) {
+            if (tem_main) { falhar("mais de um func main"); return; }
+            tem_main = 1;
+            pos_main = inicio;
+        } else {
+            if (n_inits == MAX_FUNCAO) { falhar("muitas funcs init"); return; }
+            inits[n_inits++] = inicio;
+        }
+        separadores();
+    }
+}
 static void compilar(void)
 {
     pos = nc = nd = 0; linha = 1; erro = 0;
+    n_imports = n_inits = 0; tem_main = 0; pos_main = 0;
+    /* Separadores usados por Println ficam antes dos literais do programa. */
+    off_nl = nd; dados[nd++] = '\n';
+    off_esp = nd; dados[nd++] = ' ';
+    /* Bootstrap: o ponto de entrada salta para o bloco init/main/saida. */
+    byte(0xe9);
+    unsigned salto = nc;
+    inteiro(0);
     proximo(); separadores(); palavra("package"); palavra("main");
-    exigir(SEP); separadores(); palavra("func"); palavra("main");
-    exigir('('); exigir(')'); exigir('{'); separadores();
-    while (!erro && tipo != '}' && tipo != FIM) {
-        int nova_linha = !compara_texto(token, "println");
-        if (tipo != NOME || (!nova_linha && compara_texto(token, "print"))) {
-            falhar("somente print e println com um literal string sao suportados"); break;
-        }
-        proximo(); exigir('(');
-        if (tipo != TEXTO) { falhar("esperado literal string"); break; }
-        unsigned tamanho = nt + (unsigned)nova_linha;
-        if (nd + tamanho > LIMITE) { falhar("dados excedem 16 KiB"); break; }
-        memcpy(dados + nd, texto, nt);
-        if (nova_linha) dados[nd + nt] = '\n';
-        /* Segmento de dados fica depois dos 16 KiB reservados ao codigo. */
-        mov(0, SIS_ESCREVER); mov(3, SAIDA);
-        mov(1, BASE + LIMITE + nd); mov(2, tamanho); byte(0xcd); byte(0x80);
-        /* Este pequeno runtime considera escrita curta um erro, nao sucesso. */
-        byte(0x3d); inteiro(tamanho); /* cmp eax, tamanho */
-        byte(0x74); byte(12);        /* je proxima instrucao Go */
-        mov(0, SIS_SAIR); mov(3, 1); byte(0xcd); byte(0x80);
-        nd += tamanho;
-        proximo(); exigir(')');
-        if (tipo != '}' && tipo != SEP) falhar("esperado fim de instrucao");
-        separadores();
-    }
-    exigir('}'); separadores(); exigir(FIM);
-    mov(0, SIS_SAIR); mov(3, 0); byte(0xcd); byte(0x80);
+    exigir(SEP); separadores();
+    ler_imports();
+    if (erro) return;
+    ler_funcoes();
+    if (erro) return;
+    if (!tem_main) { falhar("func main ausente"); return; }
+    for (int i = 0; i < n_imports; i++)
+        if (!imports[i].usado) { falhar("importacao nao usada"); return; }
+    separadores();
+    exigir(FIM);
+    if (erro) return;
+    unsigned boot = nc;
+    for (int i = 0; i < n_inits; i++) chamar(inits[i]);
+    chamar(pos_main);
+    mov(0, SIS_SAIR);
+    byte(0x31); byte(0xdb);          /* xor ebx, ebx */
+    byte(0xcd); byte(0x80);
+    guardar_codigo(salto, boot - (salto + 4), 4);
 }
 static unsigned elf(void)
 {
@@ -151,7 +398,8 @@ static unsigned elf(void)
 int principal(int argc, char **argv)
 {
     if (argc == 2 && !compara_texto(argv[1], "version")) {
-        imprimir("gosagui 0.1: subconjunto Go nativo, nao e a toolchain oficial\n"); return 0;
+        imprimir("gosagui 0.2: subconjunto Go nativo com bootstrap e importacoes\n");
+        return 0;
     }
     if (argc != 5 || compara_texto(argv[1], "build") || compara_texto(argv[2], "-o")) {
         imprimir_em(ERROS, "uso: gosagui build -o destino fonte.go\n"); return 1;

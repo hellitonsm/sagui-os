@@ -134,16 +134,17 @@ make rodar      # abre no QEMU com janela
 ### Compilacao nativa de um subconjunto Go (experimental)
 
 A imagem inclui `gosagui`, que compila dentro do SaguiOS um subconjunto minimo
-(`package main`, `func main()`, `print`/`println` com literal string) para ELF32:
+(`package main`, `func init`/`func main`, bootstrap proprio e importacao de
+`fmt` e `sagui`) para ELF32:
 
 ```text
-gosagui build -o /go/ola /go/ola.go
-/go/ola
+gosagui build -o /go/biblioteca /go/biblioteca.go
+/go/biblioteca
 ```
 
 **Nao e a toolchain oficial do Go nem suporta programas Go gerais.** Veja
-[`docs/go.md`](docs/go.md) para limites, teste nativo e o trabalho necessario
-para portar o Go completo.
+[`docs/go.md`](docs/go.md) para limites, bootstrap, bibliotecas, teste nativo e
+o trabalho necessario para portar o Go completo.
 
 ### Gerar a imagem facilmente no Linux
 
