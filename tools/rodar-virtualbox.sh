@@ -31,7 +31,7 @@ if ! VBoxManage showvminfo "$VM_NAME" >/dev/null 2>&1; then
         --memory 256 \
         --cpus 1 \
         --boot1 disk \
-        --nic1 none
+        --nic1 nat --nic-type1 82540EM
     VBoxManage storagectl "$VM_NAME" --name "IDE Controller" --add ide --controller ICH6
 fi
 
