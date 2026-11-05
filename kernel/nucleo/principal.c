@@ -22,6 +22,7 @@
 #include "i8042.h"
 #include "gui.h"
 #include "usb.h"
+#include "rede.h"
 
 #define SAGUI_VERSAO "1.0"
 
@@ -238,6 +239,12 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
     } else {
         console_cor(COR_VERMELHO_CLARO, COR_PRETO);
         kprintf("[ERRO] ramdisk SGFS invalido: o sistema segue sem arquivos\n");
+        console_cor(COR_CINZA, COR_PRETO);
+    }
+    /* Rede: adaptador Intel e1000 de QEMU; camada Ethernet em polling. */
+    if (!e1000_iniciar()) {
+        console_cor(COR_AMARELO, COR_PRETO);
+        kprintf("[aviso] Adaptador Intel e1000 ausente ou nao inicializou.\n");
         console_cor(COR_CINZA, COR_PRETO);
     }
     /* H29-H31: USB 2.0 (EHCI), hubs e pendrives de dados. */

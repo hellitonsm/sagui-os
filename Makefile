@@ -158,7 +158,8 @@ test: $(B)/saguios.img
 	$(PY) tests/rodar_todos.py
 
 rodar: $(B)/saguios.img
-	qemu-system-i386 -m 512M -drive format=raw,file=$< -serial stdio
+	qemu-system-i386 -m 512M -drive format=raw,file=$< -serial stdio \\
+	    -netdev user,id=net0 -device e1000,netdev=net0
 
 entrega: $(B)/saguios.img $(B)/saguios.vdi
 	@test -n "$(FASE)" || (echo "use: make entrega FASE=N" && false)

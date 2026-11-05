@@ -56,6 +56,7 @@
 #define SIS_BIP            58   /* (&notas, quantidade, modo) -> volta na hora; o tique do relógio toca */
 /* Jogos (bônus B4) */
 #define SIS_TECLAS_SEGURADAS 59 /* (&mapa[32]) -> 1 se a janela do processo está em foco */
+#define SIS_HTTP_OBTER      60 /* (url, buffer, capacidade) -> resposta HTTP bruta */
 #define SIS_MAX            64
 
 /* Erros (sempre negativos) */

@@ -95,9 +95,13 @@ As imagens prontas estão em [`entrega/final/`](entrega/final/):
 
 O passo a passo está em [`docs/como-gravar.md`](docs/como-gravar.md).
 
+### Rede (experimental)
+
+O kernel detecta a placa Intel e1000 de QEMU, transmite e recebe quadros Ethernet, resolve o gateway de QEMU e implementa uma pilha HTTP/1.0 mínima sobre TCP. O comando `wget http://IP/caminho [arquivo]` recebe respostas sem TLS; nomes DNS ainda podem não resolver em alguns ambientes. Não há DHCP, HTTPS/TLS, redirecionamentos nem tratamento completo de transferência em blocos/chunked. `make rodar` conecta a placa à rede NAT do QEMU.
+
 ## Compilar e testar
 
-Requisitos (Ubuntu): `nasm gcc gcc-multilib binutils make python3 qemu-system-x86 qemu-utils imagemagick mtools dosfstools`.
+Requisitos (Ubuntu): `nasm gcc gcc-multilib binutils make python3 qemu-system-x86 qemu-utils imagemagick mtools dosfstools fdisk`.
 
 ```bash
 make            # build/saguios.img
@@ -105,6 +109,28 @@ make vdi        # build/saguios.vdi (VirtualBox)
 make test       # todos os testes no QEMU (sem janela)
 make rodar      # abre no QEMU com janela
 ```
+
+### Gerar a imagem facilmente no Linux
+
+No Ubuntu/Debian, clone o repositório e execute:
+
+```bash
+./tools/gerar-linux.sh
+```
+
+Para instalar as dependências automaticamente (usa `sudo`):
+
+```bash
+./tools/gerar-linux.sh --instalar-dependencias
+```
+
+Para compilar, gerar o VDI e rodar os testes automáticos:
+
+```bash
+./tools/gerar-linux.sh --testar
+```
+
+Os arquivos ficam em `build/saguios.img` (disco raw), `build/saguios.vdi` (VirtualBox) e `build/saguios.vdi.sha256`.
 
 ## Estrutura
 

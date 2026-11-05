@@ -34,6 +34,7 @@ int  dormir(unsigned ms)              { return chamar(SIS_DORMIR, ms, 0, 0); }
 unsigned tempo_ms(void)               { return (unsigned)chamar(SIS_TEMPO, 0, 0, 0); }
 int  ler_data(data_t *d)              { return chamar(SIS_DATA, (unsigned)d, 0, 0); }
 int  info_sistema(int t, void *b, unsigned n) { return chamar(SIS_INFO_SISTEMA, (unsigned)t, (unsigned)b, n); }
+int  http_obter(const char *u, void *b, unsigned n) { return chamar(SIS_HTTP_OBTER, (unsigned)u, (unsigned)b, n); }
 void *aumentar_memoria(unsigned n)    { int r = chamar(SIS_AUMENTAR_MEM, n, 0, 0); return (r < 0 && r > -100) ? NULL : (void *)r; }
 void reiniciar(void)                  { chamar(SIS_REINICIAR, 0, 0, 0); }
 int  modo_terminal(int m)             { return chamar(SIS_MODO_TERMINAL, (unsigned)m, 0, 0); }

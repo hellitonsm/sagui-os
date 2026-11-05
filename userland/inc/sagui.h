@@ -62,6 +62,7 @@ int      dormir(unsigned ms);
 unsigned tempo_ms(void);
 int      ler_data(data_t *d);
 int      info_sistema(int tipo, void *buf, unsigned n);
+int      http_obter(const char *url, void *resposta, unsigned capacidade);
 void    *aumentar_memoria(unsigned bytes);
 void     reiniciar(void);
 int      modo_terminal(int modo);
