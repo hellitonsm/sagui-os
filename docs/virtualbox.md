@@ -117,20 +117,45 @@ alcança qualquer máquina dela (`rede` mostra o endereço da sua rede, não
 `10.0.2.x`). Com **Somente anfitrião** (`Host-only`), o VirtualBox entrega um
 endereço `192.168.56.x` pelo próprio servidor DHCP dele — também automático.
 
-## Pela linha de comando
+## Pelo script (mais rápido)
+
+O repositório tem `tools/rodar-virtualbox.sh`, que cria a VM já do jeito certo
+e liga o `.vdi` do `build/`:
+
+```bash
+make vdi                              # gera build/saguios.vdi
+tools/rodar-virtualbox.sh --rodar     # cria/atualiza a VM "saguiOS" e liga
+```
+
+O script configura 512 MB, BIOS tradicional (sem EFI), mouse e teclado PS/2,
+16 MB de vídeo e **Adaptador 1 = Intel PRO/1000 MT Desktop em NAT** — e
+reconecta a placa e o disco toda vez que roda, então uma VM criada antes
+também passa a usar a placa certa. Outras opções:
+
+| Comando | O que faz |
+| --- | --- |
+| `--criar` (padrão) | cria a VM se não existir, ajusta a rede e anexa o disco |
+| `--atualizar` | só reconecta a placa de rede e o disco (VM já criada) |
+| `--rodar` | faz o de cima e liga a máquina |
+| `--apagar` | remove a VM `saguiOS` (o `.vdi` do `build/` não é apagado) |
+
+Ele tenta `--nic-type1`, `--nictype1` e `--nic-type 1=` nessa ordem, porque o
+nome dessa opção muda entre as versões do `VBoxManage`; se nenhuma funcionar,
+avisa para configurar a placa pela interface gráfica. `make vbox` continua
+existindo, mas só imprime os passos (não mexe no VirtualBox).
+
+## Pela linha de comando, à mão
 
 ```bash
 VBoxManage createvm --name SaguiOS --ostype Other --register
 VBoxManage modifyvm SaguiOS --memory 512 --firmware bios --audio none
-VBoxManage storagectl SaguiOS --name IDE --add ide
-VBoxManage storageattach SaguiOS --storagectl IDE --port 0 --device 0 \
+VBoxManage storagectl SaguiOS --name "IDE Controller" --add ide --controller ICH6
+VBoxManage storageattach SaguiOS --storagectl "IDE Controller" --port 0 --device 0 \
     --type hdd --medium build/saguios.vdi
-# rede NAT com a placa Intel (troque por pcnet para a PCnet-FAST III)
+# rede NAT com a placa Intel (troque 82540EM por Am79C973 para a PCnet-FAST III)
 VBoxManage modifyvm SaguiOS --nic1 nat --nictype1 82540EM --cableconnected1 on
 VBoxManage startvm SaguiOS
 ```
-
-`make vbox` gera o `.vdi` e imprime esses passos.
 
 ## Como isso é testado aqui
 

@@ -93,7 +93,9 @@ As imagens prontas estão em [`entrega/final/`](entrega/final/):
 - **PC de verdade:** grave `saguios.img` num pendrive em modo DD (Rufus, balenaEtcher ou `dd`)
   e dê boot pela BIOS tradicional.
 
-O passo a passo está em [`docs/como-gravar.md`](docs/como-gravar.md).
+O passo a passo está em [`docs/como-gravar.md`](docs/como-gravar.md) e, para a rede e a
+máquina virtual, em [`docs/virtualbox.md`](docs/virtualbox.md). No Linux, depois de `make vdi`,
+`tools/rodar-virtualbox.sh --rodar` cria a VM já com a placa Intel e liga o sistema.
 
 ### Rede (NAT do VirtualBox e do QEMU, Bridge e Host-only)
 
