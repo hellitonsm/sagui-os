@@ -64,6 +64,7 @@ static const comando_t comandos[] = {
     { "bip", NULL, false, false, "toca um bip", "bip [Hz [ms]] | bip escala", "Toca uma nota no alto-falante do PC (padrão: 880 Hz por 200 ms)." },
     { "arquivos", NULL, false, true, "abre o Arquivos", "arquivos [pasta]", "Abre o Arquivos numa janela." },
     { "editor", NULL, false, true, "editor de texto", "editor [arquivo]", "Abre o Editor de texto numa janela." },
+    { "ide", NULL, false, true, "editor de código", "ide [arquivo]", "Abre a IDE para editar, compilar e executar programas Go e Lua." },
     { "calculadora", NULL, false, true, "calculadora", "calculadora", "Abre a Calculadora numa janela." },
     { "banana", NULL, false, true, "jogo do sagui", "banana", "Abre o jogo Sagui Pega Banana." },
     { "sagui3d", NULL, false, true, "jogo em 3D", "sagui3d [fase]", "Abre o jogo Sagui 3D (ou só uma fase, dando o arquivo)." },

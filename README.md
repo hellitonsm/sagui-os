@@ -146,6 +146,13 @@ gosagui build -o /go/biblioteca /go/biblioteca.go
 [`docs/go.md`](docs/go.md) para limites, bootstrap, bibliotecas, teste nativo e
 o trabalho necessario para portar o Go completo.
 
+### IDE de código
+
+No Terminal, execute `ide` para abrir o editor de código. Os botões carregam
+exemplos Go e Lua; salve com extensão `.go` ou `.lua` e clique em **Executar**.
+Go é compilado no próprio SaguiOS; Lua é interpretado, sem gerar executável.
+Consulte [o guia da IDE](docs/ide.md) para instruções e limitações.
+
 ### Lua nativo (experimental)
 
 A imagem tambem inclui `/bin/lua`, um interpretador nativo de um subconjunto de
