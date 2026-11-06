@@ -30,13 +30,14 @@ int principal(int argc, char **argv)
     char *listar[] = {"/bin/loja", "listar", NULL};
     if (rodar(listar, b, sizeof b) != 0) return 1;
     if (!acha_char(b, 'o') || !acha_char(b, 'a')) return 2;
-    /* 2. instalar app Go local (/go/ola.go -> /store/ola) */
+    /* 2. instalar app Go local (/go/ola.go -> /store/ola.loj compilado+empacotado) */
     char *inst_go[] = {"/bin/loja", "instalar", "ola", NULL};
     if (rodar(inst_go, b, sizeof b) != 0) return 3;
     if (!acha_char(b, 'i')) return 4;
-    /* 3. o binario instalado executa */
-    char *ola[] = {"/store/ola", NULL};
-    if (rodar(ola, b, sizeof b) != 0) return 5;
+    /* 3. informar o pacote .loj */
+    char *info[] = {"/bin/loja", "informar", "/store/ola.loj", NULL};
+    if (rodar(info, b, sizeof b) != 0) return 11;
+    if (!acha_char(b, 'S') || !acha_char(b, 'o')) return 12;
     /* 4. configurar link da loja e reler */
     char *conf[] = {"/bin/loja", "configurar", "http://loja.exemplo/", NULL};
     if (rodar(conf, b, sizeof b) != 0) return 6;

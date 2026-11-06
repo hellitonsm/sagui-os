@@ -2,14 +2,16 @@
  *
  * Por enquanto nao ha loja on-line. A loja funciona assim:
  *   - Fonte local: lista os fontes Go de /go e Lua de /lua como apps
- *     instalaveis. Instalar Go compila com /bin/gosagui para /store/nome;
- *     instalar Lua copia o .lua para /store/nome.lua (roda com lua /store/nome.lua).
+ *     instalaveis. Instalar Go compila com /bin/gosagui e empacota em
+ *     /store/nome.loj (formato de programa da loja, com cabecalho de texto
+ *     e o ELF depois de "---ELF---"); instalar Lua copia o .lua para
+ *     /store/nome.lua (roda com lua /store/nome.lua).
  *   - Apps instalados ficam em /store (pasta propria da loja, separada de /bin).
  *   - Loja on-line: o link fica em /config/loja.conf (linha "link=<url>").
  *     Configure com "loja configurar <url>" ou pelo botao "Configuracoes".
  *     "loja atualizar" busca o link com http_obter e lista os apps.
  *
- * Uso: loja [listar|instalar <nome>|link|configurar <url>|atualizar]
+ * Uso: loja [listar|instalar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]
  * Sem argumento: abre a janela.
  */
 #include "sagui.h"
@@ -21,7 +23,7 @@
 typedef struct {
     char nome[48];       /* sem extensao, ex: ola */
     char fonte[96];      /* caminho completo do fonte */
-    char destino[96];    /* /store/nome ou /store/nome.lua */
+    char destino[96];    /* /store/nome.loj (Go) ou /store/nome.lua (Lua) */
     int  tipo;           /* 1=Go, 2=Lua */
     int  instalado;
 } app_t;
@@ -89,6 +91,53 @@ static int copiar_arquivo(const char *origem, const char *destino)
     return r < 0 ? r : 0;
 }
 
+/* Formato .loj (v1): cabecalho de texto "chave=valor" por linha, depois a
+ * linha "---ELF---" e os bytes do ELF. Legivel com cat e com a loja. */
+static int empacotar_loj(const char *nome, const char *fonte, const char *elf, const char *destino)
+{
+    info_arquivo_t inf;
+    if (info_arquivo(elf, &inf) < 0) return -1;
+    int f1 = abrir(elf, ABRIR_LER);
+    if (f1 < 0) return f1;
+    int f2 = abrir(destino, ABRIR_ESCREVER | ABRIR_CRIAR | ABRIR_TRUNCAR);
+    if (f2 < 0) { fechar(f1); return f2; }
+    char cab[320];
+    formatar_texto(cab, sizeof cab,
+        "formato=SAGUI-LOJA\nversao=1\nnome=%s\ntipo=go\nfonte=%s\ntamanho_elf=%u\n",
+        nome, fonte, (unsigned)inf.tamanho);
+    if (escrever_tudo(f2, cab, (unsigned)tam_texto(cab)) < 0 ||
+        escrever_tudo(f2, "---ELF---\n", 11) < 0) {
+        fechar(f1); fechar(f2); apagar(destino); return -1;
+    }
+    char buf[4096];
+    int r;
+    while ((r = ler(f1, buf, sizeof buf)) > 0)
+        if (escrever_tudo(f2, buf, (unsigned)r) < 0) { fechar(f1); fechar(f2); apagar(destino); return -1; }
+    fechar(f1); fechar(f2);
+    return r < 0 ? r : 0;
+}
+
+static int extrair_loj(const char *origem, const char *destino)
+{
+    int f1 = abrir(origem, ABRIR_LER);
+    if (f1 < 0) return f1;
+    char linha[320];
+    for (;;) {
+        int n = ler_linha(f1, linha, sizeof linha - 1);
+        if (n < 0) { fechar(f1); return -1; }
+        linha[n] = 0;
+        if (compara_texto(linha, "---ELF---") == 0) break;
+    }
+    int f2 = abrir(destino, ABRIR_ESCREVER | ABRIR_CRIAR | ABRIR_TRUNCAR);
+    if (f2 < 0) { fechar(f1); return f2; }
+    char buf[4096];
+    int r;
+    while ((r = ler(f1, buf, sizeof buf)) > 0)
+        if (escrever_tudo(f2, buf, (unsigned)r) < 0) { fechar(f1); fechar(f2); return -1; }
+    fechar(f1); fechar(f2);
+    return r < 0 ? r : 0;
+}
+
 static void carregar_locais(void)
 {
     info_arquivo_t inf;
@@ -109,7 +158,7 @@ static void carregar_locais(void)
             copia_texto(a->nome, nm, sizeof a->nome);
             a->nome[tam - ext] = 0;
             formatar_texto(a->fonte, sizeof a->fonte, "%s/%s", pastas[k], nm);
-            if (is_go) formatar_texto(a->destino, sizeof a->destino, "/store/%s", a->nome);
+            if (is_go) formatar_texto(a->destino, sizeof a->destino, "/store/%s.loj", a->nome);
             else formatar_texto(a->destino, sizeof a->destino, "/store/%s.lua", a->nome);
             a->tipo = is_go ? 1 : 2;
             a->instalado = info_arquivo(a->destino, &inf) >= 0;
@@ -124,14 +173,23 @@ static int instalar(int idx)
     if (a->tipo == 1) {
         imprimir("loja: compilando %s...\n", a->fonte);
         registrar("loja: compilando %s\n", a->fonte);
-        char *args[] = { "gosagui", "build", "-o", a->destino, a->fonte, NULL };
+        char tmp[96];
+        formatar_texto(tmp, sizeof tmp, "/tmp/loja-%d", meu_pid());
+        char *args[] = { "gosagui", "build", "-o", tmp, a->fonte, NULL };
         int pid = executar("/bin/gosagui", args);
         if (pid < 0) { imprimir_em(ERROS, "loja: nao consegui iniciar gosagui\n"); return 1; }
         int codigo = 0;
         if (esperar(pid, &codigo) < 0 || codigo != 0) {
             imprimir_em(ERROS, "loja: compilacao falhou (%d)\n", codigo);
+            apagar(tmp);
             return 1;
         }
+        if (empacotar_loj(a->nome, a->fonte, tmp, a->destino) < 0) {
+            imprimir_em(ERROS, "loja: nao consegui empacotar %s\n", a->destino);
+            apagar(tmp);
+            return 1;
+        }
+        apagar(tmp);
     } else {
         if (copiar_arquivo(a->fonte, a->destino) < 0) {
             imprimir_em(ERROS, "loja: copia falhou para %s\n", a->destino);
@@ -143,6 +201,47 @@ static int instalar(int idx)
     imprimir("loja: instalado %s -> %s\n", a->nome, a->destino);
     registrar("loja: instalado %s -> %s\n", a->nome, a->destino);
     return 0;
+}
+
+static int informar_cmd(const char *caminho)
+{
+    int fd = abrir(caminho, ABRIR_LER);
+    if (fd < 0) { imprimir_em(ERROS, "loja: %s: %s\n", caminho, nome_erro(fd)); return 1; }
+    char linha[320];
+    int cab = 0;
+    for (;;) {
+        int n = ler_linha(fd, linha, sizeof linha - 1);
+        if (n < 0) { fechar(fd); imprimir_em(ERROS, "loja: %s nao e um .loj\n", caminho); return 1; }
+        linha[n] = 0;
+        if (compara_texto(linha, "---ELF---") == 0) break;
+        imprimir("loja: %s\n", linha);
+        cab++;
+        if (cab > 16) break;
+    }
+    fechar(fd);
+    registrar("loja: informar %s\n", caminho);
+    return 0;
+}
+
+/* Go vem em .loj: extrai o ELF para /tmp e executa. Lua: direto no lua. */
+static int abrir_app(app_t *a)
+{
+    char tmp[96];
+    formatar_texto(tmp, sizeof tmp, "/tmp/loja-%d", meu_pid());
+    if (a->tipo == 1) {
+        if (extrair_loj(a->destino, tmp) < 0) {
+            imprimir_em(ERROS, "loja: nao consegui extrair %s\n", a->destino);
+            return -1;
+        }
+        char *args[] = { tmp, NULL };
+        int pid = executar(tmp, args);
+        registrar("loja: abrindo %s (pid %d)\n", a->nome, pid);
+        return pid;
+    }
+    char *args[] = { "lua", a->destino, NULL };
+    int pid = executar("/bin/lua", args);
+    registrar("loja: abrindo %s (pid %d)\n", a->nome, pid);
+    return pid;
 }
 
 static int listar_cmd(void)
@@ -212,6 +311,10 @@ int principal(int argc, char **argv)
     if (argc >= 2) {
         if (compara_texto(argv[1], "listar") == 0) return listar_cmd();
         if (compara_texto(argv[1], "atualizar") == 0) return atualizar_cmd();
+        if (compara_texto(argv[1], "informar") == 0) {
+            if (argc != 3) { imprimir_em(ERROS, "uso: loja informar arquivo.loj\n"); return 1; }
+            return informar_cmd(argv[2]);
+        }
         if (compara_texto(argv[1], "link") == 0) {
             ler_link();
             imprimir("loja: %s\n", link_loja[0] ? link_loja : "(sem link)");
@@ -234,10 +337,10 @@ int principal(int argc, char **argv)
             return 1;
         }
         if (compara_texto(argv[1], "-h") == 0 || compara_texto(argv[1], "--ajuda") == 0) {
-            imprimir("uso: loja [listar|instalar <nome>|link|configurar <url>|atualizar]\n");
+            imprimir("uso: loja [listar|instalar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]\n");
             return 0;
         }
-        imprimir_em(ERROS, "uso: loja [listar|instalar <nome>|link|configurar <url>|atualizar]\n");
+        imprimir_em(ERROS, "uso: loja [listar|instalar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]\n");
         return 1;
     }
 
@@ -290,14 +393,11 @@ int principal(int argc, char **argv)
             else mensagem("Loja", "Nao consegui instalar.");
         }
         if (botao_tratar(j, &bt_abrir, &e) && lista.sel >= 0 && lista.sel < n_apps && apps[lista.sel].instalado) {
-            char *args[] = { apps[lista.sel].tipo == 1 ? apps[lista.sel].destino : "lua", apps[lista.sel].tipo == 2 ? apps[lista.sel].destino : NULL, NULL };
-            int pid = executar(apps[lista.sel].tipo == 1 ? apps[lista.sel].destino : "/bin/lua", args);
-            registrar("loja: abrindo %s (pid %d)\n", apps[lista.sel].nome, pid);
+            abrir_app(&apps[lista.sel]);
         }
         int r = lista_tratar(j, &lista, &e);
         if (r == LISTA_ATIVOU && lista.sel >= 0 && lista.sel < n_apps && apps[lista.sel].instalado) {
-            char *args[] = { apps[lista.sel].tipo == 1 ? apps[lista.sel].destino : "lua", apps[lista.sel].tipo == 2 ? apps[lista.sel].destino : NULL, NULL };
-            executar(apps[lista.sel].tipo == 1 ? apps[lista.sel].destino : "/bin/lua", args);
+            abrir_app(&apps[lista.sel]);
         }
     }
     registrar("loja: fechada\n");

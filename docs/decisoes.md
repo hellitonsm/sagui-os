@@ -1075,9 +1075,12 @@ editavel na IDE e testavel no QEMU (`tests/h41_tocador.py`).
 ## D035. Loja com fonte local e link configuravel, sem loja on-line (H42)
 
 **Decisao:** `/bin/loja` lista `/go` e `/lua` como apps instalaveis.
-Go instala compilando com `gosagui build -o /store/nome`; Lua instala
-copiando o script para `/store/nome.lua` (roda com `lua /store/nome.lua`).
+Go instala compilando com `gosagui` para `/tmp` e empacotando em
+`/store/nome.loj` (formato de programa da loja: cabecalho de texto +
+`---ELF---` + ELF); Lua instala copiando o script para
+`/store/nome.lua` (roda com `lua /store/nome.lua`).
 Apps instalados ficam so em `/store`, separados de `/bin` (sistema).
+`loja informar` mostra o cabecalho; **Abrir** extrai o ELF e executa.
 O link on-line fica em `/config/loja.conf` (`link=<url>`), editavel
 pela janela ou por `loja configurar <url>`; `loja atualizar` faz
 `http_obter()` e lista as linhas `nome url`.
