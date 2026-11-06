@@ -1089,3 +1089,35 @@ pela janela ou por `loja configurar <url>`; `loja atualizar` faz
 o que ja existe (`gosagui`, `lua`, `/go`, `/lua`); a parte on-line e
 configuracao + busca HTTP, sem tentar instalar por rede antes de haver
 um indice real.
+
+## D036. dietlibc no lugar do musl: analise, sem porte inteiro (analise)
+
+**Decisao:** nao trazer nem musl nem dietlibc inteiros. Manter a
+libsagui e, se for preciso compilar com nomes POSIX, adaptar so uma
+camada fina (headers `malloc/printf/open/...` sobre
+`aloca/imprimir/abrir/...`), como ja esbocado em `userland/musl/`.
+Entre os dois, preferir o dietlibc ao musl inteiro se a troca for
+pedida: mesma API POSIX, menos codigo e menor tentativa de puxar
+threads/FPU/mmap.
+
+**Motivo:** os dois esperam syscalls Linux (`fork`, `mmap`, futex...)
+que o SaguiOS nao tem; a ABI aqui e `int 0x80` via `abi.h`. Trazer a
+biblioteca inteira seria carregar threads/rede/DNS sem uso e sem FPU.
+A analise completa esta em `docs/dietlibc.md`.
+
+## D037. mlibc como base para compilar programas (analise)
+
+**Decisao:** usar o mlibc como *referencia de porte* (sysdeps isolados,
+static primeiro, ABI headers reusaveis), sem trazer o mlibc inteiro.
+Adaptar so os sysdeps obrigatorios sobre a libsagui nos moldes do
+guia (`Exit/Open/Read/Write/Seek/Close/ClockGet/LibcLog/AnonAllocate`,
+com stubs para `Futex/VmMap/TcbSet`), mantendo `_start` atual e link
+estatico. Museu nao: aposentar a pasta `userland/musl/` incompleta em
+favor de `userland/mlibc/` quando o porte for implementado.
+
+**Motivo:** o guia (`docs.managarm.org/mlibc-book/porting/intro.html`)
+mostra que o mlibc foi feito para kernels novos e o SaguiOS ja tem
+os pre-requisitos (paging, ELF, syscalls). Trazer Meson+toolchain
+C++ e violar o PRD sem ganho; a adaptacao fina entrega os mesmos
+nomes POSIX com custo baixo. Analise completa em `docs/mlibc.md`,
+comparacao anterior em `docs/dietlibc.md`.

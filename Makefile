@@ -44,13 +44,14 @@ UCFLAGS := -m32 -march=i686 -std=gnu11 -O2 \
            -ffunction-sections -fdata-sections \
            -Wall -Wextra -Werror=implicit-function-declaration \
            -finput-charset=UTF-8 -fexec-charset=ISO-8859-1 \
-           -Iuserland/inc -idirafter kernel/inc
+           -Iuserland/inc -Iuserland/mlibc/inc -idirafter kernel/inc
 ULDFLAGS := -m elf_i386 -nostdlib -T userland/programa.ld --gc-sections -z max-page-size=4096 \
             -z noexecstack --no-warn-rwx-segments
 LIBSAGUI_OBJ := $(B)/userland/fonte8x16.o \
                 $(patsubst userland/libsagui/%.c,$(B)/userland/libsagui/%.o,$(wildcard userland/libsagui/*.c)) \
+                $(B)/userland/mlibc/sysdeps.o \
                 $(patsubst userland/libsagui/%.asm,$(B)/userland/libsagui/%.asm.o,$(wildcard userland/libsagui/*.asm))
-USER_HDR  := $(wildcard userland/inc/*.h) kernel/inc/abi.h
+USER_HDR  := $(wildcard userland/inc/*.h) $(wildcard userland/mlibc/inc/*.h) $(wildcard userland/mlibc/inc/mlibc/*.h) kernel/inc/abi.h
 PROGRAMAS := $(patsubst userland/programas/%.c,$(B)/userland/bin/%,$(wildcard userland/programas/*.c))
 # O Sagui 3D (B4) tem vários arquivos, numa pasta própria.
 SAGUI3D_OBJ := $(patsubst userland/sagui3d/%.c,$(B)/userland/sagui3d/%.o,$(wildcard userland/sagui3d/*.c))

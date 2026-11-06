@@ -1,0 +1,17 @@
+# i686-sagui.cross - meson cross-file de exemplo para o SaguiOS (mlibc).
+# Ver docs/mlibc.md e o guia: docs.managarm.org/mlibc-book/porting/intro.html
+# Uso (quando houver toolchain sysroot): meson setup --cross-file=tools/i686-sagui.cross
+[host_machine]
+system = 'sagui'
+cpu_family = 'x86'
+cpu = 'i686'
+endian = 'little'
+[binaries]
+c = 'i686-sagui-gcc'
+cpp = 'i686-sagui-g++'
+ar = 'i686-sagui-ar'
+strip = 'i686-sagui-strip'
+ld = 'i686-sagui-ld'
+[built-in options]
+c_args = ['-m32', '-march=i686', '-ffreestanding', '-nostdlib', '-fno-pic', '-fno-pie', '-mgeneral-regs-only']
+cpp_args = ['-m32', '-march=i686', '-ffreestanding', '-nostdlib', '-fno-pic', '-fno-pie', '-mgeneral-regs-only']
