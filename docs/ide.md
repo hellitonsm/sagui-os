@@ -17,3 +17,6 @@ sem realce de sintaxe ou depurador; o painel mostra apenas as últimas linhas,
 não aceita entrada interativa, e é indicado para programas não interativos.
 O texto do editor usa Latin-1; prefira ASCII em código Go. Arquivos no SGFS e
 em `/tmp` não persistem após reiniciar; use um volume FAT32 para persistência.
+
+Exemplos de importacao embutida: abra `/go/importacoes.go` ou
+`/lua/importacoes.lua` e clique em **Executar**.

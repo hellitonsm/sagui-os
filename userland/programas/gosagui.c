@@ -141,7 +141,8 @@ static void apelido_de(const char *caminho, char *saida, unsigned max)
 }
 static int pacote_ok(const char *caminho)
 {
-    return !compara_texto(caminho, "fmt") || !compara_texto(caminho, "sagui");
+    return !compara_texto(caminho, "fmt") || !compara_texto(caminho, "sagui") ||
+           !compara_texto(caminho, "sagui/log");
 }
 static void espec_import(void)
 {
@@ -211,7 +212,8 @@ static void ler_args_texto(int terminar)
     }
 }
 enum { ALVO_NENHUM, ALVO_FMT_PRINT, ALVO_FMT_PRINTLN,
-       ALVO_SAGUI_ERRO, ALVO_SAGUI_REGISTRAR, ALVO_SAGUI_LIMPAR };
+       ALVO_SAGUI_ERRO, ALVO_SAGUI_REGISTRAR, ALVO_SAGUI_LIMPAR,
+       ALVO_LOG_PRINT, ALVO_LOG_PRINTLN };
 static int resolver(const char *apelido, const char *funcao)
 {
     int i = -1;
@@ -223,6 +225,12 @@ static int resolver(const char *apelido, const char *funcao)
         if (!compara_texto(funcao, "Print")) return ALVO_FMT_PRINT;
         if (!compara_texto(funcao, "Println")) return ALVO_FMT_PRINTLN;
         falhar("funcao nao suportada no pacote fmt");
+        return ALVO_NENHUM;
+    }
+    if (!compara_texto(imports[i].caminho, "sagui/log")) {
+        if (!compara_texto(funcao, "Print")) return ALVO_LOG_PRINT;
+        if (!compara_texto(funcao, "Println")) return ALVO_LOG_PRINTLN;
+        falhar("funcao nao suportada no pacote sagui/log");
         return ALVO_NENHUM;
     }
     if (!compara_texto(imports[i].caminho, "sagui")) {
@@ -270,6 +278,16 @@ static void emitir_chamada(int alvo)
             escrever_dados(SAIDA, args[i].at, args[i].n);
         }
         escrever_dados(SAIDA, off_nl, 1);
+        break;
+    case ALVO_LOG_PRINT:
+        for (int i = 0; i < n_args; i++) escrever_dados(ERROS, args[i].at, args[i].n);
+        break;
+    case ALVO_LOG_PRINTLN:
+        for (int i = 0; i < n_args; i++) {
+            if (i) escrever_dados(ERROS, off_esp, 1);
+            escrever_dados(ERROS, args[i].at, args[i].n);
+        }
+        escrever_dados(ERROS, off_nl, 1);
         break;
     case ALVO_SAGUI_ERRO:
         for (int i = 0; i < n_args; i++) escrever_dados(ERROS, args[i].at, args[i].n);

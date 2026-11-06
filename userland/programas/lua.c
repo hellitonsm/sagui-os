@@ -1666,7 +1666,7 @@ static void chamar(valor f, valor *args, int n, resultado *r)
 enum {
     BI_PRINT = 1, BI_TYPE, BI_TOSTRING, BI_TONUMBER, BI_ASSERT, BI_ERROR,
     BI_SELECT, BI_NEXT, BI_PAIRS, BI_IPAIRS, BI_IPAIRS_ITER, BI_RAWEQUAL,
-    BI_RAWGET, BI_RAWSET, BI_UNPACK, BI_DOFILE,
+    BI_RAWGET, BI_RAWSET, BI_UNPACK, BI_DOFILE, BI_REQUIRE,
     BI_STR_LEN, BI_STR_SUB, BI_STR_UPPER, BI_STR_LOWER, BI_STR_REP,
     BI_STR_FIND, BI_STR_REVERSE, BI_STR_BYTE, BI_STR_CHAR, BI_STR_FORMAT,
     BI_TAB_INSERT, BI_TAB_REMOVE, BI_TAB_CONCAT, BI_TAB_SORT, BI_TAB_UNPACK,
@@ -2510,6 +2510,17 @@ static void bi_dofile(valor *a, int n, resultado *r)
     libera(buf);
 }
 
+/* Registro privado: require devolve a mesma tabela mesmo se a global mudar. */
+static tabela *modulos_embutidos;
+static void bi_require(valor *a, int n, resultado *r)
+{
+    valor nome = arg(a, n, 0);
+    if (nome.tipo != V_STR) erro_exec("require espera nome de modulo (string)");
+    valor modulo = tabela_obter(modulos_embutidos, nome);
+    if (modulo.tipo == V_NIL) erro_exec("require: modulo embutido nao encontrado: %s", nome.u.s->s);
+    res_um(r, modulo);
+}
+
 /* ------------------------------------------------------------- despacho */
 
 void lua_chamar_builtin(int bi, valor *a, int n, resultado *r)
@@ -2531,6 +2542,7 @@ void lua_chamar_builtin(int bi, valor *a, int n, resultado *r)
     case BI_RAWSET: bi_rawset(a, n, r); break;
     case BI_UNPACK: bi_unpack(a, n, r); break;
     case BI_DOFILE: bi_dofile(a, n, r); break;
+    case BI_REQUIRE: bi_require(a, n, r); break;
     case BI_STR_LEN: bi_str_len(a, n, r); break;
     case BI_STR_SUB: bi_str_sub(a, n, r); break;
     case BI_STR_UPPER: bi_str_upper(a, n, r); break;
@@ -2591,6 +2603,7 @@ static tabela *biblioteca_nova(void)
 static void iniciar_bibliotecas(void)
 {
     ambiente_global = ambiente_novo(NULL);
+    modulos_embutidos = tabela_nova();
 
     definir_global_c("print", v_builtin(BI_PRINT));
     definir_global_c("type", v_builtin(BI_TYPE));
@@ -2607,6 +2620,7 @@ static void iniciar_bibliotecas(void)
     definir_global_c("rawset", v_builtin(BI_RAWSET));
     definir_global_c("unpack", v_builtin(BI_UNPACK));
     definir_global_c("dofile", v_builtin(BI_DOFILE));
+    definir_global_c("require", v_builtin(BI_REQUIRE));
 
     tabela *s = biblioteca_nova();
     tabela_definir_c(s, "len", v_builtin(BI_STR_LEN));
@@ -2620,6 +2634,7 @@ static void iniciar_bibliotecas(void)
     tabela_definir_c(s, "char", v_builtin(BI_STR_CHAR));
     tabela_definir_c(s, "format", v_builtin(BI_STR_FORMAT));
     definir_global_c("string", v_tab(s));
+    tabela_definir_c(modulos_embutidos, "string", v_tab(s));
 
     tabela *t = biblioteca_nova();
     tabela_definir_c(t, "insert", v_builtin(BI_TAB_INSERT));
@@ -2628,6 +2643,7 @@ static void iniciar_bibliotecas(void)
     tabela_definir_c(t, "sort", v_builtin(BI_TAB_SORT));
     tabela_definir_c(t, "unpack", v_builtin(BI_TAB_UNPACK));
     definir_global_c("table", v_tab(t));
+    tabela_definir_c(modulos_embutidos, "table", v_tab(t));
 
     tabela *m = biblioteca_nova();
     tabela_definir_c(m, "abs", v_builtin(BI_MATH_ABS));
@@ -2637,6 +2653,7 @@ static void iniciar_bibliotecas(void)
     tabela_definir_c(m, "randomseed", v_builtin(BI_MATH_RANDOMSEED));
     tabela_definir_c(m, "tointeger", v_builtin(BI_MATH_TOINTEGER));
     definir_global_c("math", v_tab(m));
+    tabela_definir_c(modulos_embutidos, "math", v_tab(m));
 
     tabela *o = biblioteca_nova();
     tabela_definir_c(o, "time", v_builtin(BI_OS_TIME));
@@ -2645,6 +2662,7 @@ static void iniciar_bibliotecas(void)
     tabela_definir_c(o, "exit", v_builtin(BI_OS_EXIT));
     tabela_definir_c(o, "difftime", v_builtin(BI_OS_DIFFTIME));
     definir_global_c("os", v_tab(o));
+    tabela_definir_c(modulos_embutidos, "os", v_tab(o));
 
     tabela *io = biblioteca_nova();
     tabela_definir_c(io, "open", v_builtin(BI_IO_OPEN));
@@ -2653,6 +2671,7 @@ static void iniciar_bibliotecas(void)
     tabela_definir_c(io, "close", v_builtin(BI_IO_CLOSE));
     tabela_definir_c(io, "lines", v_builtin(BI_IO_LINES));
     definir_global_c("io", v_tab(io));
+    tabela_definir_c(modulos_embutidos, "io", v_tab(io));
 
     tabela *sg = biblioteca_nova();
     tabela_definir_c(sg, "registrar", v_builtin(BI_SAGUI_REGISTRAR));
@@ -2662,6 +2681,7 @@ static void iniciar_bibliotecas(void)
     tabela_definir_c(sg, "executar", v_builtin(BI_SAGUI_EXECUTAR));
     tabela_definir_c(sg, "bip", v_builtin(BI_SAGUI_BIP));
     definir_global_c("sagui", v_tab(sg));
+    tabela_definir_c(modulos_embutidos, "sagui", v_tab(sg));
 }
 
 /* ==================================================================== main */

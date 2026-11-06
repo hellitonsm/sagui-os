@@ -101,11 +101,12 @@ anexar_disco() {
 # Desanexa o que estiver lá (o .vdi é regenerado pelo make, com outro UUID).
 VBoxManage storageattach "$VM_NAME" --storagectl "IDE Controller" \
     --port 0 --device 0 --type hdd --medium none >/dev/null 2>&1 || true
-if ! anexar_disco 2>/dev/null; then
-    # Acontece quando o build/ gerou um .vdi novo por cima de um antigo já
-    # registrado: solta o registro do disco e tenta de novo.
-    VBoxManage closemedium disk "$VDI" >/dev/null 2>&1 || true
-    anexar_disco
+# Cada nova geração do .vdi tem outro UUID. Sem soltar o registro anterior na
+# media registry do VirtualBox, o startvm reclama de UUID incompatível.
+VBoxManage closemedium disk "$VDI" >/dev/null 2>&1 || true
+if ! anexar_disco; then
+    echo "ERRO: não consegui anexar $VDI ao controlador IDE." >&2
+    exit 1
 fi
 
 echo "VM '$VM_NAME' pronta:"

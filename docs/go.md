@@ -7,7 +7,7 @@ O sistema inclui `/bin/gosagui`, um compilador **nativo de um subconjunto minimo
 Esta etapa acrescenta duas pecas:
 
 1. **Bootstrap proprio**: todo programa gerado comeca por um ponto de entrada que executa as funcoes `init` e depois `main`, encerrando o processo com codigo 0. Uma escrita curta/erro continua encerrando com codigo 1.
-2. **Importacao de bibliotecas embutidas**: a clausula `import` e aceita para os pacotes `fmt` e `sagui`, e as chamadas qualificadas sao resolvidas pelo compilador para a ABI do SaguiOS.
+2. **Importacao de bibliotecas embutidas**: a clausula `import` e aceita para os pacotes `fmt`, `sagui` e `sagui/log`, e as chamadas qualificadas sao resolvidas pelo compilador para a ABI do SaguiOS.
 
 **Isso nao e um porte do compilador oficial do Go.** Nao implementa a linguagem completa, `go build`, modulos, biblioteca padrao do Go, runtime Go, GC, goroutines ou o bootstrap oficial da toolchain. O bootstrap aqui e apenas a sequencia de inicializacao do executavel gerado. O pedido de executar a toolchain oficial dentro do SaguiOS permanece um trabalho futuro.
 
@@ -94,7 +94,7 @@ Regras de importacao:
 
 - O apelido padrao e o ultimo componente do caminho (`"fmt"` cria `fmt`).
 - Um apelido explicito pode ser dado com `import f "fmt"`.
-- Apenas `fmt` e `sagui` sao aceitos. Qualquer outro caminho e rejeitado.
+- Apenas `fmt`, `sagui` e `sagui/log` sao aceitos. Qualquer outro caminho e rejeitado.
 - Apelidos repetidos sao rejeitados.
 - Importacao nao usada e rejeitada, como no Go.
 - Chamar uma funcao sem importar o pacote, usar apelido errado ou funcao inexistente gera erro.
@@ -150,3 +150,12 @@ Antes de prometer compatibilidade com a toolchain oficial, e necessario definir 
 6. Validar compilacao de programas reais e recompilacao da propria toolchain dentro do SaguiOS, antes de declarar suporte nativo completo.
 
 O compilador minimo aqui nao e um bootstrap do compilador oficial: o subconjunto e pequeno demais para compilar suas fontes.
+
+## Biblioteca embutida sagui/log
+
+`import registro "sagui/log"` disponibiliza `registro.Print` e
+`registro.Println`. Ambas escrevem no descritor de erros; `Println` separa
+os argumentos por espacos e adiciona uma quebra de linha. So sao aceitos
+literais string. O apelido padrao e `log`. Este e um pacote proprio, sem
+data/hora e sem compatibilidade com o pacote `log` oficial. Veja
+`/go/importacoes.go`.

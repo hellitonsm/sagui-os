@@ -83,7 +83,7 @@ comando.
 - Sem números fracionários, `math.floor`, `math.sqrt` e afins.
 - Sem metatabelas (`setmetatable`, `__index`, `__add`), sem `pcall`/`xpcall`
   e sem corrotinas.
-- Sem `require`, `load`, `loadstring`, `package` nem bibliotecas C externas.
+- `require` aceita apenas os modulos embutidos; sem `load`, `loadstring`, `package` nem bibliotecas C externas.
 - Sem coleta de lixo: o processo termina e o kernel libera a memória. Scripts
   muito longos devem evitar criar valores sem parar.
 - `string.find` e `string.format` não implementam padrões/expressões regulares.
@@ -126,3 +126,14 @@ pode ser chamado por caminho: `/bin/lua script.lua`.
 - confere `lua -e "print(2 + 3)"` e `lua -v`.
 
 Tudo roda dentro do SaguiOS, no anel 3, sem ferramentas do hospedeiro.
+
+## Importar bibliotecas embutidas
+
+`require("string")`, `require("table")`, `require("math")`,
+`require("os")`, `require("io")` e `require("sagui")` devolvem as
+mesmas tabelas das bibliotecas globais, inclusive em chamadas repetidas.
+Um nome desconhecido ou argumento que nao seja texto gera erro. O registro
+e privado e nao depende de alteracoes nas variaveis globais. Isso nao
+implementa `package`, busca de arquivos ou modulos externos do Lua oficial;
+para executar arquivos locais continua disponivel `dofile`. Veja
+`/lua/importacoes.lua`.

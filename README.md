@@ -135,7 +135,7 @@ make rodar      # abre no QEMU com janela
 
 A imagem inclui `gosagui`, que compila dentro do SaguiOS um subconjunto minimo
 (`package main`, `func init`/`func main`, bootstrap proprio e importacao de
-`fmt` e `sagui`) para ELF32:
+`fmt`, `sagui` e `sagui/log`) para ELF32:
 
 ```text
 gosagui build -o /go/biblioteca /go/biblioteca.go
