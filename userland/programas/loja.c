@@ -11,7 +11,7 @@
  *     Configure com "loja configurar <url>" ou pelo botao "Configuracoes".
  *     "loja atualizar" busca o link com http_obter e lista os apps.
  *
- * Uso: loja [listar|instalar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]
+ * Uso: loja [listar|instalar <nome>|executar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]
  * Sem argumento: abre a janela.
  */
 #include "sagui.h"
@@ -106,7 +106,7 @@ static int empacotar_loj(const char *nome, const char *fonte, const char *elf, c
         "formato=SAGUI-LOJA\nversao=1\nnome=%s\ntipo=go\nfonte=%s\ntamanho_elf=%u\n",
         nome, fonte, (unsigned)inf.tamanho);
     if (escrever_tudo(f2, cab, (unsigned)tam_texto(cab)) < 0 ||
-        escrever_tudo(f2, "---ELF---\n", 11) < 0) {
+        escrever_tudo(f2, "---ELF---\n", 10) < 0) {
         fechar(f1); fechar(f2); apagar(destino); return -1;
     }
     char buf[4096];
@@ -244,6 +244,44 @@ static int abrir_app(app_t *a)
     return pid;
 }
 
+/* Roda um app instalado: Go extrai o .loj e executa; Lua roda o script. */
+static int executar_cmd(const char *nome)
+{
+    ler_link(); carregar_locais();
+    for (int i = 0; i < n_apps; i++) {
+        if (compara_texto(apps[i].nome, nome) != 0) continue;
+        if (!apps[i].instalado) {
+            imprimir_em(ERROS, "loja: %s nao instalado. Use: loja instalar %s\n", nome, nome);
+            return 1;
+        }
+        char tmp[96];
+        formatar_texto(tmp, sizeof tmp, "/tmp/loja-%d", meu_pid());
+        if (apps[i].tipo == 1) {
+            if (extrair_loj(apps[i].destino, tmp) < 0) {
+                imprimir_em(ERROS, "loja: nao consegui extrair %s\n", apps[i].destino);
+                return 1;
+            }
+            char *args[] = { tmp, NULL };
+            int pid = executar(tmp, args);
+            if (pid < 0) { apagar(tmp); imprimir_em(ERROS, "loja: nao consegui executar %s\n", nome); return 1; }
+            int codigo = 0;
+            esperar(pid, &codigo);
+            apagar(tmp);
+            registrar("loja: executado %s (codigo %d)\n", nome, codigo);
+            return codigo;
+        }
+        char *args[] = { "lua", apps[i].destino, NULL };
+        int pid = executar("/bin/lua", args);
+        if (pid < 0) { imprimir_em(ERROS, "loja: nao consegui executar %s\n", nome); return 1; }
+        int codigo = 0;
+        esperar(pid, &codigo);
+        registrar("loja: executado %s (codigo %d)\n", nome, codigo);
+        return codigo;
+    }
+    imprimir_em(ERROS, "loja: app nao encontrado: %s\n", nome);
+    return 1;
+}
+
 static int listar_cmd(void)
 {
     ler_link();
@@ -336,11 +374,15 @@ int principal(int argc, char **argv)
             imprimir_em(ERROS, "loja: app nao encontrado: %s\n", argv[2]);
             return 1;
         }
+        if (compara_texto(argv[1], "executar") == 0) {
+            if (argc != 3) { imprimir_em(ERROS, "uso: loja executar <nome>\n"); return 1; }
+            return executar_cmd(argv[2]);
+        }
         if (compara_texto(argv[1], "-h") == 0 || compara_texto(argv[1], "--ajuda") == 0) {
-            imprimir("uso: loja [listar|instalar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]\n");
+            imprimir("uso: loja [listar|instalar <nome>|executar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]\n");
             return 0;
         }
-        imprimir_em(ERROS, "uso: loja [listar|instalar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]\n");
+        imprimir_em(ERROS, "uso: loja [listar|instalar <nome>|executar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]\n");
         return 1;
     }
 

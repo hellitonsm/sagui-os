@@ -9,6 +9,7 @@ o link fica configuravel para quando houver um servidor.
 loja                                    # janela
 loja listar                             # fontes locais no terminal
 loja instalar ola                       # Go: compila + empacota .loj; Lua: copia .lua
+loja executar ola                       # extrai o .loj e roda (ou lua para Lua)
 loja informar /store/ola.loj            # mostra o cabecalho do pacote
 loja configurar http://loja.exemplo/   # grava o link em /config/loja.conf
 loja link                               # mostra o link atual
@@ -21,8 +22,8 @@ A loja lista os fontes Go de `/go` e Lua de `/lua` como apps:
 
 | Origem | Instala para | Como roda |
 | --- | --- | --- |
-| `/go/nome.go` | `/store/nome.loj` (ELF compilado + cabecalho) | Abrir no loja (extrai e executa) |
-| `/lua/nome.lua` | `/store/nome.lua` (copia do script) | `lua /store/nome.lua` |
+| `/go/nome.go` | `/store/nome.loj` (ELF compilado + cabecalho) | `loja executar nome` ou Abrir (extrai e executa) |
+| `/lua/nome.lua` | `/store/nome.lua` (copia do script) | `loja executar nome` ou `lua /store/nome.lua` |
 
 Pasta `/store`: e so para apps instalados pela loja, separada de `/bin`
 (os programas do sistema). `loja listar` mostra quem esta instalado.

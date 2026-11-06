@@ -38,6 +38,10 @@ int principal(int argc, char **argv)
     char *info[] = {"/bin/loja", "informar", "/store/ola.loj", NULL};
     if (rodar(info, b, sizeof b) != 0) return 11;
     if (!acha_char(b, 'S') || !acha_char(b, 'o')) return 12;
+    /* 3b. executar o .loj (extrai o ELF e roda) */
+    char *exec[] = {"/bin/loja", "executar", "ola", NULL};
+    if (rodar(exec, b, sizeof b) != 0) return 13;
+    if (!acha_char(b, 'G') || !acha_char(b, 'S')) return 14;
     /* 4. configurar link da loja e reler */
     char *conf[] = {"/bin/loja", "configurar", "http://loja.exemplo/", NULL};
     if (rodar(conf, b, sizeof b) != 0) return 6;
