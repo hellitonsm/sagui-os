@@ -77,12 +77,12 @@ na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 
 | | |
 | --- | --- |
-| Imagem de boot | **613.888 bytes** úteis (41,6% de 1,44 MB) |
-| Linhas de código | boot 903, kernel 11.145, programas 6.414 (mais 3.736 de ferramentas e testes) |
-| Programas | 32 em `/bin`: shell, comandos e 8 programas gráficos |
-| Testes automáticos | 38, um por história, todos no QEMU |
-| Decisões registradas | 31, com o raciocínio de cada uma |
-| Erros registrados | 21, com sintoma, causa e correção |
+| Imagem de boot | **702.464 bytes** úteis (47,6% de 1,44 MB) |
+| Linhas de código | boot 903, kernel 11.204, programas 9.849 (mais 4.004 de ferramentas e testes) |
+| Programas | 35 em `/bin`: shell, comandos, `gosagui`, `lua` e 8 programas gráficos |
+| Testes automáticos | 41, um por história, todos no QEMU |
+| Decisões registradas | 33, com o raciocínio de cada uma |
+| Erros registrados | 24, com sintoma, causa e correção |
 | Commits | ~55, um por história |
 
 ## Experimentar
@@ -145,6 +145,28 @@ gosagui build -o /go/biblioteca /go/biblioteca.go
 **Nao e a toolchain oficial do Go nem suporta programas Go gerais.** Veja
 [`docs/go.md`](docs/go.md) para limites, bootstrap, bibliotecas, teste nativo e
 o trabalho necessario para portar o Go completo.
+
+### Lua nativo (experimental)
+
+A imagem tambem inclui `/bin/lua`, um interpretador nativo de um subconjunto de
+Lua escrito em C freestanding, no anel 3. Ele roda scripts direto, sem o Lua
+oficial, sem libc e sem gerar ELF:
+
+```text
+lua /lua/ola.lua
+lua /lua/recursos.lua
+lua -e "print(2 + 3)"
+lua -v
+```
+
+O subconjunto tem valores, variaveis, funcoes com fechamentos e varargs,
+tabelas, os lacos `for`/`while`/`repeat`, e as bibliotecas `string`, `table`,
+`math`, `os` e `io`, alem de `sagui.registrar`, `sagui.executar`,
+`sagui.dormir` e outras ligacoes com o sistema. Numeros sao inteiros de 32 bits
+(o PRD proibe a FPU) e nao ha metatabelas, corrotinas nem coleta de lixo.
+
+**Nao e o Lua oficial.** Veja [`docs/lua.md`](docs/lua.md) para a lista do que
+funciona, os limites, os exemplos em `/lua` e o teste nativo `h38`.
 
 ### Gerar a imagem facilmente no Linux
 
@@ -212,6 +234,8 @@ testes_eli/  fotos dos testes do Eli no G470
 | [`docs/decisoes.md`](docs/decisoes.md) | As 31 decisões de projeto e a seção do Sagui 3D |
 | [`docs/erros.md`](docs/erros.md) | Os 21 erros encontrados, inclusive os achados no G470 |
 | [`docs/virtualbox.md`](docs/virtualbox.md) | Como ligar a rede no VirtualBox (placas, NAT, Bridge, Host-only) |
+| [`docs/go.md`](docs/go.md) | Compilador nativo do subconjunto Go (`gosagui`) |
+| [`docs/lua.md`](docs/lua.md) | Interpretador nativo do subconjunto de Lua (`lua`) |
 | [`docs/diario.md`](docs/diario.md) | O diário do projeto, fase a fase |
 | [`docs/historias/`](docs/historias/) | Uma página por história (H01 a H34, B1 a B4) |
 | [`status.md`](status.md) e [`dashboard/`](dashboard/index.html) | Situação de cada fase e história |

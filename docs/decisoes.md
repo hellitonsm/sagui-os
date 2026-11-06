@@ -1018,3 +1018,45 @@ O que mudou:
 8 s depois (aviso, endereço fixo, `rede` mostrando o link relido). O passo a
 passo do VirtualBox está em `docs/virtualbox.md`.
 
+
+## D033. Um interpretador Lua proprio, nao o Lua oficial
+
+O pedido de "suporte a Lua" poderia significar portar o Lua 5.4. Isso traria
+junto a libc, a alocacao com `malloc`, a FPU (o PRD proibe ponto flutuante no
+anel 3) e a coleta de lixo — tres coisas que o projeto evita de proposito. O
+caminho escolhido foi o mesmo do `gosagui`: escrever no projeto um
+interpretador pequeno, em C freestanding, que roda no anel 3 e nao depende de
+nada de fora.
+
+O que define este interpretador:
+
+- **Numeros inteiros de 32 bits.** `+ - * / // % ^` operam sobre `int`; `/` e
+  `//` fazem divisao inteira. Um literal com `.` ou expoente e recusado com
+  mensagem explicita, em vez de virar um numero errado em silencio.
+- **Sem coleta de lixo.** Os valores vivem ate o processo terminar; o kernel
+  ja libera o espaco de endereco inteiro. Para os scripts pequenos do sistema
+  isso e simples e previsivel; o limite esta documentado em `docs/lua.md`.
+- **Arvore sintatica, nao bytecode.** O parser descendente recursivo monta uma
+  arvore e a execucao a percorre. E menos rapido que bytecode, mas cabe em
+  poucas centenas de linhas e deixa o codigo legivel.
+- **Tabelas com ordem de insercao.** O hash guarda as entradas num vetor e
+  encadeia os baldes por indice. `pairs` percorre na ordem em que as chaves
+  foram criadas, o que torna os testes deterministicos sem depender do layout
+  do hash.
+- **Ambientes encadeados.** Cada bloco/funcao tem um ambiente com pai; a
+  funcao guarda o ambiente em que nasceu, entao fechamentos funcionam sem
+  `upvalue` explicito.
+- **Erros encerram o processo com codigo 1.** Sem `pcall`, a mensagem
+  `lua: linha N: ...` vai para a saida de erro e o processo termina. O shell
+  continua; e o mesmo contrato dos outros programas.
+- **Bibliotecas ligadas por numero.** `print`, `string.*`, `table.*`,
+  `math.*`, `os.*`, `io.*` e a tabela `sagui` sao funcoes internas
+  identificadas por um inteiro. Nao ha carregamento dinamico nem `require`.
+- **Pilha limitada a 40 chamadas Lua.** A pilha de usuario tem 64 KB; o limite
+  e conferido antes de cada chamada e vira erro, em vez de estourar a pilha.
+
+A integracao com o sistema fica na tabela `sagui` (`registrar`, `limpar_tela`,
+`dormir`, `tempo`, `executar`, `bip`), e o shell ganhou o comando `lua` com
+ajuda propria. Os scripts de exemplo vao em `/lua`, e `tests/h38_lua_nativo.py`
+roda tudo dentro do QEMU, incluindo arquivos, `dofile` e os dois caminhos de
+erro.

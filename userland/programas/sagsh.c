@@ -50,6 +50,7 @@ static const comando_t comandos[] = {
     { "data", NULL, false, false, "data e hora", "data", "Mostra a data e a hora do relógio da placa-mãe." },
     { "sobre", NULL, false, false, "sobre o SaguiOS", "sobre", "Versão e créditos do SaguiOS." },
     { "ola", NULL, false, false, "mostra argumentos", "ola [argumentos]", "Imprime os argumentos recebidos (teste do carregador de programas)." },
+    { "lua", NULL, false, false, "interpreta Lua", "lua [arquivo.lua [args]] | lua -e \"codigo\"", "Roda um script no interpretador nativo de um subconjunto de Lua. Sem arquivo, abre o modo interativo." },
     { "contador", NULL, false, false, "conta segundos", "contador [segundos]", "Conta segundos (padrão: 10). Rode com & para ver a multitarefa." },
     { "falha", NULL, false, false, "provoca um erro", "falha [memoria|kernel|divisao|instrucao]", "Faz um erro de propósito: só este programa é encerrado, o sistema continua." },
     { "reiniciar", NULL, true, false, "reinicia o PC", "reiniciar", "Reinicia o computador." },
