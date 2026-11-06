@@ -513,6 +513,26 @@ static bool executar_linha(char *linha)
     if (et[qtd - 1].argc == 0) { mostrar("sagsh: pipe sem comando\n"); return true; }
     for (int i = 0; i < qtd; i++) et[i].argv[et[i].argc] = NULL;
 
+    /* Arquivos .go e .lua abrem no IDE, nao no editor de texto nem como binario.
+     * "ola.go" vira "ide ola.go" e "/go/ola.go" vira "ide /go/ola.go". */
+    for (int i = 0; i < qtd; i++) {
+        if (et[i].argc == 0) continue;
+        const char *n = et[i].argv[0];
+        if (!n) continue;
+        size_t tam = tam_texto(n);
+        int eh_codigo = (tam >= 3 && compara_texto(n + tam - 3, ".go") == 0) ||
+                        (tam >= 4 && compara_texto(n + tam - 4, ".lua") == 0);
+        if (!eh_codigo) continue;
+        if (et[i].argc >= MAX_PALAVRAS - 1) {
+            mostrar("sagsh: linha longa demais para abrir no IDE\n");
+            return true;
+        }
+        for (int k = et[i].argc; k >= 1; k--) et[i].argv[k] = et[i].argv[k - 1];
+        et[i].argv[0] = "ide";
+        et[i].argc++;
+        et[i].argv[et[i].argc] = NULL;
+    }
+
     const comando_t *c = achar_comando(et[0].argv[0]);
     if (c && c->interno) {
         if (qtd > 1) { mostrar("sagsh: comandos internos não funcionam num pipe\n"); return true; }
