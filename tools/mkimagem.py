@@ -126,7 +126,7 @@ def main():
     print(f"mkimagem: estágio 2 LBA {e2_lba} ({setores(len(e2))} set), kernel LBA {k_lba} "
           f"({len(kern)} B em 0x{KERNEL_ENDERECO:X}, fim BSS 0x{kernel_fim:X}), "
           f"ramdisk LBA {r_lba} ({len(rd)} B em 0x{rd_endereco:X})")
-    print(f"mkimagem: {util} bytes úteis ({100.0 * util / 1474560:.1f}% da meta de 1,44 MB), "
+    print(f"mkimagem: {util} bytes úteis, "
           f"arquivo {len(img)} bytes -> {a.saida}")
 
 

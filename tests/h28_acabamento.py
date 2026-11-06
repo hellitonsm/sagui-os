@@ -2,7 +2,7 @@
 """H28 - acabamento.
 
 Critério: captura com três programas abertos ao mesmo tempo; imagem medida e
-registrada (meta: até 1,44 MB). Os programas são abertos com duplo clique nos
+registrada. Os programas são abertos com duplo clique nos
 ícones da área de trabalho; a tela Sobre mostra versão, tamanho da imagem,
 processos ativos e créditos.
 """
@@ -24,7 +24,7 @@ def abrir_icone(m, nome):
 
 def main():
     tamanho = int(open(os.path.join(RAIZ, "build", "tamanho.txt")).read())
-    verificar(tamanho <= 1474560, f"imagem com {tamanho} bytes úteis ({100 * tamanho / 1474560:.1f}% da meta de 1,44 MB)")
+    verificar(tamanho > 0, f"imagem com {tamanho} bytes úteis medida e registrada")
     with Maquina("h28", "ide") as m:
         m.esperar_serial("sagui:/$", 120)
         time.sleep(1)

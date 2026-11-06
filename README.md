@@ -21,7 +21,7 @@ Feito por Claude (Anthropic) para o projeto do **Eli Rigobeli**.
 O SaguiOS é um sistema operacional completo, do carregador de boot ao jogo em 3D, escrito
 inteiro neste projeto, seguindo a especificação em [`prd.md`](prd.md). Ele dá boot por um
 pendrive num **Lenovo G470** (2011), no VirtualBox e no QEMU, e cabe em **575.488 bytes**
-(39% de um disquete de 1,44 MB).
+úteis.
 
 Tudo o que vai dentro da imagem foi escrito aqui: carregador de boot em dois estágios, kernel,
 drivers (teclado ABNT2, touchpad, vídeo VESA, USB 2.0, pendrive), sistema de arquivos FAT32,
@@ -77,7 +77,7 @@ na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 
 | | |
 | --- | --- |
-| Imagem de boot | **702.464 bytes** úteis (47,6% de 1,44 MB) |
+| Imagem de boot | **702.464 bytes** úteis |
 | Linhas de código | boot 903, kernel 11.204, programas 9.849 (mais 4.004 de ferramentas e testes) |
 | Programas | 35 em `/bin`: shell, comandos, `gosagui`, `lua` e 8 programas gráficos |
 | Testes automáticos | 41, um por história, todos no QEMU |

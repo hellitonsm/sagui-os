@@ -44,8 +44,8 @@ static void informacoes(jan_t *j)
     formatar_texto(t, sizeof t, "Versão:              %s", v.versao);
     g_texto(j, 20, 128, t, COR_TEXTO);
     /* Tamanho em KB com uma casa decimal, só com inteiros. */
-    unsigned kb10 = v.imagem_bytes * 10 / 1024, pct10 = v.imagem_bytes / 1474;   /* 1,44 MB = 1474560 bytes */
-    formatar_texto(t, sizeof t, "Tamanho da imagem:   %u,%u KB (%u,%u%% de 1,44 MB)", kb10 / 10, kb10 % 10, pct10 / 10, pct10 % 10);
+    unsigned kb10 = v.imagem_bytes * 10 / 1024;
+    formatar_texto(t, sizeof t, "Tamanho da imagem:   %u,%u KB", kb10 / 10, kb10 % 10);
     g_texto(j, 20, 148, t, COR_TEXTO);
     formatar_texto(t, sizeof t, "Processos ativos:    %d", procs);
     g_texto(j, 20, 168, t, COR_TEXTO);

@@ -35,7 +35,6 @@ ARQ_JS = os.path.join(RAIZ, "dashboard", "status.js")
 ARQ_MD = os.path.join(RAIZ, "status.md")
 PASTA_HIST = os.path.join(RAIZ, "docs", "historias")
 PASTA_CAPT = os.path.join(RAIZ, "docs", "capturas")
-META_BYTES = 1474560  # 1,44 MB, o tamanho de um disquete
 
 
 def agora():
@@ -78,7 +77,6 @@ def medir(estado):
     estado["imagem"] = {
         "bytes_util": util,
         "bytes_arquivo": os.path.getsize(img) if os.path.exists(img) else 0,
-        "meta_bytes": META_BYTES,
     }
     capturas = []
     if os.path.isdir(PASTA_CAPT):
@@ -115,8 +113,7 @@ def gerar_md(estado):
                f"- **História atual:** {estado.get('historia_atual') or '-'}",
                f"- **Progresso geral:** {estado['progresso_geral']}%",
                f"- **Bloqueio:** {estado.get('bloqueio') or 'nenhum'}",
-               f"- **Imagem:** {estado['imagem']['bytes_util']} bytes úteis "
-               f"(meta {META_BYTES} bytes = 1,44 MB)",
+               f"- **Imagem:** {estado['imagem']['bytes_util']} bytes úteis",
                f"- **Linhas de código:** boot {estado['linhas']['boot']}, kernel {estado['linhas']['kernel']}, "
                f"userland {estado['linhas']['userland']}", "",
                "## Fases", "", "| Fase | Nome | Progresso | Estado |", "| --- | --- | --- | --- |"]

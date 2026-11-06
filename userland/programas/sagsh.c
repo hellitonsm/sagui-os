@@ -66,6 +66,9 @@ static const comando_t comandos[] = {
     { "editor", NULL, false, true, "editor de texto", "editor [arquivo]", "Abre o Editor de texto numa janela." },
     { "ide", NULL, false, true, "editor de código", "ide [arquivo]", "Abre a IDE para editar, compilar e executar programas Go e Lua." },
     { "calculadora", NULL, false, true, "calculadora", "calculadora", "Abre a Calculadora numa janela." },
+    { "tocador", NULL, false, true, "toca .mus/.vid", "tocador [arquivo.mus|arquivo.vid]", "Abre o Tocador: toca música em notas (.mus) e vídeo em quadros (.vid) de /musicas e /videos." },
+    { "loja", NULL, false, true, "loja de apps", "loja [listar|instalar <nome>|link|configurar <url>|atualizar]", "Abre a Loja: instala apps Go e Lua de /go e /lua e configura o link da loja on-line." },
+    { "gosagui", NULL, false, false, "compila Go", "gosagui build -o destino fonte.go", "Compila um subconjunto de Go nativo para um ELF do SaguiOS." },
     { "banana", NULL, false, true, "jogo do sagui", "banana", "Abre o jogo Sagui Pega Banana." },
     { "sagui3d", NULL, false, true, "jogo em 3D", "sagui3d [fase]", "Abre o jogo Sagui 3D (ou só uma fase, dando o arquivo)." },
 };

@@ -178,12 +178,11 @@ function desenhar(s) {
     <div class="pct">${String(f.progresso).replace(".", ",")}%</div></div>`).join("");
 
   const img = s.imagem || {};
-  const util = img.bytes_util || 0, meta = img.meta_bytes || 1474560;
+  const util = img.bytes_util || 0;
   $("img-tam").textContent = num(Math.round(util / 1024)) + " KB";
-  $("img-det").textContent = `${num(util)} bytes úteis de ${num(meta)} (meta 1,44 MB) · ` +
-    `${(100 * util / meta).toFixed(1).replace(".", ",")}% da meta`;
-  $("img-barra").style.width = Math.min(100, 100 * util / meta) + "%";
-  $("img-barra-box").classList.toggle("alerta", util > meta);
+  $("img-det").textContent = `${num(util)} bytes úteis`;
+  $("img-barra").style.width = "100%";
+  $("img-barra-box").classList.remove("alerta");
 
   const L = s.linhas || {};
   const totalCod = (L.boot || 0) + (L.kernel || 0) + (L.userland || 0);

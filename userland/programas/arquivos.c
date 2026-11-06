@@ -171,6 +171,13 @@ static bool eh_codigo(const char *nome)
            (tam >= 4 && compara_texto(nome + tam - 4, ".lua") == 0);
 }
 
+static bool eh_media(const char *nome)
+{
+    size_t tam = tam_texto(nome);
+    return (tam >= 4 && compara_texto(nome + tam - 4, ".mus") == 0) ||
+           (tam >= 4 && compara_texto(nome + tam - 4, ".vid") == 0);
+}
+
 static void abrir_item(int i)
 {
     if (i < 0 || i >= lista.qtd) return;
@@ -187,6 +194,10 @@ static void abrir_item(int i)
         argv[0] = "ide"; argv[1] = c; argv[2] = NULL;
         pid = executar("/bin/ide", argv);
         registrar("arquivos: abrindo no IDE %s (pid %d)", c, pid);
+    } else if (eh_media(nomes[i])) {
+        argv[0] = "tocador"; argv[1] = c; argv[2] = NULL;
+        pid = executar("/bin/tocador", argv);
+        registrar("arquivos: abrindo no tocador %s (pid %d)", c, pid);
     } else {
         argv[0] = "editor"; argv[1] = c; argv[2] = NULL;
         pid = executar("/bin/editor", argv);

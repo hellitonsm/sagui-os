@@ -91,10 +91,10 @@ de 32 KB); o disco do `saguios.vdi` é arredondado para múltiplos de 1 MB.
 
 **Motivo:** a primeira imagem tinha 32 KB. BIOS e VirtualBox inventam uma
 geometria (cilindros, cabeças, setores) a partir do tamanho do disco, e um
-disco menor que um cilindro é um caso pouco testado neles. 1 MB evita isso e
-continua abaixo da meta de 1,44 MB. A meta do PRD é medida pelos **bytes
-úteis** (MBR + cabeçalho + estágio 2 + kernel + ramdisk), que o build grava em
-`build/tamanho.txt` e o painel mostra.
+disco menor que um cilindro é um caso pouco testado neles. 1 MB evita isso.
+O tamanho e medido pelos **bytes úteis** (MBR + cabeçalho + estágio 2 +
+kernel + ramdisk), que o build grava em `build/tamanho.txt` e o painel
+mostra. A meta de 1,44 MB do PRD foi retirada a pedido do Eli.
 
 ## D005. `.vdi` gerado pelo `qemu-img`, testado no QEMU (H04)
 
@@ -1060,3 +1060,29 @@ A integracao com o sistema fica na tabela `sagui` (`registrar`, `limpar_tela`,
 ajuda propria. Os scripts de exemplo vao em `/lua`, e `tests/h38_lua_nativo.py`
 roda tudo dentro do QEMU, incluindo arquivos, `dofile` e os dois caminhos de
 erro.
+
+## D034. Tocador em notas e quadros, nao MP3/MP4 (pacote H41)
+
+**Decisao:** `/bin/tocador` toca `.mus` (texto "freq duracao") pelo
+alto-falante do PC via `tocar()` e `.vid` (retangulos/texto por quadro
+`---`) na janela. `.mp3`/`.mp4`/`.avi` sao recusados com aviso.
+
+**Motivo:** o hardware so tem bip quadrado sem codec, DAC, PCM ou FPU
+(B3). Qualquer MP3/MP4 real exigiria decoder, saida de audio e um novo
+driver; fingir que tocou seria enganoso. O formato textual e
+editavel na IDE e testavel no QEMU (`tests/h41_tocador.py`).
+
+## D035. Loja com fonte local e link configuravel, sem loja on-line (H42)
+
+**Decisao:** `/bin/loja` lista `/go` e `/lua` como apps instalaveis.
+Go instala compilando com `gosagui build -o /store/nome`; Lua instala
+copiando o script para `/store/nome.lua` (roda com `lua /store/nome.lua`).
+Apps instalados ficam so em `/store`, separados de `/bin` (sistema).
+O link on-line fica em `/config/loja.conf` (`link=<url>`), editavel
+pela janela ou por `loja configurar <url>`; `loja atualizar` faz
+`http_obter()` e lista as linhas `nome url`.
+
+**Motivo:** a pedido, sem servidora ainda. A fonte local reaproveita
+o que ja existe (`gosagui`, `lua`, `/go`, `/lua`); a parte on-line e
+configuracao + busca HTTP, sem tentar instalar por rede antes de haver
+um indice real.
