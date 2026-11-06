@@ -53,7 +53,8 @@ function Invoke-Nativo {
         if ($Silencioso) {
             & $Exe @Argumentos *> $null
         } else {
-            & $Exe @Argumentos
+            # A saida do programa nao pode se misturar com o codigo devolvido.
+            & $Exe @Argumentos 2>&1 | Out-Host
         }
         return $LASTEXITCODE
     } finally {
@@ -73,12 +74,42 @@ function Get-VmRodando {
     }
 }
 
+function Wait-VmRodando {
+    param([string]$VBox, [string]$Nome, [int]$Tentativas = 20)
+    for ($i = 0; $i -lt $Tentativas; $i++) {
+        if (Get-VmRodando $VBox $Nome) { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
 if (Get-VmRodando $vbox $VM) {
     if ($SoRodar) {
         Write-Host "A VM '$VM' já está ligada."
         return
     }
     throw "A VM '$VM' está ligada. Desligue-a antes de rodar este script (VBoxManage controlvm $VM poweroff)."
+}
+
+# Solta o registro de um .vdi que sera recriado. O arquivo novo recebe outro
+# UUID, e o VirtualBox recusa um UUID diferente do que esta no registro.
+function Remove-RegistroVdi {
+    param([string]$VBox, [string]$Caminho, [string]$NomeVm)
+    Invoke-Nativo $VBox @('storageattach', $NomeVm, '--storagectl', 'IDE Controller',
+        '--port', '0', '--device', '0', '--type', 'hdd', '--medium', 'none') -Silencioso | Out-Null
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $linhas = & $VBox list hdds 2>$null } finally { $ErrorActionPreference = $anterior }
+    $uuid = $null
+    foreach ($linha in $linhas) {
+        if ($linha -match '^UUID:\s+(\S+)') { $uuid = $Matches[1] }
+        elseif ($linha -match '^Location:\s+(.+?)\s*$') {
+            if ($uuid -and $Matches[1] -ieq $Caminho) {
+                Invoke-Nativo $VBox @('closemedium', 'disk', $uuid) -Silencioso | Out-Null
+                $uuid = $null
+            }
+        }
+    }
 }
 
 function New-Vdi {
@@ -111,6 +142,7 @@ function New-Vdi {
         try { $fs.Write($zeros, 0, $zeros.Length) } finally { $fs.Dispose() }
     }
 
+    Remove-RegistroVdi -VBox $VBox -Caminho $vdi -NomeVm $VM
     Remove-Item -Force -LiteralPath $vdi -ErrorAction SilentlyContinue
     $code = Invoke-Nativo $VBox @('convertfromraw', $raw, $vdi, '--format', 'VDI')
     Remove-Item -Force -LiteralPath $raw -ErrorAction SilentlyContinue
@@ -237,7 +269,7 @@ if ($code -ne 0) { Invoke-Nativo $vbox @('modifyvm', $VM, '--cableconnected1', '
 Invoke-Nativo $vbox @('storageattach', $VM, '--storagectl', 'IDE Controller', '--port', '0', '--device', '0', '--type', 'hdd', '--medium', 'none') -Silencioso | Out-Null
 $code = Invoke-Nativo $vbox @('storageattach', $VM, '--storagectl', 'IDE Controller', '--port', '0', '--device', '0', '--type', 'hdd', '--medium', $vdi) -Silencioso
 if ($code -ne 0) {
-    Invoke-Nativo $vbox @('closemedium', 'disk', $vdi) -Silencioso | Out-Null
+    Remove-RegistroVdi -VBox $vbox -Caminho $vdi -NomeVm $VM
     $code = Invoke-Nativo $vbox @('storageattach', $VM, '--storagectl', 'IDE Controller', '--port', '0', '--device', '0', '--type', 'hdd', '--medium', $vdi) -Silencioso
     if ($code -ne 0) { throw "não consegui anexar $vdi na VM" }
 }
@@ -251,5 +283,5 @@ if ($SemRodar) {
 } else {
     Write-Host 'Ligando...'
     $code = Invoke-Nativo $vbox @('startvm', $VM)
-    if ($code -ne 0) { throw 'startvm falhou' }
+    if ($code -ne 0 -and -not (Wait-VmRodando $vbox $VM)) { throw 'startvm falhou' }
 }
