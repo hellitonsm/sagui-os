@@ -20,7 +20,7 @@ typedef struct EMPACOTADO {
     uint16_t trap, mapa_es;
 } tss_t;
 
-static uint64_t gdt[6] ALINHADO(8);
+static uint64_t gdt[7] ALINHADO(8);
 static tss_t tss ALINHADO(16);
 
 /* Monta um descritor de segmento. 'acesso' traz presente/anel/tipo e
@@ -42,6 +42,15 @@ void tss_definir_pilha(uint32_t esp0)
     tss.esp0 = esp0;
 }
 
+/* Um descritor TLS compartilhado é seguro porque o escalonador o troca para
+ * o processo escolhido imediatamente antes de retornar ao anel 3. */
+void gdt_tls_definir_base(uint32_t base)
+{
+    bool eram_ligadas = int_salva_desliga();
+    gdt[6] = descritor(base, 0xFFFFF, 0xF2, 0xC);
+    int_restaura(eram_ligadas);
+}
+
 void gdt_iniciar(void)
 {
     gdt[0] = 0;
@@ -49,6 +58,7 @@ void gdt_iniciar(void)
     gdt[2] = descritor(0, 0xFFFFF, 0x92, 0xC);   /* dados, anel 0 */
     gdt[3] = descritor(0, 0xFFFFF, 0xFA, 0xC);   /* código, anel 3 */
     gdt[4] = descritor(0, 0xFFFFF, 0xF2, 0xC);   /* dados, anel 3 */
+    gdt[6] = descritor(0, 0xFFFFF, 0xF2, 0xC);   /* TLS/GS, base por processo */
     memset(&tss, 0, sizeof tss);
     tss.ss0 = SEL_KDADOS;
     tss.mapa_es = sizeof tss;                    /* sem mapa de portas: anel 3 não acessa E/S */

@@ -197,6 +197,7 @@ quadro_t *escalonar(quadro_t *q)
         prox = &tabela[0];   /* ninguém pronto: o ocioso */
     prox->estado = P_EXECUTANDO;
     fatia = QUANTUM_TIQUES;
+    gdt_tls_definir_base(prox->usuario ? prox->tls_base : 0);
     if (prox->usuario)
         tss_definir_pilha(prox->pilha_kernel + PILHA_KERNEL);
     if (prox->espaco != espaco_atual())

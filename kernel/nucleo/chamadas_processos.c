@@ -22,6 +22,18 @@ int32_t sis_pid(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e)
     return atual->pid;
 }
 
+/* Define a base de GS para TLS. O descritor é atualizado aqui e novamente
+ * pelo escalonador quando houver troca de processo. */
+int32_t sis_tls(uint32_t base, uint32_t b, uint32_t c, uint32_t d, uint32_t e)
+{
+    (void)b; (void)c; (void)d; (void)e;
+    if (!atual->usuario) return ERRO_ACESSO;
+    if (base && !usuario_ok((const void *)base, 1, false)) return ERRO_ENDERECO;
+    atual->tls_base = base;
+    gdt_tls_definir_base(base);
+    return 0;
+}
+
 int32_t sis_matar(uint32_t pid, uint32_t b, uint32_t c, uint32_t d, uint32_t e)
 {
     (void)b; (void)c; (void)d; (void)e;

@@ -1,111 +1,240 @@
-# mlibc para compilar programas do SaguiOS
+# mlibc upstream no SaguiOS
 
-## Pergunta
+Port do [mlibc](https://github.com/mlibc/mlibc) (upstream, Meson) como
+**libc estática vendorizada** do SaguiOS (i386, freestanding).
 
-Musl e dietlibc foram analisados e rejeitados como porte inteiro.
-O pedido novo: **usar o mlibc** (managarm) para compilar programas
-do SaguiOS. Referencia: `https://docs.managarm.org/mlibc-book/porting/intro.html`.
+- Clone/vendor: `.local/mlibc` (commit `edd69e3`, `.gitignore` ignora `/.local/`).
+- Fonte da verdade do porte: `tools/mlibc-sagui/` (overlay do sysdep sagui,
+  patches e script de setup reproduzível).
+- Build: `.local/mlibc-build/` (Meson/Ninja); artefatos finais em
+  `build/mlibc-upstream/` (`libc.a`, `crt1.o`, headers).
+- Integração opcional no Makefile: `make LIBC=upstream` liga programas de
+  usuário estaticamente contra o mlibc (`crt1.o` + `libc.a`) em vez da
+  `libsagui` + shim POSIX (`userland/mlibc`).
 
-Resposta curta: o mlibc e **melhor que musl/dietlibc para este
-trabalho**, porque ele foi feito para ser portado. Mas o porte
-completo (Meson + cross-toolchain GCC + sysdeps em C++) e grande.
-Para o SaguiOS, o passo pratico e adaptar **só os sysdeps**
-obrigatorios sobre a libsagui, com link estatico, sem trazer o
-mlibc inteiro.
+---
 
-## O que o guia do mlibc pede (resumo)
+## Requisitos
 
-1. Kernel com: texto/serial, paging, ELF loader, syscalls de userspace.
-2. Implementar `sysdeps/<sistema>` e ligar no `meson.build` do mlibc
-   com `sysdep_supported_options` (ex.: `'posix': true`).
-3. ABI headers: o guia recomenda reusar uma ABI existente
-   (ex.: Linux) e symlinkar `abis/linux/include/abi-bits/*.h`.
-4. Toolchain OS-specific (binutils + GCC com `--with-sysroot`), com
-   `(S)crt1.o` no caminho do linker.
-5. `static` primeiro (`-Ddefault_library=static`), depois dinamico.
-6. Sysdeps obrigatorios para "hello" estatico:
+- Meson 1.12+, Ninja, `python -m mesonbuild.mesonmain` / `python -m ninja`.
+- Toolchain cruzada i686-elf (GCC >= 14; usada 15.2.0 via
+  `tools/windows/download-windows-tools.ps1 -VersaoToolchain 15.2.0 -Forcar`):
+  `.local/windows-tools/toolchain/bin/i686-elf-{gcc,g++,ar,nm,strip,objcopy,ld,as}.exe`.
+- Git (para clonar o mlibc) e PowerShell (para o script de setup).
+- `C:\Program Files\Git\usr\bin` no `PATH` (patch, usado por builds anteriores;
+  o setup atual aplica patches pelo PowerShell).
 
-   `Exit`, `FutexWait/Wake`, `Open`, `Read`, `Write`, `Seek`,
-   `Close`, `ClockGet`, `LibcLog`, `LibcPanic`, `AnonAllocate/Free`,
-   `VmMap/Unmap`, `TcbSet`.
+---
 
-## O que o SaguiOS ja tem
+## Construção do mlibc
 
-- Serial/texto, paginacao (um espaco por processo), ELF loader e
-  syscalls via `int 0x80` e `kernel/inc/abi.h`.
-- Um processo = um espaco de endereco (sem threads de verdade).
-- `inicio.asm` com `_start` e `libsagui` equivalente ao `crt1`+entry
-  do mlibc, so que em C/asm simples e sem C++/Meson.
+```pwsh
+pwsh -ExecutionPolicy Bypass -File tools/mlibc-sagui/setup.ps1
+```
 
-Ou seja, os pre-requisitos minimos do guia **ja existem**. O que
-falta sao `Futex`, `VmMap/Unmap` e `TcbSet` (threads/TCB), que o
-SaguiOS nao tem nem precisa para programas monoprocesso.
+O que o script faz, em ordem:
 
-## Mapeamento sagui (sysdeps) x mlibc
+1. Clona o mlibc (`edd69e3`) em `.local/mlibc` se ainda não estiver lá.
+2. Aplica os patches do porte SaguiOS (idempotentes):
+   - `meson.build`: `elif host_machine.system() == 'sagui'` +
+     `subdir('sysdeps/sagui')` (ao lado do bloco `demo`).
+   - `options/internal/include/bits/types.h`: `__mlibc_int_fast8`/`__mlibc_uint_fast8`
+     do i386 passam de 8 bits para 32 bits (`__mlibc_int32`/`__mlibc_uint32`),
+     pois o GCC freestanding define `__INT_FAST8_TYPE__`/`__UINT_FAST8_TYPE__`
+     como `int`/`unsigned int` e o `static_assert` de sanity do mlibc exige
+     igualdade de tamanho com o tipo do compilador.
+   - `options/posix/generic/pthread.cpp`: locais `m_expected`/`rc_expected` dos
+     `compare_exchange_*` do `__mlibc_fair_rwlock` passam de `unsigned int` para
+     `__mlibc_uint32` (`unsigned long` neste alvo — `atomic<unsigned long>&`
+     não aceita `unsigned int&`).
+   - `options/internal/include/mlibc/collation.hpp`:
+     `CollationPolicy<wchar_t>::getExtra`/`getWeight` retornam
+     `frg::span<const wint_t>` (reinterpretando o span de bytes), porque
+     `uint32_t`/`int32_t` são `long` enquanto `wint_t` é `unsigned int`.
+3. Copia o overlay `tools/mlibc-sagui/sysdeps/sagui/` para
+   `.local/mlibc/sysdeps/sagui/` (`meson.build`, `sysdeps.cpp`, `syscall.cpp`,
+   `entry.cpp`, `crt1.S`, `include/sagui-abi.h`, `include/mlibc/sysdeps.hpp`).
+4. Gera `include/abi-bits/` a partir de `.local/mlibc/abis/linux/` (63 headers;
+   symlinks do Windows não sobrevivem à cópia raspa do git).
+5. Gera `.local/mlibc-cross.ini` (host_machine `sagui`, i686,
+   `-D_GNU_SOURCE -ffreestanding -fno-pic -fno-pie -fno-stack-protector`,
+   `-nostdlib -ffreestanding`, `needs_exe_wrapper = true`).
+6. `meson setup --cross-file ... -Ddefault_library=static -Dbuild_tests=false
+   -Duse_freestnd_hdrs=enabled -Dmlibc_abi=7` + `ninja -k 0`.
+7. Copia artefatos para `build/mlibc-upstream/` (`lib/libc.a`,
+   `lib/crt1.o`, `include/`).
 
-| sysdep mlibc | SaguiOS hoje | Adaptacao |
-| --- | --- | --- |
-| `Exit` | `SIS_SAIR` | direto |
-| `Open/Read/Write/Seek/Close` | `SIS_ABRIR/LER/ESCREVER/POSICIONAR/FECHAR` | direto |
-| `ClockGet` | `SIS_TEMPO` | `ms -> timespec` |
-| `LibcLog/Panic` | `SIS_REGISTRAR` (serial) | direto |
-| `AnonAllocate/Free` | `aumentar_memoria` + `aloca/libera` | direto, sem `mmap` |
-| `VmMap/Unmap` | paginacao ja separa processos | stub no-op p/ single-thread |
-| `FutexWait/Wake` | sem threads | stub que retorna `ENOSYS` ou dorme 0 |
-| `TcbSet` | sem TCB | stub no-op |
-| `_start`/`crt1` | `userland/libsagui/inicio.asm` | reusar como esta |
+---
 
-O resto do POSIX (stdio, malloc, string) ja e a libsagui renomeada,
-igual ao esqueleto `userland/musl/` que pode ser reaproveitado como
-`userland/mlibc/` trocando so o nome/diretorio.
+## Sysdeps do SaguiOS (`tools/mlibc-sagui/sysdeps/sagui/`)
 
-## Por que o mlibc e melhor que musl/dietlibc aqui
+O porte implementa os sysdeps do mlibc sobre a ABI do SaguiOS (`int 0x80`,
+EAX = número do syscall, EBX/ECX/EDX/ESI/EDI, valor negativo = erro):
 
-- Foi desenhado para "um kernel novo por vez": a camada de syscall
-  e um diretorio isolado (`sysdeps/<sistema>`), diferente dos outros
-  que amarram a syscall Linux no meio do codigo.
-- Permite `headers_only` e `static` primeiro: da para ter os
-  headers POSIX sem puxar threads/DNS/FPU.
-- ABI headers sao separados (`abi-bits/*`): da para reusar a ABI
-  Linux nos headers e nao implementar Linux no kernel, exatamente
-  como o guia recomenda. No SaguiOS, o equivalente seria manter
-  `abi.h` proprio e so symlinkar `abi-bits` que batem.
-- Menos codigo morto que o musl inteiro e mais futuro que a shim
-  atual: se o SaguiOS um dia ganhar threads, o caminho mlibc ja tem
-  lugar para `TcbSet/Futex`.
+| Syscall | EAX | Uso no mlibc |
+|---------|-----|--------------|
+| `SIS_EXECUTAR` | 1 | `Execve` (ENOSYS por enquanto) |
+| `SIS_ESPERAR` | 2 | `Waitpid` |
+| `SIS_SAIR` | 3 | `Exit` |
+| `SIS_PID` | 4 | `GetPid` (via `this_tid`) |
+| `SIS_MATAR` | 5 | `Kill` (ENOSYS se sem alvo) |
+| `SIS_ABRIR` | 10 | `Open` |
+| `SIS_LER` | 11 | `Read` |
+| `SIS_ESCREVER` | 12 | `Write` |
+| `SIS_FECHAR` | 13 | `Close` |
+| `SIS_POSICIONAR` | 14 | `Seek` |
+| `SIS_INFO_ARQUIVO` | 15 | `Stat` |
+| `SIS_CRIAR_PASTA` | 20 | `Mkdir` |
+| `SIS_REMOVER_PASTA` | 21 | `Rmdir` |
+| `SIS_APAGAR` | 22 | `Unlink` |
+| `SIS_LISTAR` | 23 | `OpenDir`/`ReadEntries` |
+| `SIS_MUDAR_PASTA` | 24 | `Chdir` |
+| `SIS_PASTA_ATUAL` | 25 | `GetCwd` |
+| `SIS_RENOMEAR` | 26 | `Rename` |
+| `SIS_PIPE` | 30 | `Pipe` |
+| `SIS_DUPLICAR` | 31 | `Dup`/`Dup2` |
+| `SIS_DISPONIVEL` | 32 | `Fcntl` (disponibilidade de leitura) |
+| `SIS_DORMIR` | 40 | `Sleep`/`clock_nanosleep` |
+| `SIS_TEMPO` | 41 | `ClockGettime` |
+| `SIS_DATA` | 42 | (data/hora) |
+| `SIS_INFO_SISTEMA` | 43 | `Sysconf` |
+| `SIS_AUMENTAR_MEM` | 44 | `AnonAllocate`/`VmMap` |
+| `SIS_REGISTRAR` | 48 | log de sistema (`Log`/`Panic`) |
+| `SIS_TLS` | 62 | `TcbSet` (GS base) |
 
-## Por que nao trazer o mlibc inteiro agora
+Pontos do porte:
 
-- Exige Meson + cross-toolchain GCC (`i686-sagui-gcc`, sysroot) com
-  patches binutils/GCC, mais C++ (`sysdeps.cpp`, `__mlibc_entry`).
-- Exige cumprir os 15 sysdeps obrigatorios, incluindo memoria
-  anonima e VM map que o kernel hoje nao expoe como chamada.
-- O PRD proibe bibliotecas prontas e pede toolchain freestanding
-  simples (`gcc -m32`, D001). Trazer o mlibc inteiro viola isso e
-  polui a imagem sem ganho imediato.
+- **TLS/TCB**: `TcbSet` escreve a base GS diretamente (i386); canário em
+  `%gs:0x14`, magic de debug em `%gs:0x10`.
+- **Entrada**: `crt1.S` (`_start`) alinha a pilha e chama
+  `__mlibc_entry(&argc, main)`; `entry.cpp` define `main` (weak) chamando
+  `principal(argc, argv)` — a convenção de programas do SaguiOS — e chama
+  `exit(result)`. O `__dlapi_enter` do rtld estático (`MLIBC_STATIC_BUILD`)
+  executa `interpreterMain`, que instala o TCB inicial, o canário de stack e
+  parseia o vetor auxiliar da pilha do kernel; `init_libc()` (construtor)
+  então preenche `mlibc::entry_stack` (argc/argv/envp).
+- **Memória**: `AnonAllocate` via `SIS_AUMENTAR_MEM(0)` com padding de 4096;
+  `AnonFree`, `VmUnmap`, `VmProtect` são no-op (sem paginação arbitrária neste
+  subset).
+- **Descritores de arquivo**: `kFdMax = 16` (igual ao kernel); handles de
+  diretório falsificados em 1000..1015.
+- **Processos**: `Fork`/`Execve`/`Clone` retornam ENOSYS; `Waitpid` usa
+  `SIS_ESPERAR` (morto pelo kernel = -1000 → `SAIDA_ENCERRADO_PELO_KERNEL`).
+- **Relógio**: `SIS_TEMPO` (ms desde boot); `SIS_DORMIR`; entropia via
+  `AT_RANDOM` quando disponível.
 
-## Passo pratico proposto (sem porte inteiro)
+---
 
-1. Reaproveitar `userland/musl/` como `userland/mlibc/`:
-   headers POSIX + `sysdeps.c` sobre a libsagui.
-2. `Makefile`: `-Iuserland/mlibc/inc` no `UCFLAGS` e `mlibc.o` no
-   `LIBSAGUI_OBJ`, com um teste `userland/testes/mlibc_nativo.c`
-   (`malloc/printf/open`) e `tests/h43_mlibc.py`.
-3. `tools/i686-sagui.cross` (exemplo de cross file do guia,
-   adaptado) e nota de como compilar um programa externo.
-4. Nao baixar o mlibc oficial para dentro do repo; manter a
-   adaptacao fina e documentada.
+## Requisito do kernel: pilha de usuário
 
-Ver decisao D037 em `docs/decisoes.md` e `docs/dietlibc.md`
-para a comparacao anterior.
+O `interpreterMain`/`parse_exec_stack` do mlibc esperam a pilha inicial ELF
+padrão:
 
-## Implementacao (sem porte inteiro)
+```
+[esp]   = argc
+[esp+4] = argv[0] .. argv[argc-1], NULL
+        = NULL                 <- envp vazio
+        = pares (chave, valor) do vetor auxiliares ... , AT_NULL, 0
+        = strings dos argumentos (no topo)
+```
 
-Feito em `userland/mlibc/` (headers POSIX em `inc/` + `sysdeps.c`
-sobre a libsagui + `inc/mlibc/sysdeps.h` com os 15 obrigatorios,
-stubs `Futex/VmMap/TcbSet`), `Makefile` com `-Iuserland/mlibc/inc`,
-`tools/i686-sagui.cross` (exemplo do guia) e teste
-`userland/testes/mlibc_nativo.c` (`tests/h43_mlibc.py`).
-Um programa externo usa `principal()` como ponto de entrada
-(igual aos demais) e os nomes POSIX incluindo `<stdio.h>`.
-Ver D037.
+O carregador do SaguiOS (`kernel/nucleo/carregador.c`, `montar_pilha`) foi
+ajustado para este layout (mantendo `argc` em `[esp]` e `argv` em `[esp+4]`,
+compatível com a `inicio.asm` da libsagui existente). Sem o vetor de
+argumentos/ambiente/auxiliar no formato acima, o `__dlapi_enter` do mlibc
+interpreta a pilha incorretamente.
+
+---
+
+## Usando o mlibc nos programas (`LIBC=upstream`)
+
+No `Makefile`, `make LIBC=upstream` ativa o mlibc upstream para os programas
+de usuário:
+
+- Compilação com `i686-elf-gcc` (toolchain cruzada) e headers em
+  `build/mlibc-upstream/include` (`-D_GNU_SOURCE`).
+- Ligação: `crt1.o` + objeto do programa + `build/mlibc-upstream/lib/libc.a`
+  (+ `libgcc.a` para helpers de 64 bits), script
+  `userland/programa-upstream.ld` (`ENTRY(_start)` e símbolos
+  `__init_array_*`, `__preinit_array_*`, `__ehdr_start` exigidos pelo rtld
+  estático do mlibc).
+- O programa define `int principal(int argc, char **argv)`; o crt1 do mlibc
+  chama `main` (fraco, em `entry.cpp`) que chama `principal`.
+
+Exemplo de programa de teste (`userland/programas/upstream-teste.c`):
+
+```c
+#include <unistd.h>
+#include <fcntl.h>
+
+int principal(int argc, char **argv)
+{
+    const char msg[] = "ola, mlibc upstream no SaguiOS!\r\n";
+    const char caminho[] = "/bin/upstream-teste";
+    char buf[16];
+    int fd;
+    ssize_t n;
+
+    (void)argc;
+    (void)argv;
+
+    write(STDOUT_FILENO, msg, sizeof(msg) - 1);
+
+    fd = open(caminho, O_RDONLY);
+    if (fd >= 0) {
+        n = read(fd, buf, sizeof(buf));
+        (void)n;
+        close(fd);
+    }
+
+    return 0;
+}
+```
+
+Ele é copiado para `build/rootfs/bin/` pelo `ramdisk.sgfs` e pode ser
+executado no shell do convidado:
+
+```
+/bin/upstream-teste
+```
+
+Saída esperada na serial:
+
+```
+ola, mlibc upstream no SaguiOS!
+```
+
+---
+
+## Execução (QEMU / VirtualBox)
+
+A imagem de disco é `build/saguios.img` (ou `.vdi` para o VirtualBox).
+
+### QEMU
+
+```sh
+qemu-system-i386 -m 512M -drive format=raw,file=build/saguios.img -serial stdio \
+    -netdev user,id=net0 -device e1000,netdev=net0
+```
+
+### VirtualBox
+
+```sh
+VBoxManage convertfromraw build/saguios.img build/saguios.vdi --format VDI
+```
+
+Crie uma VM (tipo "Outro/Outro (32 bits)"), anexe `build/saguios.vdi` como
+disco IDE, 512 MB de RAM, rede NAT, e ligue. A saída da serial (COM1) pode ser
+capturada com `--uart1 0x3f8 4 --uartmode1 file com1.log`.
+
+---
+
+## Limitações conhecidas deste subset
+
+- Sem threads/futexes (`Futex*` → ENOSYS), sem `mmap`/`munmap`/`mprotect`
+  reais (`Vm*` são no-op; `AnonAllocate` cresce o heap via `SIS_AUMENTAR_MEM`).
+- `Fork`, `Execve`, `Clone` retornam ENOSYS.
+- Symlinks de Windows: `sysdeps/*/include/abi-bits/*.h` não sobrevivem ao clone
+  raspo no Windows; são copiados de `abis/linux/` durante o setup.
+- O mlibc é recompilado por `tools/mlibc-sagui/setup.ps1`; o Makefile só consome
+  os artefatos já prontos em `build/mlibc-upstream/`.

@@ -7,7 +7,7 @@ para PCs x86 de 32 bits, rodando de verdade num notebook de 2011.
 
 Feito por Claude (Anthropic) para o projeto do **Eli Rigobeli**.
 
-`562 KB` · `sem GRUB` · `sem libc` · `sem código de outros sistemas` · `37 testes automáticos`
+`562 KB` · `sem GRUB` · `sem libc externa` · `sem código de outros sistemas` · `47 testes automáticos`
 
 <img src="docs/capturas/B4-3-fase1-corredor.png" width="49%" alt="Sagui 3D, o jogo em primeira pessoa do SaguiOS">
 <img src="docs/capturas/H28-tres-programas.png" width="49%" alt="Área de trabalho do SaguiOS com três programas abertos">
@@ -25,8 +25,8 @@ pendrive num **Lenovo G470** (2011), no VirtualBox e no QEMU, e cabe em **575.48
 
 Tudo o que vai dentro da imagem foi escrito aqui: carregador de boot em dois estágios, kernel,
 drivers (teclado ABNT2, touchpad, vídeo VESA, USB 2.0, pendrive), sistema de arquivos FAT32,
-gerenciador de janelas, a biblioteca dos programas (`libsagui`), o shell, os programas, a fonte
-de letras e todos os desenhos. Cada decisão de projeto está explicada em
+gerenciador de janelas, a biblioteca dos programas (`libsagui`) e uma shim C/POSIX própria
+(`userland/mlibc`, não o mlibc upstream), o shell, os programas, a fonte de letras e todos os desenhos. Cada decisão de projeto está explicada em
 [`docs/decisoes.md`](docs/decisoes.md) e cada erro encontrado, com causa e correção, em
 [`docs/erros.md`](docs/erros.md).
 
@@ -79,8 +79,8 @@ na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 | --- | --- |
 | Imagem de boot | **702.464 bytes** úteis |
 | Linhas de código | boot 903, kernel 11.204, programas 9.849 (mais 4.004 de ferramentas e testes) |
-| Programas | 35 em `/bin`: shell, comandos, `gosagui`, `lua` e 8 programas gráficos |
-| Testes automáticos | 41, um por história, todos no QEMU |
+| Programas | 40 em `/bin`: shell, comandos, compiladores nativos, `lua` e 8 programas gráficos |
+| Testes automáticos | 47 scripts (45 H + 2 bônus), incluindo o teste dos compiladores nativos |
 | Decisões registradas | 33, com o raciocínio de cada uma |
 | Erros registrados | 24, com sintoma, causa e correção |
 | Commits | ~55, um por história |
@@ -145,6 +145,20 @@ gosagui build -o /go/biblioteca /go/biblioteca.go
 **Nao e a toolchain oficial do Go nem suporta programas Go gerais.** Veja
 [`docs/go.md`](docs/go.md) para limites, bootstrap, bibliotecas, teste nativo e
 o trabalho necessario para portar o Go completo.
+
+### Assembler e compilador C nativos (experimental)
+
+`asagui` monta um subconjunto de x86 i386 com sintaxe inspirada em NASM;
+`csagui` compila um subconjunto pequeno de C e usa `asagui` para gerar ELF32,
+tudo dentro do SaguiOS:
+
+```text
+asagui build -o /tmp/ola-asm /asm/ola.asm
+csagui build -o /tmp/ola-c /c/ola.c
+```
+
+**Nao sao NASM/GCC completos.** Consulte [`docs/asm-c.md`](docs/asm-c.md) para
+a sintaxe aceita, limites, exemplos e o teste nativo.
 
 ### IDE de código
 
@@ -242,14 +256,17 @@ testes_eli/  fotos dos testes do Eli no G470
 | [`docs/erros.md`](docs/erros.md) | Os 21 erros encontrados, inclusive os achados no G470 |
 | [`docs/virtualbox.md`](docs/virtualbox.md) | Como ligar a rede no VirtualBox (placas, NAT, Bridge, Host-only) |
 | [`docs/go.md`](docs/go.md) | Compilador nativo do subconjunto Go (`gosagui`) |
+| [`docs/asm-c.md`](docs/asm-c.md) | Assembler x86 reduzido (`asagui`) e compilador do subconjunto C (`csagui`) |
 | [`docs/lua.md`](docs/lua.md) | Interpretador nativo do subconjunto de Lua (`lua`) |
+| [`docs/mlibc.md`](docs/mlibc.md) | Shim C/POSIX do SaguiOS, APIs e limites (não é o upstream) |
 | [`docs/diario.md`](docs/diario.md) | O diário do projeto, fase a fase |
 | [`docs/historias/`](docs/historias/) | Uma página por história (H01 a H34, B1 a B4) |
 | [`status.md`](status.md) e [`dashboard/`](dashboard/index.html) | Situação de cada fase e história |
 
 ## As regras do projeto
 
-Do [`prd.md`](prd.md): nada de código de outros sistemas operacionais, nada de GRUB ou outro
-carregador pronto, nada de libc ou bibliotecas prontas dentro do sistema, fontes e imagens
-criadas no projeto, nomes e comentários em português explicando o porquê, um teste automático
-por história e cada fase validada pelo Eli no hardware real antes da próxima.
+O [`prd.md`](prd.md) proíbe código de outros sistemas operacionais, GRUB e bibliotecas prontas.
+A shim `userland/mlibc` é uma exceção posterior e deliberada: implementação própria do projeto,
+sem importar o mlibc upstream ou outra libc. Fontes e imagens continuam criadas no projeto, com
+nomes/comentários em português e testes automáticos; veja a decisão D037 e os limites em
+[`docs/mlibc.md`](docs/mlibc.md).

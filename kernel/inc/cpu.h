@@ -9,6 +9,7 @@
 #define SEL_UCODIGO  0x1B   /* anel 3 */
 #define SEL_UDADOS   0x23   /* anel 3 */
 #define SEL_TSS      0x28
+#define SEL_UTLS     0x33   /* anel 3, base GS configurada por processo */
 
 #define VETOR_IRQ0   0x20   /* o PIC é remapeado para 0x20-0x2F */
 #define VETOR_SISTEMA 0x80  /* chamadas de sistema (fase 3) */
@@ -28,6 +29,7 @@ typedef struct {
 typedef quadro_t *(*manipulador_t)(quadro_t *q);
 
 void gdt_iniciar(void);
+void gdt_tls_definir_base(uint32_t base);
 void idt_iniciar(void);
 void idt_registrar(uint8_t vetor, manipulador_t m);
 void irq_registrar(uint8_t irq, manipulador_t m);

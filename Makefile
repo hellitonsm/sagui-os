@@ -36,8 +36,9 @@ KERNEL_OBJ := $(patsubst %.c,$(B)/%.o,$(KERNEL_C)) $(patsubst %.asm,$(B)/%.asm.o
 KERNEL_HDR := $(shell find kernel -name '*.h')
 ROOTFS     := $(shell find rootfs -type f | sort)
 
-# Programas de usuário: libsagui + um .c por programa em userland/programas/
-# (vão para /bin) e em userland/testes/ (vão para /testes).
+# Programas de usuário: libsagui + shim POSIX local (userland/mlibc) + um .c
+# por programa em userland/programas/ (/bin) ou userland/testes/ (/testes).
+# asagui e csagui entram pelo wildcard; csagui executa /bin/asagui no convidado.
 UCFLAGS := -m32 -march=i686 -std=gnu11 -O2 \
            -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie \
            -fno-stack-protector -fno-asynchronous-unwind-tables -mgeneral-regs-only \
@@ -47,16 +48,56 @@ UCFLAGS := -m32 -march=i686 -std=gnu11 -O2 \
            -Iuserland/inc -Iuserland/mlibc/inc -idirafter kernel/inc
 ULDFLAGS := -m elf_i386 -nostdlib -T userland/programa.ld --gc-sections -z max-page-size=4096 \
             -z noexecstack --no-warn-rwx-segments
+MLIBC_SRC := $(wildcard userland/mlibc/*.c)
+MLIBC_OBJ := $(patsubst userland/mlibc/%.c,$(B)/userland/mlibc/%.o,$(MLIBC_SRC))
 LIBSAGUI_OBJ := $(B)/userland/fonte8x16.o \
                 $(patsubst userland/libsagui/%.c,$(B)/userland/libsagui/%.o,$(wildcard userland/libsagui/*.c)) \
-                $(B)/userland/mlibc/sysdeps.o \
+                $(MLIBC_OBJ) \
                 $(patsubst userland/libsagui/%.asm,$(B)/userland/libsagui/%.asm.o,$(wildcard userland/libsagui/*.asm))
-USER_HDR  := $(wildcard userland/inc/*.h) $(wildcard userland/mlibc/inc/*.h) $(wildcard userland/mlibc/inc/mlibc/*.h) kernel/inc/abi.h
+USER_HDR  := $(wildcard userland/inc/*.h) $(shell find userland/mlibc -name '*.h' -type f | sort) kernel/inc/abi.h
 PROGRAMAS := $(patsubst userland/programas/%.c,$(B)/userland/bin/%,$(wildcard userland/programas/*.c))
 # O Sagui 3D (B4) tem vários arquivos, numa pasta própria.
 SAGUI3D_OBJ := $(patsubst userland/sagui3d/%.c,$(B)/userland/sagui3d/%.o,$(wildcard userland/sagui3d/*.c))
 PROGRAMAS += $(B)/userland/bin/sagui3d
 PROG_TESTE := $(patsubst userland/testes/%.c,$(B)/userland/testes/%,$(wildcard userland/testes/*.c))
+
+# ---------- mlibc upstream (opcional: make LIBC=upstream) ----------
+# Vendorizado em .local/mlibc; construido por tools/mlibc-sagui/setup.ps1;
+# artefatos em build/mlibc-upstream/ (libc.a, crt1.o e headers). Quando ativo,
+# os programas de usuario sao compilados com a toolchain cruzada i686-elf e
+# ligados estaticamente contra o mlibc (crt1.o + libc.a), em vez da libsagui +
+# shim POSIX (userland/mlibc).
+ifeq ($(LIBC),upstream)
+MLIBC_UPSTREAM := build/mlibc-upstream
+TOOLCHAIN := .local/windows-tools/toolchain/bin/i686-elf-
+UPSTREAM_CC := $(TOOLCHAIN)gcc.exe
+UPSTREAM_LD := $(TOOLCHAIN)ld.exe
+UPSTREAM_OBJCOPY := $(TOOLCHAIN)objcopy.exe
+UPSTREAM_CFLAGS := -std=gnu11 -O2 -g \
+    -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie \
+    -fno-stack-protector -fno-asynchronous-unwind-tables -mgeneral-regs-only \
+    -Wall -Wextra -Werror=implicit-function-declaration \
+    -D_GNU_SOURCE -I$(MLIBC_UPSTREAM)/include
+UPSTREAM_LIBC := $(MLIBC_UPSTREAM)/lib/libc.a
+UPSTREAM_CRT1 := $(MLIBC_UPSTREAM)/lib/crt1.o
+
+# Programa de teste que usa exclusivamente a API POSIX do mlibc upstream.
+PROGRAMAS += $(B)/userland/bin/upstream-teste
+
+# (Re)constroi os artefatos do mlibc upstream quando necessario.
+$(B)/mlibc-upstream.stamp $(UPSTREAM_LIBC) $(UPSTREAM_CRT1):
+	powershell -NoProfile -ExecutionPolicy Bypass -File tools/mlibc-sagui/setup.ps1
+	@: > $(B)/mlibc-upstream.stamp
+
+$(B)/userland/programas/upstream-teste.o: userland/programas/upstream-teste.c
+	@mkdir -p $(dir $@)
+	$(UPSTREAM_CC) $(UPSTREAM_CFLAGS) -c -o $@ $<
+
+$(B)/userland/bin/upstream-teste: $(B)/userland/programas/upstream-teste.o $(UPSTREAM_CRT1) $(UPSTREAM_LIBC) userland/programa-upstream.ld
+	@mkdir -p $(dir $@)
+	$(UPSTREAM_LD) $(ULDFLAGS) -o $@.elf $(UPSTREAM_CRT1) $< $(UPSTREAM_LIBC)
+	$(UPSTREAM_OBJCOPY) --strip-all $@.elf $@
+endif
 
 .PHONY: all vazio vdi test rodar rodar-pcnet vbox entrega limpar dashboard
 

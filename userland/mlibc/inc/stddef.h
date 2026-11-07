@@ -1,9 +1,8 @@
-/* stddef.h - espelho mlibc adaptado ao SaguiOS.
- * O mlibc declara size_t/NULL/wchar_t; no SaguiOS os tipos base ja estao em
- * sagui.h, entao este cabecalho so repassa. */
-#ifndef MLIBC_STDDEF_H
-#define MLIBC_STDDEF_H
+/* stddef.h - tipos fundamentais. size_t/NULL ja sao definidos em sagui.h. */
+#ifndef SAGUI_MLIBC_STDDEF_H
+#define SAGUI_MLIBC_STDDEF_H
 #include "sagui.h"
-typedef char wchar_t;
-#define offsetof(t, m) __builtin_offsetof(t, m)
+typedef __PTRDIFF_TYPE__ ptrdiff_t;
+typedef __WCHAR_TYPE__ wchar_t;
+#define offsetof(type, member) __builtin_offsetof(type, member)
 #endif

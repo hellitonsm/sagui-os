@@ -1,6 +1,7 @@
-# i686-sagui.cross - meson cross-file de exemplo para o SaguiOS (mlibc).
-# Ver docs/mlibc.md e o guia: docs.managarm.org/mlibc-book/porting/intro.html
-# Uso (quando houver toolchain sysroot): meson setup --cross-file=tools/i686-sagui.cross
+# i686-sagui.cross - modelo FUTURO de cross-file para um porte upstream.
+# A camada atual userland/mlibc e uma shim C no build Make/GCC; este arquivo
+# sozinho nao compila nem configura o mlibc oficial (faltam toolchain/sysroot).
+# Ver docs/mlibc.md antes de usar como base para um porte Meson.
 [host_machine]
 system = 'sagui'
 cpu_family = 'x86'

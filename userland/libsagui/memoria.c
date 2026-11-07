@@ -22,7 +22,9 @@ static bloco_t *proximo(bloco_t *b) { return (bloco_t *)((uint8_t *)b + b->taman
 
 static bool crescer(uint32_t pelo_menos)
 {
-    uint32_t n = pelo_menos < CRESCER_MIN ? CRESCER_MIN : (pelo_menos + 4095) & ~4095u;
+    if (pelo_menos > 0xFFFFFFFFu - 4095u) return false;
+    uint32_t n = pelo_menos < CRESCER_MIN ? CRESCER_MIN : (pelo_menos + 4095u) & ~4095u;
+    if (n < pelo_menos) return false;
     uint8_t *antigo = aumentar_memoria(n);
     if (!antigo) return false;
     if (!inicio) inicio = fim = antigo;
@@ -38,6 +40,7 @@ static bool crescer(uint32_t pelo_menos)
 void *aloca(size_t n)
 {
     if (n == 0) n = 1;
+    if (n > 0xFFFFFFFFu - sizeof(bloco_t) - (ALINHAMENTO - 1)) return NULL;
     uint32_t precisa = (uint32_t)((n + sizeof(bloco_t) + ALINHAMENTO - 1) & ~(ALINHAMENTO - 1));
     for (int tentativa = 0; tentativa < 2; tentativa++) {
         for (bloco_t *b = (bloco_t *)inicio; (uint8_t *)b < fim; b = proximo(b)) {

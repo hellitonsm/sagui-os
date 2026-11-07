@@ -1105,19 +1105,18 @@ que o SaguiOS nao tem; a ABI aqui e `int 0x80` via `abi.h`. Trazer a
 biblioteca inteira seria carregar threads/rede/DNS sem uso e sem FPU.
 A analise completa esta em `docs/dietlibc.md`.
 
-## D037. mlibc como base para compilar programas (analise)
+## D037. Shim C/POSIX inspirada no mlibc (implementacao parcial)
 
-**Decisao:** usar o mlibc como *referencia de porte* (sysdeps isolados,
-static primeiro, ABI headers reusaveis), sem trazer o mlibc inteiro.
-Adaptar so os sysdeps obrigatorios sobre a libsagui nos moldes do
-guia (`Exit/Open/Read/Write/Seek/Close/ClockGet/LibcLog/AnonAllocate`,
-com stubs para `Futex/VmMap/TcbSet`), mantendo `_start` atual e link
-estatico. Museu nao: aposentar a pasta `userland/musl/` incompleta em
-favor de `userland/mlibc/` quando o porte for implementado.
+**Decisao:** manter `userland/mlibc/` como uma shim propria em C, ligada
+estaticamente sobre a `libsagui`; nao importar nem afirmar que foi portado o
+mlibc upstream do Managarm. O escopo atual cobre memoria, strings/ctype,
+stdio sem buffer, descritores POSIX e relogios; erros de syscall sao traduzidos
+para `-1`/`errno`. `_inicio`/`principal()` e o build Make/GCC permanecem.
 
-**Motivo:** o guia (`docs.managarm.org/mlibc-book/porting/intro.html`)
-mostra que o mlibc foi feito para kernels novos e o SaguiOS ja tem
-os pre-requisitos (paging, ELF, syscalls). Trazer Meson+toolchain
-C++ e violar o PRD sem ganho; a adaptacao fina entrega os mesmos
-nomes POSIX com custo baixo. Analise completa em `docs/mlibc.md`,
-comparacao anterior em `docs/dietlibc.md`.
+**Motivo:** o upstream exige toolchain/sysroot, Meson/C++, ABI headers e
+sysdeps de VM/threads/TLS que o kernel nao oferece. A shim e codigo do proprio
+projeto e preserva o build freestanding; funcionalidades sem suporte no kernel
+(como `%f`, `O_NONBLOCK`, futex e VM map) falham explicitamente ou ficam fora
+do subset. O teste H43 cobre a API realmente implementada. A lista de APIs e
+limites esta em `docs/mlibc.md`; a analise de porte upstream continua como
+referencia em `https://docs.managarm.org/mlibc-book/porting/intro.html`.

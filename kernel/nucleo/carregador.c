@@ -36,6 +36,19 @@ typedef struct EMPACOTADO {
 #define PT_LOAD 1
 #define PF_W    2
 
+/* Entradas mínimas do vetor auxiliar ELF entregue no início do processo. */
+#define AT_NULL   0
+#define AT_PHDR   3
+#define AT_PHENT  4
+#define AT_PHNUM  5
+#define AT_PAGESZ 6
+#define AT_ENTRY  9
+#define AT_UID   11
+#define AT_EUID  12
+#define AT_GID   13
+#define AT_EGID  14
+#define AT_EXECFN 31
+
 /* Copia bytes para dentro de outro espaço de endereço. As páginas já estão
  * alocadas; o kernel escreve nelas pelo endereço físico (mapeamento 1:1). */
 static void copiar_para(espaco_t e, uint32_t virt, const void *origem, uint32_t n)
@@ -50,7 +63,8 @@ static void copiar_para(espaco_t e, uint32_t virt, const void *origem, uint32_t 
     }
 }
 
-static int carregar_segmentos(espaco_t e, const uint8_t *img, uint32_t tam, uint32_t *entrada, uint32_t *fim)
+static int carregar_segmentos(espaco_t e, const uint8_t *img, uint32_t tam,
+                              uint32_t *entrada, uint32_t *fim, uint32_t *phdr)
 {
     const elf_cabecalho_t *c = (const elf_cabecalho_t *)img;
     if (tam < sizeof *c || img[0] != 0x7F || img[1] != 'E' || img[2] != 'L' || img[3] != 'F')
@@ -60,7 +74,9 @@ static int carregar_segmentos(espaco_t e, const uint8_t *img, uint32_t tam, uint
     if (c->desloc_ph > tam || (uint32_t)c->qtd_ph * sizeof(elf_programa_t) > tam - c->desloc_ph)
         return ERRO_FORMATO;
     *fim = USUARIO_INICIO;
+    *phdr = 0;
     bool algum = false;
+    uint32_t phdr_fim = c->desloc_ph + (uint32_t)c->qtd_ph * sizeof(elf_programa_t);
     for (uint32_t i = 0; i < c->qtd_ph; i++) {
         const elf_programa_t *p = (const elf_programa_t *)(img + c->desloc_ph + i * sizeof(elf_programa_t));
         if (p->tipo != PT_LOAD || p->tam_memoria == 0) continue;
@@ -71,6 +87,8 @@ static int carregar_segmentos(espaco_t e, const uint8_t *img, uint32_t tam, uint
         if (!espaco_alocar(e, p->virt, p->tam_memoria, flags))
             return ERRO_SEM_MEMORIA;
         copiar_para(e, p->virt, img + p->desloc, p->tam_arquivo);
+        if (c->desloc_ph >= p->desloc && phdr_fim <= p->desloc + p->tam_arquivo)
+            *phdr = p->virt + (c->desloc_ph - p->desloc);
         if (p->virt + p->tam_memoria > *fim) *fim = p->virt + p->tam_memoria;
         algum = true;
     }
@@ -80,10 +98,14 @@ static int carregar_segmentos(espaco_t e, const uint8_t *img, uint32_t tam, uint
     return 0;
 }
 
-/* Pilha inicial, de cima para baixo: os textos dos argumentos, o vetor argv
- * (terminado em NULL), e por fim argc e o ponteiro para argv, que a função
- * _inicio da libsagui lê em [esp] e [esp+4]. */
-static uint32_t montar_pilha(espaco_t e, int argc, char *const argv[])
+/* Pilha inicial ELF, de cima para baixo: strings dos argumentos, vetor
+ * auxiliar terminado em AT_NULL, ponteiros argv[] (terminado em NULL),
+ * envp vazio (apenas um NULL) e, finalmente, argc no topo. O começo
+ * continua compatível com a ABI antiga da libsagui: argc em [esp],
+ * argv em [esp+4]. Este é o layout que o mlibc espera em
+ * parse_exec_stack()/interpreterMain(). */
+static uint32_t montar_pilha(espaco_t e, int argc, char *const argv[],
+                             uint32_t entrada, uint32_t phdr, uint32_t phnum)
 {
     uint32_t sp = PILHA_USUARIO_TOPO;
     uint32_t ponteiros[MAX_ARGS + 1];
@@ -94,11 +116,33 @@ static uint32_t montar_pilha(espaco_t e, int argc, char *const argv[])
         ponteiros[i] = sp;
     }
     ponteiros[argc] = 0;
+
+    uint32_t aux[20];
+    unsigned na = 0;
+    if (phdr) { aux[na++] = AT_PHDR; aux[na++] = phdr; }
+    aux[na++] = AT_PHENT;  aux[na++] = sizeof(elf_programa_t);
+    aux[na++] = AT_PHNUM;  aux[na++] = phnum;
+    aux[na++] = AT_PAGESZ; aux[na++] = PAGINA;
+    aux[na++] = AT_ENTRY;  aux[na++] = entrada;
+    aux[na++] = AT_UID;    aux[na++] = 0;
+    aux[na++] = AT_EUID;   aux[na++] = 0;
+    aux[na++] = AT_GID;    aux[na++] = 0;
+    aux[na++] = AT_EGID;   aux[na++] = 0;
+    aux[na++] = AT_EXECFN; aux[na++] = argc ? ponteiros[0] : 0;
+    aux[na++] = AT_NULL;   aux[na++] = 0;
+    for (unsigned i = na; i > 0; i--) {
+        sp -= 4;
+        copiar_para(e, sp, &aux[i - 1], 4);
+    }
+
+    uint32_t zero = 0;
+    sp -= 4; copiar_para(e, sp, &zero, 4); /* fim de envp (vazio): envp[0] = NULL */
+    sp -= 4; copiar_para(e, sp, &zero, 4); /* fim de argv: argv[argc] = NULL */
     sp &= ~3u;
+
     sp -= (argc + 1) * 4;
-    uint32_t vetor = sp;
     copiar_para(e, sp, ponteiros, (argc + 1) * 4);
-    sp -= 4; copiar_para(e, sp, &vetor, 4);
+
     uint32_t c = (uint32_t)argc;
     sp -= 4; copiar_para(e, sp, &c, 4);
     return sp;
@@ -113,8 +157,9 @@ int processo_executar(const char *caminho, int argc, char *const argv[], process
 
     espaco_t e = espaco_criar();
     if (!e) { kfree(img); return ERRO_SEM_MEMORIA; }
-    uint32_t entrada = 0, fim = 0;
-    int r = carregar_segmentos(e, img, tam, &entrada, &fim);
+    uint32_t entrada = 0, fim = 0, phdr = 0, phnum = 0;
+    int r = carregar_segmentos(e, img, tam, &entrada, &fim, &phdr);
+    if (r == 0) phnum = ((const elf_cabecalho_t *)img)->qtd_ph;
     kfree(img);
     if (r == 0 && !espaco_alocar(e, PILHA_USUARIO_TOPO - PILHA_USUARIO_TAM, PILHA_USUARIO_TAM,
                                  PG_USUARIO | PG_ESCRITA))
@@ -130,7 +175,7 @@ int processo_executar(const char *caminho, int argc, char *const argv[], process
     p->dados_inicio = p->dados_fim = (fim + PAGINA - 1) & ~(PAGINA - 1);
     if (pai) txt_copia_n(p->pasta, pai->pasta, sizeof p->pasta);
     arquivos_herdar(p, pai);
-    processo_preparar_usuario(p, entrada, montar_pilha(e, argc, argv));
+    processo_preparar_usuario(p, entrada, montar_pilha(e, argc, argv, entrada, phdr, phnum));
     klog("[SAGUI] executar %s -> processo %d\n", caminho, p->pid);
     return p->pid;
 }

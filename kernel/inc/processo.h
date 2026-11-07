@@ -31,6 +31,7 @@ typedef struct processo {
     struct arquivo *arquivos[MAX_ARQUIVOS];
     char        pasta[CAMINHO_MAX];
     uint32_t    dados_inicio, dados_fim;   /* área que cresce com aumentar_memoria */
+    uint32_t    tls_base;                  /* base do TCB usado pelo descritor GS */
     uint32_t    tiques_cpu;
 } processo_t;
 

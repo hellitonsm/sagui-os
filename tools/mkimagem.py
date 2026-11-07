@@ -15,9 +15,15 @@ O endereço do ramdisk na memória vem do símbolo _kernel_fim do ELF do kernel
 ramdisk.
 """
 import argparse
+import os
 import struct
 import subprocess
 import sys
+
+# Toolchain cruzada do SaguiOS (mesma do Makefile/.local/mlibc-cross.ini).
+TOOLCHAIN_BIN = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 '..', '.local', 'windows-tools', 'toolchain', 'bin'))
 
 SETOR = 512
 KERNEL_ENDERECO = 0x100000
@@ -37,7 +43,10 @@ def preencher_setores(dados):
 
 
 def simbolos(elf):
-    saida = subprocess.run(["nm", elf], check=True, capture_output=True, text=True).stdout
+    nm = os.path.join(TOOLCHAIN_BIN, "i686-elf-nm.exe")
+    if not os.path.exists(nm):
+        nm = "nm"  # fallback para ambiente com nm no PATH
+    saida = subprocess.run([nm, elf], check=True, capture_output=True, text=True).stdout
     tab = {}
     for linha in saida.splitlines():
         partes = linha.split()
