@@ -19,4 +19,18 @@ time_t  time(time_t *result);
 int     clock_gettime(clockid_t clock_id, struct timespec *result);
 int     nanosleep(const struct timespec *request, struct timespec *remaining);
 
+struct tm {
+    int tm_sec;    /* 0-59 */
+    int tm_min;    /* 0-59 */
+    int tm_hour;   /* 0-23 */
+    int tm_mday;   /* 1-31 */
+    int tm_mon;    /* 0-11 */
+    int tm_year;   /* anos desde 1900 */
+    int tm_wday;   /* 0 = domingo */
+    int tm_yday;   /* dias desde 1 de janeiro */
+    int tm_isdst;  /* sempre 0 */
+};
+
+struct tm *localtime(const time_t *tempo);
+
 #endif

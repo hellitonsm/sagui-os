@@ -232,7 +232,8 @@ void processo_preparar_usuario(processo_t *p, uint32_t entrada, uint32_t pilha)
 {
     quadro_t *q = (quadro_t *)(p->pilha_kernel + PILHA_KERNEL - sizeof(quadro_t));
     memset(q, 0, sizeof *q);
-    q->ds = q->es = q->fs = q->gs = SEL_UDADOS;
+    q->ds = q->es = q->fs = SEL_UDADOS;
+    q->gs = SEL_UTLS;                 /* TLS base is per-process, set via SIS_TLS */
     q->cs = SEL_UCODIGO;
     q->ss_usuario = SEL_UDADOS;
     q->esp_usuario = pilha;

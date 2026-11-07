@@ -107,13 +107,45 @@ FILE *fdopen(int fd, const char *mode)
     return stream;
 }
 
+FILE *freopen(const char *path, const char *mode, FILE *stream)
+{
+    if (!stream) { errno = EINVAL; return NULL; }
+    fflush(stream);
+    int oflags, sflags;
+    if (!path || !modo_fopen(mode, &oflags, &sflags)) {
+        errno = EINVAL;
+        stream->fd = -1;
+        stream->error = 1;
+        return NULL;
+    }
+    int newfd = open(path, oflags, 0666);
+    if (newfd < 0) {
+        stream->fd = -1;
+        stream->error = 1;
+        return NULL;
+    }
+    int fd = stream->fd;
+    if (fd < 0) {
+        stream->fd = newfd; /* stream estava quebrada: ganha o descritor novo */
+    } else {
+        int r = dup2(newfd, fd);
+        (void)close(newfd);
+        if (r < 0) { stream->fd = -1; stream->error = 1; return NULL; }
+    }
+    int keep = stream->flags & (STREAM_STATIC | STREAM_OWNED);
+    stream->flags = sflags | keep;
+    stream->eof = 0;
+    stream->error = 0;
+    stream->has_pushback = 0;
+    return stream;
+}
+
 int fclose(FILE *stream)
 {
     if (!stream) { errno = EINVAL; return EOF; }
     int owned = !(stream->flags & STREAM_STATIC);
     int fd = stream->fd;
-    stream->fd = -1;
-    stream->has_pushback = 0;
+    stream->fd = -1;    stream->has_pushback = 0;
     int r = close(fd);
     if (owned) free(stream);
     return r < 0 ? EOF : 0;

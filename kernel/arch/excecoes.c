@@ -67,11 +67,14 @@ SEM_RETORNO void excecao_fatal(quadro_t *q)
  * em ação: o kernel e os outros programas seguem normalmente. */
 quadro_t *excecao_usuario(quadro_t *q)
 {
-    char motivo[64];
-    snformatar(motivo, sizeof motivo, "%s em EIP=0x%08x", nome_excecao(q->vetor), q->eip);
+    char motivo[128];
+    snformatar(motivo, sizeof motivo, "%s em EIP=0x%08x (erro=0x%x cr2=0x%08x)", nome_excecao(q->vetor), q->eip, q->erro, le_cr2());
     if (q->vetor == 14)
-        snformatar(motivo, sizeof motivo, "%s: %s 0x%08x", nome_excecao(14),
-                   q->erro & 2 ? "escrita" : "leitura", le_cr2());
+        snformatar(motivo, sizeof motivo, "Falta de pagina: %s 0x%08x em EIP=0x%08x",
+                   q->erro & 2 ? "escrita" : "leitura", le_cr2(), q->eip);
+    if (q->vetor == 14 || q->vetor == 13 || q->vetor == 6)
+        kprintf("\n[SaguiOS] registradores: eip=%x esp=%x ebp=%x edi=%x esi=%x eax=%x ebx=%x ecx=%x edx=%x\n",
+                q->eip, q->esp_usuario, q->ebp, q->edi, q->esi, q->eax, q->ebx, q->ecx, q->edx);
     kprintf("\n[SaguiOS] Processo %d (%s) encerrado: %s\n", atual->pid, atual->nome, motivo);
     processo_encerrar(atual, SAIDA_ENCERRADO_PELO_KERNEL, motivo);
     return escalonar(q);

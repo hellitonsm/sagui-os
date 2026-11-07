@@ -7,7 +7,7 @@ para PCs x86 de 32 bits, rodando de verdade num notebook de 2011.
 
 Feito por Claude (Anthropic) para o projeto do **Eli Rigobeli**.
 
-`562 KB` · `sem GRUB` · `sem libc externa` · `sem código de outros sistemas` · `47 testes automáticos`
+`562 KB` · `sem GRUB` · `sem libc externa` · `sem código de outros sistemas` · `48 testes automáticos`
 
 <img src="docs/capturas/B4-3-fase1-corredor.png" width="49%" alt="Sagui 3D, o jogo em primeira pessoa do SaguiOS">
 <img src="docs/capturas/H28-tres-programas.png" width="49%" alt="Área de trabalho do SaguiOS com três programas abertos">
@@ -80,7 +80,7 @@ na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 | Imagem de boot | **702.464 bytes** úteis |
 | Linhas de código | boot 903, kernel 11.204, programas 9.849 (mais 4.004 de ferramentas e testes) |
 | Programas | 40 em `/bin`: shell, comandos, compiladores nativos, `lua` e 8 programas gráficos |
-| Testes automáticos | 47 scripts (45 H + 2 bônus), incluindo o teste dos compiladores nativos |
+| Testes automáticos | 48 scripts (46 H + 2 bônus), incluindo o teste dos compiladores nativos e o da biblioteca gráfica do tinycc |
 | Decisões registradas | 33, com o raciocínio de cada uma |
 | Erros registrados | 24, com sintoma, causa e correção |
 | Commits | ~55, um por história |
@@ -159,6 +159,30 @@ csagui build -o /tmp/ola-c /c/ola.c
 
 **Nao sao NASM/GCC completos.** Consulte [`docs/asm-c.md`](docs/asm-c.md) para
 a sintaxe aceita, limites, exemplos e o teste nativo.
+
+### tinycc (compilador C completo)
+
+Alem deles, `/bin/tinycc` e um compilador de C de verdade (TinyCC 0.9.28rc) rodando
+dentro do SaguiOS: compila um fonte `.c` para ELF32 i386 e o executa ali mesmo:
+
+```text
+tinycc -o /tmp/ola /tcc/hello-tcc.c
+/tmp/ola
+```
+
+Funciona com C inteiro (sem FPU); veja [`docs/tcc.md`](docs/tcc.md) para o sysroot
+nativo (`/usr`), os limites e o teste `/testes/tinycc`.
+
+Com `libsaguigui.a` (no sysroot, `/usr/lib`), o tinycc tambem compila programas
+graficos para a area de trabalho do SaguiOS — janela, rotulo, caixa de texto e
+botao — usando o mesmo kit grafico `gui.h` dos programas nativos:
+
+```text
+tinycc -o /tmp/ex /tcc/exemplo-gui.c -lsaguigui
+/tmp/ex
+```
+
+Veja o teste `/testes/gui_tinycc` e [`docs/tcc.md`](docs/tcc.md#biblioteca-gráfica-libsaguigui).
 
 ### IDE de código
 
@@ -257,7 +281,10 @@ testes_eli/  fotos dos testes do Eli no G470
 | [`docs/virtualbox.md`](docs/virtualbox.md) | Como ligar a rede no VirtualBox (placas, NAT, Bridge, Host-only) |
 | [`docs/go.md`](docs/go.md) | Compilador nativo do subconjunto Go (`gosagui`) |
 | [`docs/asm-c.md`](docs/asm-c.md) | Assembler x86 reduzido (`asagui`) e compilador do subconjunto C (`csagui`) |
+| [`docs/jogos.md`](docs/jogos.md) | C compilado dentro do sistema (`csagui` 0.3): Sudoku, Pong e Tetris em `/jogos` |
+| [`docs/tcc.md`](docs/tcc.md) | TinyCC como compilador C completo do SaguiOS: sysroot nativo em `/usr`, uso, limites |
 | [`docs/lua.md`](docs/lua.md) | Interpretador nativo do subconjunto de Lua (`lua`) |
+| [`docs/gui-lua.md`](docs/gui-lua.md) | Biblioteca gráfica `gui` no Lua nativo: janelas, botões, caixas, listas e diálogos |
 | [`docs/mlibc.md`](docs/mlibc.md) | Shim C/POSIX do SaguiOS, APIs e limites (não é o upstream) |
 | [`docs/diario.md`](docs/diario.md) | O diário do projeto, fase a fase |
 | [`docs/historias/`](docs/historias/) | Uma página por história (H01 a H34, B1 a B4) |

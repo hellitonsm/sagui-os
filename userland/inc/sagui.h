@@ -23,9 +23,18 @@ typedef _Bool              bool;
 #define NULL  ((void *)0)
 
 typedef __builtin_va_list va_list;
+#ifndef va_start
 #define va_start(l, u) __builtin_va_start(l, u)
+#endif
+#ifndef va_arg
 #define va_arg(l, t)   __builtin_va_arg(l, t)
+#endif
+#ifndef va_end
 #define va_end(l)      __builtin_va_end(l)
+#endif
+#ifndef va_copy
+#define va_copy(d, s)  __builtin_va_copy(d, s)
+#endif
 
 #define ENTRADA 0
 #define SAIDA   1

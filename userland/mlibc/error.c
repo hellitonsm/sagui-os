@@ -1,5 +1,6 @@
 /* error.c - traducao dos erros do kernel para errno POSIX. */
 #include "internal.h"
+#include <sagui.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -128,4 +129,27 @@ unsigned long long __mlibc_divmod_u64(unsigned long long value,
     }
     if (remainder) *remainder = r;
     return quotient;
+}
+/* __sagui_assert_fail - fim abrupto num assert do mlibc/tinycc. */
+void __sagui_assert_fail(const char *expressao, const char *arquivo,
+                         int linha)
+{
+    (void)write(STDERR_FILENO, "assert falhou: ", 15);
+    if (expressao) (void)write(STDERR_FILENO, expressao, strlen(expressao));
+    (void)write(STDERR_FILENO, " em ", 4);
+    if (arquivo) (void)write(STDERR_FILENO, arquivo, strlen(arquivo));
+    {
+        unsigned value = (unsigned)linha;
+        char digits[10];
+        unsigned i = 0;
+        (void)write(STDERR_FILENO, ":", 1);
+        if (!value) {
+            (void)write(STDERR_FILENO, "0", 1);
+        } else {
+            while (value) { digits[i++] = (char)('0' + value % 10); value /= 10; }
+            while (i) (void)write(STDERR_FILENO, &digits[--i], 1);
+        }
+    }
+    (void)write(STDERR_FILENO, "\n", 1);
+    sair(70);
 }

@@ -230,3 +230,10 @@ void qsort(void *base, size_t count, size_t size,
         descer_heap(bytes, 0, fim - 1, size, compar);
     }
 }
+
+char *getenv(const char *name)
+{
+    /* O SaguiOS nao tem ambiente de processo. */
+    (void)name;
+    return (char *)0;
+}

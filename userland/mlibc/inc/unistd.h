@@ -30,4 +30,10 @@ int     dup(int fd);
 int     dup2(int oldfd, int newfd);
 int     isatty(int fd);
 
+char   *realpath(const char *path, char *buffer);
+int     execvp(const char *file, char *const argv[]);
+
+/* SaguiOS nao tem ambiente; environ vale um unico NULL. */
+extern char *environ[];
+
 #endif

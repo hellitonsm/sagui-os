@@ -1,3 +1,4 @@
+#include <string.h>
 /* unistd.c - adaptacao POSIX das chamadas int 0x80 do SaguiOS. */
 #include "internal.h"
 #include <unistd.h>
@@ -300,3 +301,72 @@ int fcntl(int fd, int command, ...)
         return -1;
     }
 }
+
+char *environ[] = { (char *)0 };
+
+int execvp(const char *file, char *const argv[])
+{
+    /* O SaguiOS nao tem execve de arquivos host; nada a executar. */
+    (void)file; (void)argv;
+    errno = ENOSYS;
+    return -1;
+}
+
+char *realpath(const char *caminho, char *buffer)
+{
+    char temporario[4096];
+    if (!caminho) { errno = EINVAL; return NULL; }
+    if (caminho[0] == '/') {
+        if (strlen(caminho) >= sizeof temporario) { errno = ENAMETOOLONG; return NULL; }
+        strcpy(temporario, caminho);
+    } else {
+        if (!getcwd(temporario, sizeof temporario)) return NULL;
+        size_t n = strlen(temporario);
+        size_t resto = strlen(caminho);
+        if (n + 1 + resto >= sizeof temporario) { errno = ENAMETOOLONG; return NULL; }
+        temporario[n] = '/';
+        temporario[n + 1] = '\0';
+        strcat(temporario, caminho);
+    }
+    /* Normaliza: remove ".", resolve "..". */
+    char resultado[4096];
+    resultado[0] = '/';
+    resultado[1] = '\0';
+    char *dst = resultado + 1;
+    const char *p = temporario;
+    while (*p) {
+        while (*p == '/') p++;
+        if (!*p) break;
+        const char *e = p;
+        while (*e && *e != '/') e++;
+        size_t len = (size_t)(e - p);
+        if (len == 1 && p[0] == '.') { p = e; continue; }
+        if (len == 2 && p[0] == '.' && p[1] == '.') {
+            if (dst > resultado + 1) {
+                dst--;
+                while (dst > resultado + 1 && dst[-1] != '/') dst--;
+            }
+            p = e;
+            continue;
+        }
+        if ((size_t)(dst - resultado) + len + 1 >= sizeof resultado) {
+            errno = ENAMETOOLONG;
+            return NULL;
+        }
+        memcpy(dst, p, len);
+        dst += len;
+        *dst++ = '/';
+        *dst = '\0';
+        p = e;
+    }
+    if (dst > resultado + 1) dst--;
+    *dst = '\0';
+    size_t total = (size_t)(dst - resultado) + 1;
+    if (!buffer) {
+        buffer = malloc(total);
+        if (!buffer) return NULL;
+    }
+    memcpy(buffer, resultado, total);
+    return buffer;
+}
+

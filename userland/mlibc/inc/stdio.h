@@ -50,6 +50,7 @@ int   ungetc(int character, FILE *stream);
 
 FILE *fopen(const char *path, const char *mode);
 FILE *fdopen(int fd, const char *mode);
+FILE *freopen(const char *path, const char *mode, FILE *stream);
 int   fclose(FILE *stream);
 int   fflush(FILE *stream);
 size_t fread(void *buffer, size_t size, size_t count, FILE *stream);

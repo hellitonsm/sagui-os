@@ -124,3 +124,48 @@ int gettimeofday(struct timeval *value, struct timezone *zone)
     if (zone) { zone->tz_minuteswest = 0; zone->tz_dsttime = 0; }
     return 0;
 }
+
+/* Tempo (UTC) -> struct tm. O kernel nao tem fuso; o SaguiOS trata
+ * tudo como UTC. dias_1970 e o n. de dias desde 1970-01-01 (quinta-feira). */
+struct tm *localtime(const time_t *tempo)
+{
+    static struct tm resultado;
+    if (!tempo) { errno = EFAULT; return (struct tm *)0; }
+    long segundos = (long)*tempo;
+    long dias = segundos / 86400;
+    long resto = segundos % 86400;
+    if (resto < 0) { resto += 86400; dias -= 1; }
+    resultado.tm_hour = (int)(resto / 3600);
+    resultado.tm_min  = (int)((resto % 3600) / 60);
+    resultado.tm_sec  = (int)(resto % 60);
+    resultado.tm_wday = (int)(((dias % 7) + 4 + 7) % 7);
+    resultado.tm_isdst = 0;
+    int ano = 1970;
+    if (dias >= 0) {
+        for (;;) {
+            long d = bissexto(ano) ? 366 : 365;
+            if (dias < d) break;
+            dias -= d;
+            ano++;
+        }
+    } else {
+        for (;;) {
+            int d = bissexto(ano - 1) ? 366 : 365;
+            if (dias >= -(long)d) { ano--; dias += d; break; }
+            ano--;
+            dias += d;
+        }
+    }
+    int yday = (int)dias;
+    int mes = 1;
+    int restante = yday;
+    while (mes < 12 && restante >= dias_no_mes(ano, mes)) {
+        restante -= dias_no_mes(ano, mes);
+        mes++;
+    }
+    resultado.tm_year = ano - 1900;
+    resultado.tm_mon  = mes - 1;
+    resultado.tm_mday = restante + 1;
+    resultado.tm_yday = yday;
+    return &resultado;
+}
