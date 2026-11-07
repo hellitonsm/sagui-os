@@ -45,6 +45,7 @@ static const chamada_t tabela[SIS_MAX] = {
     [SIS_HTTP_OBTER] = sis_http_obter,
     [SIS_REDE_INFO] = sis_rede_info,
     [SIS_TLS] = sis_tls,
+    [SIS_TECLA_TENTEU] = sis_tecla_tenteu,
 };
 
 bool usuario_ok(const void *p, uint32_t n, bool escrita)

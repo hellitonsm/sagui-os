@@ -56,6 +56,8 @@
 #define SIS_BIP            58   /* (&notas, quantidade, modo) -> volta na hora; o tique do relógio toca */
 /* Jogos (bônus B4) */
 #define SIS_TECLAS_SEGURADAS 59 /* (&mapa[32]) -> 1 se a janela do processo está em foco */
+/* terminal: modo bruto, sem bloquear: o próximo byte da tecla, ou -1 */
+#define SIS_TECLA_TENTEU     63
 #define SIS_HTTP_OBTER      60 /* (url, buffer, capacidade) -> resposta HTTP bruta */
 #define SIS_REDE_INFO       61 /* (&info_rede) -> 1 se ha placa, 0 se nao */
 #define SIS_TLS             62 /* (base) define base do segmento TLS GS do processo */

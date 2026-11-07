@@ -93,6 +93,16 @@ int principal(int argc, char **argv)
     char *executar_linkado[] = { "/tmp/ola-rel", NULL };
     if (rodar(linkar) != 0 || rodar(executar_linkado) != 0) return 13;
 
+    /* Os jogos de /jogos compilam no convidado com o csagui 0.3 (o teste nao
+     * executa os jogos: eles esperam teclado e fariam o boot travar). */
+    char *comp_sudoku[] = { "/bin/csagui", "build", "-o", "/tmp/sudoku", "/jogos/sudoku.c", NULL };
+    if (rodar(comp_sudoku) != 0) { imprimir_em(ERROS, "[TOOLS] o sudoku nao compilou\n"); return 14; }
+    char *comp_pong[] = { "/bin/csagui", "build", "-o", "/tmp/pong", "/jogos/pong.c", NULL };
+    if (rodar(comp_pong) != 0) { imprimir_em(ERROS, "[TOOLS] o pong nao compilou\n"); return 15; }
+    char *comp_tetris[] = { "/bin/csagui", "build", "-o", "/tmp/tetris", "/jogos/tetris.c", NULL };
+    if (rodar(comp_tetris) != 0) { imprimir_em(ERROS, "[TOOLS] o tetris nao compilou\n"); return 16; }
+    registrar("[TOOLS] jogos sudoku, pong e tetris compilam no convidado\n");
+
     (void)apagar("/tmp/ola-asm");
     (void)apagar("/tmp/ola-c");
     (void)apagar("/tmp/invalido.c");

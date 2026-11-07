@@ -26,7 +26,12 @@ csagui build -o /tmp/ola-direto /c/ola.c
 /tmp/ola-direto
 ```
 
-Os exemplos `/asm/ola.asm` e `/c/ola.c` vêm no rootfs. O Makefile já descobre automaticamente `userland/programas/*.c` e `userland/testes/*.c`, então os binários e o teste são incluídos em `/bin` e `/testes` sem uma lista manual.
+Os exemplos `/asm/ola.asm` e `/c/ola.c` vêm no rootfs; `/c/tabuada.c` mostra
+laço e desvio, e os exemplos de `/go` e `/lua` incluem programas gráficos (a
+biblioteca `gui` do Lua nativo, ver [gui-lua.md](gui-lua.md)). O Makefile já
+descobre automaticamente `userland/programas/*.c` e `userland/testes/*.c`,
+então os binários e o teste são incluídos em `/bin` e `/testes` sem uma lista
+manual.
 
 `csagui` grava assembly intermediário em `/tmp/csagui-<pid>.asm`, aguarda `/bin/asagui` e remove o temporário. O destino só é aberto pelo assembler depois de a análise e a montagem terminarem sem erro; erros de sintaxe preservam um destino que já existia. A gravação não restaura uma versão anterior se houver falha física durante a escrita.
 
@@ -57,7 +62,7 @@ Não há macros, `%define`, includes, script de link, `align`, `resb`, tamanhos 
 
 `asagui build -o programa.elf fonte.asm` exige `_start:`/`start:` e produz ELF32 executável. `asagui assemble -c -o modulo.o fonte.asm` produz ELF32 `ET_REL`, sem exigir ponto de entrada. O objeto contém tabela de símbolos e `.rel.text`; referências absolutas geram `R_386_32`, chamadas/saltos relativos geram `R_386_PC32`. `global` exporta símbolos e `extern` declara referências externas. A saída de `asagui build` continua sem tabela de seções.
 
-Limites: fonte de 16 KiB, no máximo 4096 linhas (cada uma com até 255 bytes), 512 símbolos, 2048 relocations e 32 KiB de bytes de código/dados. `section` ainda não separa código, rodata e data: tudo é concatenado em `.text` no objeto, e o linker usa um segmento RWX.
+Limites: fonte de 128 KiB, no máximo 32768 linhas (cada uma com até 255 bytes), 2048 símbolos, 16384 relocations e 128 KiB de bytes de código/dados. `section` ainda não separa código, rodata e data: tudo é concatenado em `.text` no objeto, e o linker usa um segmento RWX.
 
 ## Compilador `csagui`
 
@@ -85,22 +90,25 @@ int main(void) {
 }
 ```
 
-Suporte atual do modo `compile -c`:
+Suporte atual do modo `compile -c` (0.3):
 
 - funções definidas com até 8 parâmetros; qualquer nome de tipo é tratado como uma palavra de 32 bits, com qualificadores e `*` aceitos na assinatura/declarador; `main` é exportado para o startup externo;
 - variáveis escalares locais, inclusive declaradas como ponteiro, com ou sem inicializador; parâmetros e variáveis usam slots de 32 bits;
-- literais inteiros decimais e hexadecimais, variáveis, strings C, chamadas, atribuição e operações aritméticas/comparações/logical listadas abaixo;
-- blocos, declarações locais, expressões, `return`, `if`/`else` e `while`;
-- chamadas a funções definidas no mesmo arquivo e a símbolos externos (até 8 argumentos), usando cdecl i386. Por isso uma chamada a `printf`, `puts`, `malloc` ou outra função C pode gerar relocation externa, mas o símbolo precisa existir nos objetos passados ao `ldagui`;
+- escalares e arrays globais (`int pontos;`, `int tab[81];`, `int base[28] = { 1, 2, 3 };`), com inicializador opcional; acesso por índice `tab[i]` em leitura e escrita; até 64 globais, 512 elementos por array, 2048 inicializadores;
+- literais inteiros decimais e hexadecimais, **literais de caractere** (`'q'`, `'\\n'`), variáveis, strings C, chamadas, atribuição e operações aritméticas/comparações/logical listadas abaixo;
+- blocos, declarações locais, expressões, `return`, `if`/`else`, `while`, **`for`**, **`break`** e **`continue`**;
+- chamadas a funções definidas no mesmo arquivo, a builtins embutidos (ver [jogos.md](jogos.md)) e a símbolos externos (até 8 argumentos), usando cdecl i386. Por isso uma chamada a `printf`, `puts`, `malloc` ou outra função C pode gerar relocation externa, mas o símbolo precisa existir nos objetos passados ao `ldagui`;
 - strings são gravadas com terminador NUL e o objeto usa relocations para passar o endereço da string a funções como `printf`/`puts`.
 
-`csagui compile -c` reconhece e ignora linhas de diretiva iniciadas por `#`; **não** abre headers, não expande `#define`, não importa declarações nem verifica protótipos. Tipos e argumentos são tratados como palavras de 32 bits; não há verificação de tipos, promoção de argumentos variádicos ou modelo completo de overflow. `int`, `char *`, `size_t` e outros valores de 32 bits podem ser passados pela ABI cdecl, mas acesso por ponteiro, arrays e structs ainda não são implementados.
+`csagui compile -c` reconhece e ignora linhas de diretiva iniciadas por `#`; **não** abre headers, não expande `#define`, não importa declarações nem verifica protótipos. Tipos e argumentos são tratados como palavras de 32 bits; não há verificação de tipos, promoção de argumentos variádicos ou modelo completo de overflow. `int`, `char *`, `size_t` e outros valores de 32 bits podem ser passados pela ABI cdecl, mas acesso por ponteiro e structs ainda não são implementados.
 
-O modo antigo `csagui build -o programa.elf` gera um executável sem libc: `_start` chama `main`, termina com `SIS_SAIR` e `puts` é uma embutida que escreve direto com `SIS_ESCREVER`. Esse modo existe para os exemplos e não aceita chamadas externas.
+O modo antigo `csagui build -o programa.elf` gera um executável sem libc: `_start` chama `main`, termina com `SIS_SAIR` e `puts` é uma embutida que escreve direto com `SIS_ESCREVER`. Esse modo também aceita os builtins embutidos e não aceita chamadas externas. Os jogos de `/jogos/*.c` são exemplos desse modo e de tudo o que o 0.3 acrescentou; veja [jogos.md](jogos.md).
 
 ### Limites e rejeições explícitas
 
-Fonte de até 8 KiB, até 64 funções, 8 parâmetros por função, 32 parâmetros/variáveis por função, 8 KiB de strings e 16 KiB de assembly intermediário. As funções locais aceitam somente variáveis escalares e expressões implementadas; não há arrays, acesso a membros, operadores `++`/`--`, `for`, `do`, `switch`, `break`, `continue`, `goto`, casts, floats, literais char, inicializadores compostos ou inline assembly. O escopo é único por função: declarar novamente o mesmo nome, inclusive em blocos internos, é erro.
+Fonte de até 16 KiB, até 64 funções, 8 parâmetros por função, 32 parâmetros/variáveis por função, 16 KiB de strings e 128 KiB de assembly intermediário. Arrays de `int` só globais (sem arrays locais) e sem acesso a membros; operadores `++`/`--`, `do`, `switch`, `goto`, casts e floats continuam de fora. O escopo é único por função: declarar novamente o mesmo nome, inclusive em blocos internos, é erro.
+
+O `asagui` acompanha esses limites: fonte de até 128 KiB, 32.768 linhas, 2048 símbolos e 16384 relocations.
 
 Cada função usa um frame fixo de 256 bytes; argumentos são empilhados da direita para a esquerda. `compile -c` gera um objeto ELF32 `ET_REL`; o modo `build` gera ELF32 `ET_EXEC`. Uma falha de execução (por exemplo, divisão por zero) não é convertida em exceção C.
 

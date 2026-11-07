@@ -89,6 +89,7 @@ void silenciar(void);
 /* ---- jogos (bônus B4) ---- */
 int  teclas_seguradas(unsigned char mapa[32]);   /* 1 = em foco; CV_* em abi.h */
 #define SEGURADA(mapa, cv) (((mapa)[(cv) >> 3] >> ((cv) & 7)) & 1)
+int  tecla_tentada(void);   /* modo bruto: o proximo byte da tecla, ou -1 se nao ha */
 
 /* ---- memória e texto ---- */
 void  *memcpy(void *d, const void *s, size_t n);

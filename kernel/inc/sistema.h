@@ -61,6 +61,6 @@ int32_t sis_desmontar(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_teclas_seguradas(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_http_obter(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_rede_info(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-int32_t sis_rede_info(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int32_t sis_tecla_tenteu(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
 #endif

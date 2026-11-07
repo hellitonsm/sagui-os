@@ -10,10 +10,11 @@
 #include <unistd.h>
 #include <errno.h>
 
-#define FONTE_MAX   16384u
-#define CODIGO_MAX  32768u
-#define LINHAS_MAX  4096
-#define SIMBOLOS_MAX 512
+/* Limites ampliados para comportar jogos gerados pelo csagui. */
+#define FONTE_MAX   131072u
+#define CODIGO_MAX  131072u
+#define LINHAS_MAX  32768
+#define SIMBOLOS_MAX 2048
 #define NOME_MAXIMO 64
 #define PAGINA_ELF  4096u
 #define BASE_ELF    0x40000000u
@@ -34,8 +35,8 @@ typedef struct {
     unsigned tipo;
 } reloc_t;
 
-#define RELOC_MAX 2048u
-#define OBJETO_MAX 131072u
+#define RELOC_MAX 16384u
+#define OBJETO_MAX 262144u
 
 enum { R_386_32 = 1, R_386_PC32 = 2, R_386_PLT32 = 4 };
 

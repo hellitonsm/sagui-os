@@ -414,3 +414,11 @@ int32_t sis_limpar_tela(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t
     terminal_limpar();
     return 0;
 }
+
+/* tecla_tenteu: modo bruto, devolve o proximo byte (0..255) ou -1 se nao ha
+ * tecla pendente. Nao bloqueia; usado por jogos no terminal. */
+int32_t sis_tecla_tenteu(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e)
+{
+    (void)a; (void)b; (void)c; (void)d; (void)e;
+    return terminal_tentar();
+}

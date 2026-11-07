@@ -7,5 +7,8 @@ int32_t terminal_ler(char *destino, uint32_t n);          /* pode devolver SIS_R
 int32_t terminal_escrever(const char *origem, uint32_t n);
 void    terminal_modo(int modo);
 void    terminal_limpar(void);
+/* Modo bruto, sem bloquear: devolve o proximo byte (0..255) ou -1 se nao ha
+ * tecla pendente. Respeita o estado de teclas especiais (ESC + letra). */
+int32_t terminal_tentar(void);
 
 #endif

@@ -107,6 +107,33 @@ static int32_t ler_bruto(char *destino, uint32_t n)
     return SIS_REPETIR;
 }
 
+/* Modo bruto, sem bloquear: o proximo byte da tecla, ou -1 se nao ha nenhuma.
+ * E o mesmo estado da leitura bloqueante: ESC + letra para teclas especiais,
+ * dois bytes devolvidos em chamadas seguidas. So vale no modo bruto (o shell
+ * depende disso); fora dele devolve -1. */
+int32_t terminal_tentar(void)
+{
+    if (modo != TERM_BRUTO) return -1;
+    if (redesenhar && pendente < 0) {
+        redesenhar = false;
+        pendente = TECLA_B_REDESENHAR;
+        return 27;
+    }
+    if (pendente >= 0) {
+        int t = pendente;
+        pendente = -1;
+        return (int32_t)t;
+    }
+    int t = teclado_tentar();
+    if (t < 0) return -1;
+    if (t < 0x100) return (int32_t)t;
+    char l = letra_especial(t);
+    if (t == TECLA_ESC) { pendente = 27; return 27; }
+    if (!l) return -1;
+    pendente = (uint8_t)l;
+    return 27;
+}
+
 int32_t terminal_ler(char *destino, uint32_t n)
 {
     if (n == 0) return 0;
