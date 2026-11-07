@@ -16,6 +16,7 @@
  * O parser e um descendente recursivo. A execucao percorre a arvore; nao ha
  * bytecode nem compilacao para ELF, ao contrario do gosagui. */
 #include "sagui.h"
+#include "gui.h"
 
 #define LUA_MAX_RET        16
 #define LUA_MAX_ARGS       32
@@ -31,7 +32,7 @@ typedef struct tabela  tabela;
 typedef struct funcao  funcao;
 typedef struct ambiente ambiente;
 typedef struct no      no;
-typedef struct lista   lista_t;
+typedef struct lista   no_lista_t;
 
 typedef enum {
     V_NIL, V_BOOL, V_NUM, V_STR, V_TAB, V_FUNC, V_BUILTIN
@@ -91,7 +92,7 @@ struct lista {
 struct funcao {
     no       *corpo;
     ambiente *env;
-    lista_t  *params;
+    no_lista_t  *params;
     int       vararg;
     char     *nome;
 };
@@ -100,12 +101,12 @@ struct no {
     int   tipo, linha, op;
     valor lit;
     char *nome;
-    lista_t f;
-    lista_t params;
+    no_lista_t f;
+    no_lista_t params;
     int   vararg;
     no   *corpo;
-    lista_t chaves, valores;
-    lista_t nomes;
+    no_lista_t chaves, valores;
+    no_lista_t nomes;
     int   n_alvos;
     no   *senao;
 };
@@ -660,7 +661,7 @@ static no *no_novo(int tipo)
     return n;
 }
 
-static void lista_add(lista_t *l, no *n)
+static void lista_add(no_lista_t *l, no *n)
 {
     if (l->n == l->cap) {
         int nc = l->cap ? l->cap * 2 : 4;
@@ -720,7 +721,7 @@ static no *no_bloco(void) { return no_novo(N_BLOCO); }
 
 /* =================================================================== parser */
 
-static void exprlista(lista_t *l);
+static void exprlista(no_lista_t *l);
 static no *expr(void);
 static no *expr_unaria(void);
 static no *expr_sufixo(void);
@@ -765,7 +766,7 @@ static int comeca_expr(void)
     }
 }
 
-static void argumentos(lista_t *l)
+static void argumentos(no_lista_t *l)
 {
     if (atual.tipo == '(') {
         avancar();
@@ -977,7 +978,7 @@ static no *expr(void)
     return e;
 }
 
-static void exprlista(lista_t *l)
+static void exprlista(no_lista_t *l)
 {
     lista_add(l, expr());
     while (aceitar(',')) lista_add(l, expr());
@@ -1149,7 +1150,7 @@ static resultado retorno;
 static int nivel_chamadas;
 
 static void avaliar(no *e, ambiente *env, resultado *r);
-static void avaliar_lista(lista_t *l, ambiente *env, resultado *r, int expandir);
+static void avaliar_lista(no_lista_t *l, ambiente *env, resultado *r, int expandir);
 static void chamar(valor f, valor *args, int n, resultado *r);
 static int exec_bloco(no *b, ambiente *env, int novo);
 static int exec_instrucao(no *s, ambiente *env);
@@ -1455,7 +1456,7 @@ static void avaliar(no *e, ambiente *env, resultado *r)
     }
 }
 
-static void avaliar_lista(lista_t *l, ambiente *env, resultado *r, int expandir)
+static void avaliar_lista(no_lista_t *l, ambiente *env, resultado *r, int expandir)
 {
     r->n = 0;
     for (int i = 0; i < l->n; i++) {
@@ -1493,7 +1494,7 @@ static int exec_instrucao(no *s, ambiente *env)
     case N_ASSIGN: {
         /* s->f guarda primeiro os alvos e depois os valores; avaliar so a
          * partir de n_alvos (senao "x = x + 1" leria o alvo como valor). */
-        lista_t valores = { s->f.itens + s->n_alvos, s->f.n - s->n_alvos, 0 };
+        no_lista_t valores = { s->f.itens + s->n_alvos, s->f.n - s->n_alvos, 0 };
         resultado vals;
         avaliar_lista(&valores, env, &vals, 1);
         for (int i = 0; i < s->n_alvos; i++) {
@@ -1676,7 +1677,16 @@ enum {
     BI_IO_OPEN, BI_IO_WRITE, BI_IO_READ, BI_IO_CLOSE, BI_IO_LINES, BI_IO_ITER,
     BI_FILE_READ, BI_FILE_WRITE, BI_FILE_CLOSE, BI_FILE_LINES,
     BI_SAGUI_REGISTRAR, BI_SAGUI_LIMPAR, BI_SAGUI_DORMIR, BI_SAGUI_TEMPO,
-    BI_SAGUI_EXECUTAR, BI_SAGUI_BIP
+    BI_SAGUI_EXECUTAR, BI_SAGUI_BIP,
+    BI_GUI_JANELA, BI_GUI_FECHAR, BI_GUI_MOSTRAR, BI_GUI_MOSTRAR_AREA, BI_GUI_TITULO,
+    BI_GUI_RETANGULO, BI_GUI_MOLDURA, BI_GUI_LINHA, BI_GUI_TEXTO, BI_GUI_RELEVO,
+    BI_GUI_LARGURA_TEXTO,
+    BI_GUI_BOTAO, BI_GUI_BOTAO_CLICADO,
+    BI_GUI_CAIXA, BI_GUI_CAIXA_TRATAR, BI_GUI_CAIXA_TEXTO, BI_GUI_CAIXA_DEFINIR,
+    BI_GUI_AREA, BI_GUI_AREA_DEFINIR, BI_GUI_AREA_TEXTO, BI_GUI_AREA_TRATAR,
+    BI_GUI_DESENHAR_AREA, BI_GUI_AREA_MODIFICADA,
+    BI_GUI_LISTA, BI_GUI_LISTA_TRATAR, BI_GUI_LISTA_SELECAO, BI_GUI_DESENHAR_LISTA,
+    BI_GUI_CONFIRMAR, BI_GUI_MENSAGEM, BI_GUI_PEDIR_TEXTO, BI_GUI_EVENTO
 };
 
 static valor arg(valor *a, int n, int i)
@@ -2484,6 +2494,420 @@ static void bi_sagui_bip(valor *a, int n, resultado *r)
     res_vazio(r);
 }
 
+/* ---------------------------------------------------------------- gui */
+/* Biblioteca grafica embutida: janela, desenho, botao, caixa de texto,
+ * area de texto, lista e dialogos. O script cria os componentes e recebe
+ * eventos; o desenho acontece nos pixels da propria janela (anel 3), pela
+ * libsagui. Os identificadores devolvidos sao indices + 1 (0 = invalido). */
+
+#define GUI_MAX_JANELAS 8
+#define GUI_MAX_BOTOES  24
+#define GUI_MAX_CAIXAS  12
+#define GUI_MAX_AREAS   8
+#define GUI_MAX_LISTAS  8
+#define GUI_LISTA_ITENS 32
+
+static jan_t  *gui_janelas[GUI_MAX_JANELAS];
+static botao_t gui_botoes[GUI_MAX_BOTOES];
+static int     gui_botao_janela[GUI_MAX_BOTOES];
+static char    gui_botao_texto[GUI_MAX_BOTOES][64];
+static caixa_t gui_caixas[GUI_MAX_CAIXAS];
+static int     gui_caixa_janela[GUI_MAX_CAIXAS];
+static area_t  gui_areas[GUI_MAX_AREAS];
+static int     gui_area_janela[GUI_MAX_AREAS];
+static lista_t gui_listas[GUI_MAX_LISTAS];
+static int     gui_lista_janela[GUI_MAX_LISTAS];
+static char    gui_lista_itens[GUI_MAX_LISTAS][GUI_LISTA_ITENS][64];
+
+static jan_t *jan_do_id(int id)
+{
+    if (id < 1 || id > GUI_MAX_JANELAS) return NULL;
+    return gui_janelas[id - 1];
+}
+
+static jan_t *jan_ou_erro(int id)
+{
+    jan_t *j = jan_do_id(id);
+    if (!j) erro_exec("janela invalida: %d", id);
+    return j;
+}
+
+static int slot_livre(int *usados, int max)
+{
+    for (int i = 0; i < max; i++) if (usados[i] == 0) return i;
+    return -1;
+}
+
+/* Converte a tabela de evento do Lua de volta para evento_t (para os
+ * manipuladores de botao/caixa/lista receberem o mesmo evento). */
+static int campo_num(tabela *t, const char *chave, int padrao)
+{
+    valor v = tabela_obter(t, v_texto(chave));
+    int ok;
+    int n = para_numero(v, &ok);
+    return ok ? n : padrao;
+}
+
+static void evento_do_lua(valor v, evento_t *e)
+{
+    memset(e, 0, sizeof *e);
+    if (v.tipo != V_TAB) return;
+    tabela *t = v.u.t;
+    e->tipo         = (unsigned)campo_num(t, "tipo", 0);
+    e->janela       = campo_num(t, "janela", 0);
+    e->x            = campo_num(t, "x", 0);
+    e->y            = campo_num(t, "y", 0);
+    e->botoes       = (unsigned)campo_num(t, "botoes", 0);
+    e->cliques      = (unsigned)campo_num(t, "cliques", 0);
+    e->tecla        = (unsigned)campo_num(t, "tecla", 0);
+    e->modificadores = (unsigned)campo_num(t, "modificadores", 0);
+}
+
+static void bi_gui_janela(valor *a, int n, resultado *r)
+{
+    const char *titulo = arg_str(a, n, 0, "SaguiOS");
+    int l  = arg_num(a, n, 1, 320);
+    int al = arg_num(a, n, 2, 200);
+    for (int i = 0; i < GUI_MAX_JANELAS; i++) {
+        if (gui_janelas[i]) continue;
+        jan_t *j = jan_abrir(titulo, l, al);
+        if (!j) { res_um(r, v_nil()); return; }
+        gui_janelas[i] = j;
+        res_um(r, v_num(i + 1));
+        return;
+    }
+    res_um(r, v_nil());
+}
+
+static void bi_gui_fechar(valor *a, int n, resultado *r)
+{
+    int id = arg_num(a, n, 0, 0);
+    jan_t *j = jan_do_id(id);
+    if (j) {
+        jan_fechar(j);
+        gui_janelas[id - 1] = NULL;
+        /* Invalida os componentes que apontavam para esta janela. */
+        for (int i = 0; i < GUI_MAX_BOTOES; i++) if (gui_botao_janela[i] == id) gui_botao_janela[i] = 0;
+        for (int i = 0; i < GUI_MAX_CAIXAS; i++) if (gui_caixa_janela[i] == id) gui_caixa_janela[i] = 0;
+        for (int i = 0; i < GUI_MAX_AREAS; i++) {
+            if (gui_area_janela[i] == id) { libera(gui_areas[i].buf); memset(&gui_areas[i], 0, sizeof gui_areas[i]); gui_area_janela[i] = 0; }
+        }
+        for (int i = 0; i < GUI_MAX_LISTAS; i++) if (gui_lista_janela[i] == id) gui_lista_janela[i] = 0;
+    }
+    res_vazio(r);
+}
+
+static void bi_gui_mostrar(valor *a, int n, resultado *r)
+{
+    jan_t *j = jan_ou_erro(arg_num(a, n, 0, 0));
+    jan_mostrar(j);
+    res_vazio(r);
+}
+
+static void bi_gui_mostrar_area(valor *a, int n, resultado *r)
+{
+    jan_t *j = jan_ou_erro(arg_num(a, n, 0, 0));
+    jan_mostrar_area(j, arg_num(a, n, 1, 0), arg_num(a, n, 2, 0),
+                     arg_num(a, n, 3, 0), arg_num(a, n, 4, 0));
+    res_vazio(r);
+}
+
+static void bi_gui_titulo(valor *a, int n, resultado *r)
+{
+    jan_t *j = jan_ou_erro(arg_num(a, n, 0, 0));
+    titulo_janela(j->id, arg_str(a, n, 1, "SaguiOS"));
+    res_vazio(r);
+}
+
+static void bi_gui_retangulo(valor *a, int n, resultado *r)
+{
+    jan_t *j = jan_ou_erro(arg_num(a, n, 0, 0));
+    g_retangulo(j, arg_num(a, n, 1, 0), arg_num(a, n, 2, 0), arg_num(a, n, 3, 0),
+                arg_num(a, n, 4, 0), (uint32_t)arg_num(a, n, 5, (int)COR_FUNDO));
+    res_vazio(r);
+}
+
+static void bi_gui_moldura(valor *a, int n, resultado *r)
+{
+    jan_t *j = jan_ou_erro(arg_num(a, n, 0, 0));
+    g_moldura(j, arg_num(a, n, 1, 0), arg_num(a, n, 2, 0), arg_num(a, n, 3, 0),
+              arg_num(a, n, 4, 0), (uint32_t)arg_num(a, n, 5, (int)COR_BORDA));
+    res_vazio(r);
+}
+
+static void bi_gui_linha(valor *a, int n, resultado *r)
+{
+    jan_t *j = jan_ou_erro(arg_num(a, n, 0, 0));
+    g_linha(j, arg_num(a, n, 1, 0), arg_num(a, n, 2, 0), arg_num(a, n, 3, 0),
+            arg_num(a, n, 4, 0), (uint32_t)arg_num(a, n, 5, (int)COR_TEXTO));
+    res_vazio(r);
+}
+
+static void bi_gui_texto(valor *a, int n, resultado *r)
+{
+    jan_t *j = jan_ou_erro(arg_num(a, n, 0, 0));
+    g_texto(j, arg_num(a, n, 1, 0), arg_num(a, n, 2, 0), arg_str(a, n, 3, ""),
+            (uint32_t)arg_num(a, n, 4, (int)COR_TEXTO));
+    res_vazio(r);
+}
+
+static void bi_gui_relevo(valor *a, int n, resultado *r)
+{
+    jan_t *j = jan_ou_erro(arg_num(a, n, 0, 0));
+    g_relevo(j, arg_num(a, n, 1, 0), arg_num(a, n, 2, 0), arg_num(a, n, 3, 0),
+             arg_num(a, n, 4, 0), arg_num(a, n, 5, 0) != 0);
+    res_vazio(r);
+}
+
+static void bi_gui_largura_texto(valor *a, int n, resultado *r)
+{
+    res_um(r, v_num(g_largura_texto(arg_str(a, n, 0, ""))));
+}
+
+static void bi_gui_botao(valor *a, int n, resultado *r)
+{
+    int jid = arg_num(a, n, 0, 0);
+    jan_t *j = jan_ou_erro(jid);
+    int i = slot_livre(gui_botao_janela, GUI_MAX_BOTOES);
+    if (i < 0) { res_um(r, v_nil()); return; }
+    const char *texto = arg_str(a, n, 5, "Botao");
+    copia_texto(gui_botao_texto[i], texto, sizeof gui_botao_texto[i]);
+    gui_botoes[i].x = arg_num(a, n, 1, 0);
+    gui_botoes[i].y = arg_num(a, n, 2, 0);
+    gui_botoes[i].l = arg_num(a, n, 3, 80);
+    gui_botoes[i].a = arg_num(a, n, 4, 26);
+    gui_botoes[i].texto = gui_botao_texto[i];
+    gui_botoes[i].apertado = false;
+    gui_botao_janela[i] = jid;
+    botao_desenhar(j, &gui_botoes[i]);
+    res_um(r, v_num(i + 1));
+}
+
+static void bi_gui_botao_clicado(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_BOTOES || gui_botao_janela[i] == 0) erro_exec("botao invalido");
+    jan_t *j = jan_ou_erro(gui_botao_janela[i]);
+    evento_t e;
+    evento_do_lua(arg(a, n, 1), &e);
+    res_um(r, v_bool(botao_tratar(j, &gui_botoes[i], &e)));
+}
+
+static void bi_gui_caixa(valor *a, int n, resultado *r)
+{
+    int jid = arg_num(a, n, 0, 0);
+    jan_t *j = jan_ou_erro(jid);
+    int i = slot_livre(gui_caixa_janela, GUI_MAX_CAIXAS);
+    if (i < 0) { res_um(r, v_nil()); return; }
+    memset(&gui_caixas[i], 0, sizeof gui_caixas[i]);
+    gui_caixas[i].x = arg_num(a, n, 1, 0);
+    gui_caixas[i].y = arg_num(a, n, 2, 0);
+    gui_caixas[i].l = arg_num(a, n, 3, 200);
+    caixa_definir(&gui_caixas[i], arg_str(a, n, 4, ""));
+    gui_caixa_janela[i] = jid;
+    caixa_desenhar(j, &gui_caixas[i]);
+    res_um(r, v_num(i + 1));
+}
+
+static void bi_gui_caixa_tratar(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_CAIXAS || gui_caixa_janela[i] == 0) erro_exec("caixa invalida");
+    jan_t *j = jan_ou_erro(gui_caixa_janela[i]);
+    evento_t e;
+    evento_do_lua(arg(a, n, 1), &e);
+    res_um(r, v_bool(caixa_tratar(j, &gui_caixas[i], &e)));
+}
+
+static void bi_gui_caixa_texto(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_CAIXAS || gui_caixa_janela[i] == 0) erro_exec("caixa invalida");
+    res_um(r, v_texto(gui_caixas[i].texto));
+}
+
+static void bi_gui_caixa_definir(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_CAIXAS || gui_caixa_janela[i] == 0) erro_exec("caixa invalida");
+    jan_t *j = jan_ou_erro(gui_caixa_janela[i]);
+    caixa_definir(&gui_caixas[i], arg_str(a, n, 1, ""));
+    caixa_desenhar(j, &gui_caixas[i]);
+    res_vazio(r);
+}
+
+static void bi_gui_area(valor *a, int n, resultado *r)
+{
+    int jid = arg_num(a, n, 0, 0);
+    jan_t *j = jan_ou_erro(jid);
+    int i = slot_livre(gui_area_janela, GUI_MAX_AREAS);
+    if (i < 0) { res_um(r, v_nil()); return; }
+    if (!area_iniciar(&gui_areas[i], arg_num(a, n, 1, 0), arg_num(a, n, 2, 0),
+                      arg_num(a, n, 3, 200), arg_num(a, n, 4, 120))) {
+        memset(&gui_areas[i], 0, sizeof gui_areas[i]);
+        res_um(r, v_nil());
+        return;
+    }
+    gui_area_janela[i] = jid;
+    area_desenhar(j, &gui_areas[i]);
+    res_um(r, v_num(i + 1));
+}
+
+static void bi_gui_area_definir(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_AREAS || gui_area_janela[i] == 0) erro_exec("area invalida");
+    jan_t *j = jan_ou_erro(gui_area_janela[i]);
+    const char *texto = arg_str(a, n, 1, "");
+    area_definir(&gui_areas[i], texto, (int)tam_texto(texto));
+    area_desenhar(j, &gui_areas[i]);
+    res_vazio(r);
+}
+
+static void bi_gui_area_texto(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_AREAS || gui_area_janela[i] == 0) erro_exec("area invalida");
+    res_um(r, v_texto(gui_areas[i].buf));
+}
+
+static void bi_gui_area_tratar(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_AREAS || gui_area_janela[i] == 0) erro_exec("area invalida");
+    jan_t *j = jan_ou_erro(gui_area_janela[i]);
+    evento_t e;
+    evento_do_lua(arg(a, n, 1), &e);
+    res_um(r, v_bool(area_tratar(j, &gui_areas[i], &e)));
+}
+
+static void bi_gui_desenhar_area(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_AREAS || gui_area_janela[i] == 0) erro_exec("area invalida");
+    jan_t *j = jan_ou_erro(gui_area_janela[i]);
+    area_desenhar(j, &gui_areas[i]);
+    res_vazio(r);
+}
+
+static void bi_gui_area_modificada(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_AREAS || gui_area_janela[i] == 0) erro_exec("area invalida");
+    res_um(r, v_bool(gui_areas[i].modificado));
+}
+
+static void bi_gui_lista(valor *a, int n, resultado *r)
+{
+    int jid = arg_num(a, n, 0, 0);
+    jan_t *j = jan_ou_erro(jid);
+    int i = slot_livre(gui_lista_janela, GUI_MAX_LISTAS);
+    if (i < 0) { res_um(r, v_nil()); return; }
+    valor itens = arg(a, n, 5);
+    if (itens.tipo != V_TAB) erro_exec("lista espera uma tabela de textos");
+    int qtd = 0;
+    for (int k = 1; k <= GUI_LISTA_ITENS; k++) {
+        valor v = tabela_obter(itens.u.t, v_num(k));
+        if (v.tipo == V_NIL) break;
+        copia_texto(gui_lista_itens[i][qtd], para_texto(v)->s, 64);
+        qtd++;
+    }
+    memset(&gui_listas[i], 0, sizeof gui_listas[i]);
+    gui_listas[i].x = arg_num(a, n, 1, 0);
+    gui_listas[i].y = arg_num(a, n, 2, 0);
+    gui_listas[i].l = arg_num(a, n, 3, 160);
+    gui_listas[i].a = arg_num(a, n, 4, 100);
+    gui_listas[i].itens = gui_lista_itens[i];
+    gui_listas[i].qtd = qtd;
+    gui_listas[i].sel = 0;
+    gui_listas[i].topo = 0;
+    gui_lista_janela[i] = jid;
+    lista_desenhar(j, &gui_listas[i]);
+    res_um(r, v_num(i + 1));
+}
+
+static void bi_gui_lista_tratar(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_LISTAS || gui_lista_janela[i] == 0) erro_exec("lista invalida");
+    jan_t *j = jan_ou_erro(gui_lista_janela[i]);
+    evento_t e;
+    evento_do_lua(arg(a, n, 1), &e);
+    res_um(r, v_num(lista_tratar(j, &gui_listas[i], &e)));
+}
+
+static void bi_gui_lista_selecao(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_LISTAS || gui_lista_janela[i] == 0) erro_exec("lista invalida");
+    res_um(r, v_num(gui_listas[i].qtd > 0 ? gui_listas[i].sel + 1 : 0));
+}
+
+static void bi_gui_desenhar_lista(valor *a, int n, resultado *r)
+{
+    int i = arg_num(a, n, 0, 0) - 1;
+    if (i < 0 || i >= GUI_MAX_LISTAS || gui_lista_janela[i] == 0) erro_exec("lista invalida");
+    jan_t *j = jan_ou_erro(gui_lista_janela[i]);
+    lista_desenhar(j, &gui_listas[i]);
+    res_vazio(r);
+}
+
+static void bi_gui_confirmar(valor *a, int n, resultado *r)
+{
+    res_um(r, v_bool(confirmar(arg_str(a, n, 0, "Confirmar"), arg_str(a, n, 1, "Tem certeza?"))));
+}
+
+static void bi_gui_mensagem(valor *a, int n, resultado *r)
+{
+    mensagem(arg_str(a, n, 0, "Mensagem"), arg_str(a, n, 1, ""));
+    res_vazio(r);
+}
+
+static void bi_gui_pedir_texto(valor *a, int n, resultado *r)
+{
+    char buf[128];
+    copia_texto(buf, arg_str(a, n, 2, ""), sizeof buf);
+    if (!pedir_texto(arg_str(a, n, 0, "Pergunta"), arg_str(a, n, 1, ""), buf, sizeof buf)) {
+        res_um(r, v_nil());
+        return;
+    }
+    res_um(r, v_texto(buf));
+}
+
+static const char *nome_evento(unsigned tipo)
+{
+    switch (tipo) {
+    case EV_CLIQUE: return "clique";
+    case EV_SOLTOU: return "soltou";
+    case EV_MOVER:  return "mover";
+    case EV_TECLA:  return "tecla";
+    case EV_FECHAR: return "fechar";
+    default:        return "outro";
+    }
+}
+
+static void bi_gui_evento(valor *a, int n, resultado *r)
+{
+    bool esperar = n < 1 ? true : valor_verdadeiro(arg(a, n, 0));
+    evento_t e;
+    if (proximo_evento(0, &e, esperar) != 1) { res_um(r, v_nil()); return; }
+    tabela *t = tabela_nova();
+    tabela_definir_c(t, "tipo", v_num((int)e.tipo));
+    tabela_definir_c(t, "nome", v_texto(nome_evento(e.tipo)));
+    /* A janela do evento chega como id do kernel; converte para o id do Lua. */
+    int jid = 0;
+    for (int i = 0; i < GUI_MAX_JANELAS; i++)
+        if (gui_janelas[i] && gui_janelas[i]->id == e.janela) jid = i + 1;
+    tabela_definir_c(t, "janela", v_num(jid));
+    tabela_definir_c(t, "x", v_num(e.x));
+    tabela_definir_c(t, "y", v_num(e.y));
+    tabela_definir_c(t, "botoes", v_num((int)e.botoes));
+    tabela_definir_c(t, "cliques", v_num((int)e.cliques));
+    tabela_definir_c(t, "tecla", v_num((int)e.tecla));
+    tabela_definir_c(t, "modificadores", v_num((int)e.modificadores));
+    res_um(r, v_tab(t));
+}
+
 /* ------------------------------------------------------------ dofile/load */
 
 static void executar_fonte(const char *fonte, resultado *r);
@@ -2585,6 +3009,37 @@ void lua_chamar_builtin(int bi, valor *a, int n, resultado *r)
     case BI_SAGUI_TEMPO: bi_sagui_tempo(a, n, r); break;
     case BI_SAGUI_EXECUTAR: bi_sagui_executar(a, n, r); break;
     case BI_SAGUI_BIP: bi_sagui_bip(a, n, r); break;
+    case BI_GUI_JANELA: bi_gui_janela(a, n, r); break;
+    case BI_GUI_FECHAR: bi_gui_fechar(a, n, r); break;
+    case BI_GUI_MOSTRAR: bi_gui_mostrar(a, n, r); break;
+    case BI_GUI_MOSTRAR_AREA: bi_gui_mostrar_area(a, n, r); break;
+    case BI_GUI_TITULO: bi_gui_titulo(a, n, r); break;
+    case BI_GUI_RETANGULO: bi_gui_retangulo(a, n, r); break;
+    case BI_GUI_MOLDURA: bi_gui_moldura(a, n, r); break;
+    case BI_GUI_LINHA: bi_gui_linha(a, n, r); break;
+    case BI_GUI_TEXTO: bi_gui_texto(a, n, r); break;
+    case BI_GUI_RELEVO: bi_gui_relevo(a, n, r); break;
+    case BI_GUI_LARGURA_TEXTO: bi_gui_largura_texto(a, n, r); break;
+    case BI_GUI_BOTAO: bi_gui_botao(a, n, r); break;
+    case BI_GUI_BOTAO_CLICADO: bi_gui_botao_clicado(a, n, r); break;
+    case BI_GUI_CAIXA: bi_gui_caixa(a, n, r); break;
+    case BI_GUI_CAIXA_TRATAR: bi_gui_caixa_tratar(a, n, r); break;
+    case BI_GUI_CAIXA_TEXTO: bi_gui_caixa_texto(a, n, r); break;
+    case BI_GUI_CAIXA_DEFINIR: bi_gui_caixa_definir(a, n, r); break;
+    case BI_GUI_AREA: bi_gui_area(a, n, r); break;
+    case BI_GUI_AREA_DEFINIR: bi_gui_area_definir(a, n, r); break;
+    case BI_GUI_AREA_TEXTO: bi_gui_area_texto(a, n, r); break;
+    case BI_GUI_AREA_TRATAR: bi_gui_area_tratar(a, n, r); break;
+    case BI_GUI_DESENHAR_AREA: bi_gui_desenhar_area(a, n, r); break;
+    case BI_GUI_AREA_MODIFICADA: bi_gui_area_modificada(a, n, r); break;
+    case BI_GUI_LISTA: bi_gui_lista(a, n, r); break;
+    case BI_GUI_LISTA_TRATAR: bi_gui_lista_tratar(a, n, r); break;
+    case BI_GUI_LISTA_SELECAO: bi_gui_lista_selecao(a, n, r); break;
+    case BI_GUI_DESENHAR_LISTA: bi_gui_desenhar_lista(a, n, r); break;
+    case BI_GUI_CONFIRMAR: bi_gui_confirmar(a, n, r); break;
+    case BI_GUI_MENSAGEM: bi_gui_mensagem(a, n, r); break;
+    case BI_GUI_PEDIR_TEXTO: bi_gui_pedir_texto(a, n, r); break;
+    case BI_GUI_EVENTO: bi_gui_evento(a, n, r); break;
     default: erro_exec("funcao interna desconhecida");
     }
 }
@@ -2682,6 +3137,70 @@ static void iniciar_bibliotecas(void)
     tabela_definir_c(sg, "bip", v_builtin(BI_SAGUI_BIP));
     definir_global_c("sagui", v_tab(sg));
     tabela_definir_c(modulos_embutidos, "sagui", v_tab(sg));
+
+    tabela *g = biblioteca_nova();
+    tabela_definir_c(g, "janela", v_builtin(BI_GUI_JANELA));
+    tabela_definir_c(g, "fechar", v_builtin(BI_GUI_FECHAR));
+    tabela_definir_c(g, "mostrar", v_builtin(BI_GUI_MOSTRAR));
+    tabela_definir_c(g, "mostrar_area", v_builtin(BI_GUI_MOSTRAR_AREA));
+    tabela_definir_c(g, "titulo", v_builtin(BI_GUI_TITULO));
+    tabela_definir_c(g, "retangulo", v_builtin(BI_GUI_RETANGULO));
+    tabela_definir_c(g, "moldura", v_builtin(BI_GUI_MOLDURA));
+    tabela_definir_c(g, "linha", v_builtin(BI_GUI_LINHA));
+    tabela_definir_c(g, "texto", v_builtin(BI_GUI_TEXTO));
+    tabela_definir_c(g, "rotulo", v_builtin(BI_GUI_TEXTO));
+    tabela_definir_c(g, "relevo", v_builtin(BI_GUI_RELEVO));
+    tabela_definir_c(g, "largura_texto", v_builtin(BI_GUI_LARGURA_TEXTO));
+    tabela_definir_c(g, "botao", v_builtin(BI_GUI_BOTAO));
+    tabela_definir_c(g, "botao_clicado", v_builtin(BI_GUI_BOTAO_CLICADO));
+    tabela_definir_c(g, "caixa", v_builtin(BI_GUI_CAIXA));
+    tabela_definir_c(g, "caixa_tratar", v_builtin(BI_GUI_CAIXA_TRATAR));
+    tabela_definir_c(g, "caixa_texto", v_builtin(BI_GUI_CAIXA_TEXTO));
+    tabela_definir_c(g, "caixa_definir", v_builtin(BI_GUI_CAIXA_DEFINIR));
+    tabela_definir_c(g, "area", v_builtin(BI_GUI_AREA));
+    tabela_definir_c(g, "area_definir", v_builtin(BI_GUI_AREA_DEFINIR));
+    tabela_definir_c(g, "area_texto", v_builtin(BI_GUI_AREA_TEXTO));
+    tabela_definir_c(g, "area_tratar", v_builtin(BI_GUI_AREA_TRATAR));
+    tabela_definir_c(g, "desenhar_area", v_builtin(BI_GUI_DESENHAR_AREA));
+    tabela_definir_c(g, "area_modificada", v_builtin(BI_GUI_AREA_MODIFICADA));
+    tabela_definir_c(g, "lista", v_builtin(BI_GUI_LISTA));
+    tabela_definir_c(g, "lista_tratar", v_builtin(BI_GUI_LISTA_TRATAR));
+    tabela_definir_c(g, "lista_selecao", v_builtin(BI_GUI_LISTA_SELECAO));
+    tabela_definir_c(g, "desenhar_lista", v_builtin(BI_GUI_DESENHAR_LISTA));
+    tabela_definir_c(g, "confirmar", v_builtin(BI_GUI_CONFIRMAR));
+    tabela_definir_c(g, "mensagem", v_builtin(BI_GUI_MENSAGEM));
+    tabela_definir_c(g, "pedir_texto", v_builtin(BI_GUI_PEDIR_TEXTO));
+    tabela_definir_c(g, "evento", v_builtin(BI_GUI_EVENTO));
+    /* Constantes de evento, de tecla e de cor do tema. */
+    tabela_definir_c(g, "EV_CLIQUE", v_num(EV_CLIQUE));
+    tabela_definir_c(g, "EV_SOLTOU", v_num(EV_SOLTOU));
+    tabela_definir_c(g, "EV_MOVER", v_num(EV_MOVER));
+    tabela_definir_c(g, "EV_TECLA", v_num(EV_TECLA));
+    tabela_definir_c(g, "EV_FECHAR", v_num(EV_FECHAR));
+    tabela_definir_c(g, "LISTA_NADA", v_num(LISTA_NADA));
+    tabela_definir_c(g, "LISTA_SELECIONOU", v_num(LISTA_SELECIONOU));
+    tabela_definir_c(g, "LISTA_ATIVOU", v_num(LISTA_ATIVOU));
+    tabela_definir_c(g, "TECLA_CIMA", v_num(TECLA_CIMA));
+    tabela_definir_c(g, "TECLA_BAIXO", v_num(TECLA_BAIXO));
+    tabela_definir_c(g, "TECLA_ESQUERDA", v_num(TECLA_ESQUERDA));
+    tabela_definir_c(g, "TECLA_DIREITA", v_num(TECLA_DIREITA));
+    tabela_definir_c(g, "TECLA_HOME", v_num(TECLA_HOME));
+    tabela_definir_c(g, "TECLA_END", v_num(TECLA_END));
+    tabela_definir_c(g, "TECLA_PGUP", v_num(TECLA_PGUP));
+    tabela_definir_c(g, "TECLA_PGDN", v_num(TECLA_PGDN));
+    tabela_definir_c(g, "TECLA_DELETE", v_num(TECLA_DELETE));
+    tabela_definir_c(g, "TECLA_ESC", v_num(TECLA_ESC));
+    tabela_definir_c(g, "COR_FUNDO", v_num((int)COR_FUNDO));
+    tabela_definir_c(g, "COR_TEXTO", v_num((int)COR_TEXTO));
+    tabela_definir_c(g, "COR_TEXTO_FRACO", v_num((int)COR_TEXTO_FRACO));
+    tabela_definir_c(g, "COR_BORDA", v_num((int)COR_BORDA));
+    tabela_definir_c(g, "COR_BOTAO", v_num((int)COR_BOTAO));
+    tabela_definir_c(g, "COR_BOTAO_APERTADO", v_num((int)COR_BOTAO_APERTADO));
+    tabela_definir_c(g, "COR_DESTAQUE", v_num((int)COR_DESTAQUE));
+    tabela_definir_c(g, "COR_SELECAO", v_num((int)COR_SELECAO));
+    tabela_definir_c(g, "COR_BRANCO", v_num((int)COR_BRANCO));
+    definir_global_c("gui", v_tab(g));
+    tabela_definir_c(modulos_embutidos, "gui", v_tab(g));
 }
 
 /* ==================================================================== main */

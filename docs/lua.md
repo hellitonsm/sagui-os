@@ -17,8 +17,10 @@ lua                 # modo interativo (REPL)
 ```
 
 Os exemplos ficam em `/lua`: `ola.lua` (básico), `recursos.lua` (funções,
-tabelas, bibliotecas), `arquivos.lua` (leitura/escrita e `dofile`), `erro.lua`
-e `sintaxe.lua` (mensagens de erro).
+tabelas, bibliotecas), `arquivos.lua` (leitura/escrita e `dofile`), `erro.lua`,
+`sintaxe.lua` (mensagens de erro), `gui.lua` (janela com botão, caixa e
+lista, via a biblioteca `gui`) e `relogio.lua` (relógio de uptime numa
+janela). Veja [gui-lua.md](gui-lua.md) para a biblioteca gráfica completa.
 
 **Isto não é o Lua oficial.** É um subconjunto pequeno, com números inteiros
 de 32 bits, sem coleta de lixo, sem corrotinas, sem metatabelas e sem
@@ -74,6 +76,10 @@ A tabela global `sagui` liga o script ao sistema:
 | `sagui.tempo()` | Milissegundos desde o boot |
 | `sagui.executar(caminho, ...)` | Executa um programa e espera; devolve o código |
 | `sagui.bip(freq, ms)` | Toca o alto-falante do PC |
+
+A tabela global `gui` abre janelas e componentes (botão, caixa, lista, área
+de texto, diálogos) sobre o mesmo kit da libsagui; detalhes e exemplos em
+[gui-lua.md](gui-lua.md). `require("gui")` devolve a mesma tabela.
 
 `arg[0]` é o nome do script e `arg[1..]` são os argumentos da linha de
 comando.
