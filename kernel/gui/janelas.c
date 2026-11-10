@@ -27,6 +27,10 @@
 #include "video.h"
 #include "disco.h"
 
+/* energia.c: o menu SaguiOS desliga e reinicia a máquina (D038). */
+SEM_RETORNO void maquina_reiniciar(void);
+SEM_RETORNO void maquina_desligar(void);
+
 #define MAX_JANELAS     32
 #define FILA_EVENTOS    64
 #define BARRA_TITULO    24
@@ -109,6 +113,83 @@ static void desenhar_aviso(superficie_t *t)
     }
 }
 
+/* ------------------------------------------------------------ menu SaguiOS (D038) */
+
+/* O menu pendurado no botão "SaguiOS" da barra: desligar e reiniciar. É
+ * desenhado por cima de tudo, cobrindo a barra e o começo da área de
+ * trabalho, como o aviso. */
+#define MENU_L      150
+#define MENU_ITENS  2
+#define MENU_ITEM_A 26
+
+static bool menu_aberto;
+
+static void desenhar_menu(superficie_t *t)
+{
+    if (!menu_aberto) return;
+    int a = MENU_ITENS * MENU_ITEM_A;
+    /* Tarja verde embaixo do nome: o botão está aberto. */
+    sup_retangulo(t, 0, BARRA_SUPERIOR - 3, BARRA_BOTAO_L, 3, 0x0B7A3E);
+    sup_retangulo(t, 0, BARRA_SUPERIOR, MENU_L, a, 0x18202A);
+    sup_moldura(t, 0, BARRA_SUPERIOR, MENU_L, a, 0x0B7A3E);
+    sup_retangulo(t, 0, BARRA_SUPERIOR, 6, a, 0x0B7A3E);
+    static const char *itens[MENU_ITENS] = { "Desligar", "Reiniciar" };
+    for (int i = 0; i < MENU_ITENS; i++)
+        sup_texto(t, 20, BARRA_SUPERIOR + i * MENU_ITEM_A + 6, itens[i], 0xFFFFFF);
+}
+
+static void redesenhar_menu(void)
+{
+    gui_redesenhar(0, 0, MENU_L, BARRA_SUPERIOR + MENU_ITENS * MENU_ITEM_A);
+    gui_mostrar();
+}
+
+static void abrir_menu(void)
+{
+    menu_aberto = true;
+    redesenhar_menu();
+    klog("[GUI] menu SaguiOS aberto\n");
+}
+
+static void fechar_menu(void)
+{
+    if (!menu_aberto) return;
+    menu_aberto = false;
+    redesenhar_menu();
+    klog("[GUI] menu SaguiOS fechado\n");
+}
+
+/* Item do menu sob o ponto, ou -1 se o clique caiu fora dele. */
+static int menu_item_em(int x, int y)
+{
+    if (x < 0 || x >= MENU_L || y < BARRA_SUPERIOR || y >= BARRA_SUPERIOR + MENU_ITENS * MENU_ITEM_A)
+        return -1;
+    return (y - BARRA_SUPERIOR) / MENU_ITEM_A;
+}
+
+/* Um aperto de botão que começa na barra superior: no botão "SaguiOS" abre o
+ * menu, numa faixa do alternador traz a janela para cima. Com o menu
+ * aberto, o clique não passa para as janelas nem para os ícones: o primeiro
+ * clique só fecha (e um item escolhido com o botão esquerdo é executado). */
+static bool clicar_barra(evento_mouse_t *m)
+{
+    int x = m->x, y = m->y;
+    if (menu_aberto) {
+        int item = menu_item_em(x, y);
+        fechar_menu();
+        if (item == 0 && (m->mudaram & BOTAO_ESQUERDO)) maquina_desligar();   /* não volta */
+        else if (item == 1 && (m->mudaram & BOTAO_ESQUERDO)) maquina_reiniciar();
+        return true;
+    }
+    if (y >= BARRA_SUPERIOR) return false;
+    if (x < BARRA_BOTAO_L && (m->mudaram & BOTAO_ESQUERDO)) { abrir_menu(); return true; }
+    if (m->mudaram & BOTAO_ESQUERDO) {
+        int id = area_barra_janela_em(x, y);
+        if (id) { janela_focar(id); return true; }
+    }
+    return false;   /* resto da barra: o clique vai pelo caminho de sempre */
+}
+
 static int moldura_l(janela_t *j) { return j->larg + 2 * BORDA; }
 static int moldura_a(janela_t *j) { return j->alt + BARRA_TITULO + BORDA; }
 
@@ -127,6 +208,12 @@ void gui_redesenhar(int x, int y, int l, int a)
 static void redesenhar_janela(janela_t *j)
 {
     gui_redesenhar(j->x - 1, j->y - 1, moldura_l(j) + 2, moldura_a(j) + 2);
+}
+
+/* A barra lista as janelas abertas: qualquer mudança nelas suja a barra. */
+static void barra_sujar(void)
+{
+    gui_redesenhar(0, 0, (int)video_largura(), BARRA_SUPERIOR);
 }
 
 static janela_t *focada(void)
@@ -169,6 +256,7 @@ void gui_mostrar(void)
     }
     desenhar_aviso(&tela);
     if (tela.cy0 < BARRA_SUPERIOR) area_barra(&tela);
+    desenhar_menu(&tela);
     video_marcar(tela.cx0, tela.cy0, tela.cx1 - tela.cx0, tela.cy1 - tela.cy0);
     video_mostrar();
 }
@@ -208,6 +296,35 @@ static void trazer_para_cima(int k)
     ordem[qtd - 1] = i;
     if (antes) redesenhar_janela(antes);
     redesenhar_janela(&janelas[i]);
+    barra_sujar();   /* o foco trocou de janela: o alternador acompanha */
+}
+
+/* ------------------------------------------------------------ janelas abertas na barra (D038) */
+
+/* Para o alternador: a janela i contando de cima (a 0 é a de cima, em foco).
+ * Copia o título e devolve o id, ou 0 quando acabaram. */
+int janela_listar(int i, char *titulo, uint32_t max)
+{
+    if (i < 0 || i >= qtd) return 0;
+    janela_t *j = &janelas[ordem[qtd - 1 - i]];
+    if (titulo && max) txt_copia_n(titulo, j->titulo, max);
+    return j->id;
+}
+
+int janela_focada_id(void)
+{
+    janela_t *j = focada();
+    return j ? j->id : 0;
+}
+
+void janela_focar(int id)
+{
+    for (int k = 0; k < qtd; k++)
+        if (janelas[ordem[k]].id == id) {
+            klog("[GUI] alternador traz a janela %d (%s) para cima\n", id, janelas[ordem[k]].titulo);
+            trazer_para_cima(k);
+            return;
+        }
 }
 
 static void tratar_mouse(evento_mouse_t *m)
@@ -236,6 +353,7 @@ static void tratar_mouse(evento_mouse_t *m)
     }
 
     if (apertou) {
+        if (clicar_barra(m)) return;
         int k = janela_em(m->x, m->y);
         if (k < 0) {
             /* Na área de trabalho: duplo clique num ícone abre o programa. */
@@ -312,6 +430,7 @@ static void tarefa_gerenciador(void *arg)
             tratar_mouse(&m);
         int t;
         while ((t = teclado_tentar()) >= 0) {
+            if (menu_aberto && t == TECLA_ESC) { fechar_menu(); continue; }
             janela_t *j = focada();
             if (!j) continue;
             evento_t e = { .tipo = EV_TECLA, .tecla = (unsigned)t, .modificadores = teclado_modificadores() & 3 };
@@ -381,6 +500,7 @@ static void destruir(int i)
     if (arrastando == i) arrastando = -1;
     if (captura == i) captura = -1;
     if (focada()) redesenhar_janela(focada());   /* a nova janela de cima ganha o foco */
+    barra_sujar();   /* a faixa dela some do alternador */
 }
 
 void janelas_do_processo_fechar(processo_t *p)
@@ -432,6 +552,7 @@ int32_t sis_criar_janela(uint32_t ptitulo, uint32_t dims, uint32_t ppixels, uint
     if (antes) redesenhar_janela(antes);
     ordem[qtd++] = i;
     redesenhar_janela(j);
+    barra_sujar();   /* a janela nova ganha uma faixa no alternador */
     gui_mostrar();
     *(uint32_t *)ppixels = j->virt;
     klog("[GUI] janela %d criada por %d: \"%s\" %dx%d em (%d,%d)\n", j->id, j->pid, j->titulo, l, a, j->x, j->y);
@@ -513,6 +634,7 @@ int32_t sis_titulo_janela(uint32_t id, uint32_t ptitulo, uint32_t c, uint32_t d,
     int r = usuario_texto((const char *)ptitulo, j->titulo, sizeof j->titulo);
     if (r < 0) return r;
     gui_redesenhar(j->x, j->y, moldura_l(j), BARRA_TITULO);
+    barra_sujar();   /* o título também aparece no alternador */
     gui_mostrar();
     return 0;
 }

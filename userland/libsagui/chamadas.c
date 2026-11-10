@@ -38,6 +38,7 @@ int  http_obter(const char *u, void *b, unsigned n) { return chamar(SIS_HTTP_OBT
 int  info_rede(info_rede_t *i)        { return chamar(SIS_REDE_INFO, (unsigned)i, 0, 0); }
 void *aumentar_memoria(unsigned n)    { int r = chamar(SIS_AUMENTAR_MEM, n, 0, 0); return (r < 0 && r > -100) ? NULL : (void *)r; }
 void reiniciar(void)                  { chamar(SIS_REINICIAR, 0, 0, 0); }
+void desligar(void)                   { chamar(SIS_DESLIGAR, 0, 0, 0); }
 int  modo_terminal(int m)             { return chamar(SIS_MODO_TERMINAL, (unsigned)m, 0, 0); }
 int  limpar_tela(void)                { return chamar(SIS_LIMPAR_TELA, 0, 0, 0); }
 int  registrar_texto(const char *t)   { return chamar(SIS_REGISTRAR, (unsigned)t, 0, 0); }

@@ -61,7 +61,8 @@
 #define SIS_HTTP_OBTER      60 /* (url, buffer, capacidade) -> resposta HTTP bruta */
 #define SIS_REDE_INFO       61 /* (&info_rede) -> 1 se ha placa, 0 se nao */
 #define SIS_TLS             62 /* (base) define base do segmento TLS GS do processo */
-#define SIS_MAX            64
+#define SIS_DESLIGAR        64 /* () corta a energia pela ACPI; o menu SaguiOS usa */
+#define SIS_MAX            65
 
 /* Erros (sempre negativos) */
 #define ERRO_INVALIDO      -1

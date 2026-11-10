@@ -47,6 +47,13 @@ static bool icone_visivel(int i) { return i != ICONE_PENDRIVE || pendrive_visive
 #define ICONE_L 96
 #define ICONE_A 88
 
+/* Alternador de janelas na barra (D038): uma faixa por janela aberta, no
+ * lugar onde antes ficava o slogan. */
+#define ALT_X0      112
+#define ALT_PAD     8     /* respiro do texto dentro da faixa */
+#define ALT_CHARS   13    /* título comprido corta em 10 letras + "..." */
+#define ALT_RESERVA 210   /* o fim da barra fica para o relógio */
+
 int area_qtd_icones(void) { return QTD_ICONES; }
 
 void area_icone_retangulo(int i, int *x, int *y, int *l, int *a)
@@ -123,6 +130,24 @@ bool area_relogio_mudou(void)
     return d.minuto != minuto_mostrado;
 }
 
+/* A faixa i do alternador (0 = a janela de cima): copia o título, cortado
+ * com "..." quando é comprido, e devolve o id e a largura da faixa.
+ * Devolve 0 quando as janelas acabaram. */
+static int faixa_alternador(int i, char titulo[ALT_CHARS + 1], int *fl)
+{
+    char t[48];
+    int id = janela_listar(i, t, sizeof t);
+    if (!id) return 0;
+    if (txt_tamanho(t) > ALT_CHARS) {
+        txt_copia_n(titulo, t, ALT_CHARS - 2);          /* as 10 primeiras letras */
+        txt_copia_n(titulo + ALT_CHARS - 3, "...", 4);
+    } else {
+        txt_copia_n(titulo, t, ALT_CHARS + 1);
+    }
+    *fl = texto_largura(titulo) + 2 * ALT_PAD;
+    return id;
+}
+
 void area_barra(superficie_t *s)
 {
     static const char *semana[] = { "dom", "seg", "ter", "qua", "qui", "sex", "sáb" };
@@ -132,7 +157,22 @@ void area_barra(superficie_t *s)
     desenho_t cabeca = { arte_icone_sobre.linhas + 2, 32, 16 };
     sup_desenho(s, 6, 4, &cabeca, 1);
     sup_texto(s, 44, 4, "SaguiOS", 0xFFDF4A);
-    sup_texto(s, 112, 4, "um sistema operacional escrito do zero por IA", 0x9AA8B8);
+    /* Um caretinho ao lado do nome: ele é o botão do menu SaguiOS (D038). */
+    for (int k = 0; k < 4; k++)
+        sup_retangulo(s, 103 - (3 - k), 10 + k, 2 * (3 - k) + 1, 1, 0xFFDF4A);
+    /* No lugar do slogan, o alternador de janelas abertas; a que está em
+     * foco fica verde. O slogan mora na janela "Sobre o SaguiOS". */
+    int fx = ALT_X0, em_foco = janela_focada_id();
+    for (int i = 0; ; i++) {
+        char titulo[ALT_CHARS + 1];
+        int fl;
+        int id = faixa_alternador(i, titulo, &fl);
+        if (!id || fx + fl > larg - ALT_RESERVA) break;
+        bool foco = id == em_foco;
+        sup_retangulo(s, fx, 2, fl, 20, foco ? 0x0B7A3E : 0x222C38);
+        sup_texto(s, fx + ALT_PAD, 4, titulo, foco ? 0xFFFFFF : 0xD0D4D8);
+        fx += fl + 2;
+    }
     data_hora_t d;
     cmos_ler_data(&d);
     minuto_mostrado = d.minuto;
@@ -141,6 +181,22 @@ void area_barra(superficie_t *s)
                d.dia, d.mes, d.ano, d.hora, d.minuto);
     sup_texto(s, larg - texto_largura(hora) - 10, 4, hora, 0xFFFFFF);
     klog("[GUI] relogio: %s\n", hora);
+}
+
+/* Faixa do alternador sob o ponto: o id da janela, ou 0. Repete a conta do
+ * desenho, para o clique cair sempre onde a faixa foi pintada. */
+int area_barra_janela_em(int x, int y)
+{
+    if (y < 0 || y >= BARRA_SUPERIOR) return 0;
+    int fx = ALT_X0;
+    for (int i = 0; ; i++) {
+        char titulo[ALT_CHARS + 1];
+        int fl;
+        int id = faixa_alternador(i, titulo, &fl);
+        if (!id || fx + fl > larg - ALT_RESERVA) return 0;
+        if (x >= fx && x < fx + fl) return id;
+        fx += fl + 2;
+    }
 }
 
 int area_icone_em(int x, int y)

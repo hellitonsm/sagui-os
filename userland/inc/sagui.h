@@ -75,6 +75,7 @@ int      http_obter(const char *url, void *resposta, unsigned capacidade);
 int      info_rede(info_rede_t *info);   /* 1 = ha placa, 0 = nao ha */
 void    *aumentar_memoria(unsigned bytes);
 void     reiniciar(void);
+void     desligar(void);
 int      modo_terminal(int modo);
 int      limpar_tela(void);
 

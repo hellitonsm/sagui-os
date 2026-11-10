@@ -4,7 +4,9 @@
 Critério: captura com três programas abertos ao mesmo tempo; imagem medida e
 registrada. Os programas são abertos com duplo clique nos
 ícones da área de trabalho; a tela Sobre mostra versão, tamanho da imagem,
-processos ativos e créditos.
+processos ativos e créditos. A barra superior tem o menu SaguiOS
+(desligar/reiniciar) e o alternador de janelas abertas no lugar do slogan
+(D038).
 """
 import os
 import re
@@ -61,6 +63,38 @@ def main():
         time.sleep(1)
         png = m.captura("H28-tres-programas")
         verificar(True, "captura com Arquivos, Calculadora e Sagui Pega Banana lado a lado")
+
+        # Alternador da barra (D038): uma faixa por janela aberta, no lugar do
+        # slogan. Depois dos arrastos a de cima é "Arquivos"; a faixa do meio
+        # é a da "Calculadora" (x=194..298): um clique a traz para cima.
+        m.clique(240, 10)
+        m.esperar_serial("alternador traz a janela", 15)
+        troca = re.findall(r"alternador traz a janela \d+ \((.*?)\) para cima", m.serial())[-1]
+        verificar(troca == "Calculadora", f"clique na faixa do alternador traz a Calculadora para cima")
+        time.sleep(1)
+        m.captura("H28-alternador")
+
+        # Menu SaguiOS no nome da barra (D038): abre com um clique, fecha com Esc.
+        m.clique(50, 10)
+        m.esperar_serial("menu SaguiOS aberto", 15)
+        m.captura("H28-menu-saguios")
+        m.tecla("esc")
+        m.esperar_serial("menu SaguiOS fechado", 15)
+        verificar(True, "menu SaguiOS abre no botão da barra e fecha com Esc")
+
+        # Desligar pelo menu: a ACPI corta a energia e o QEMU encerra.
+        m.clique(50, 10)
+        m.esperar_serial("menu SaguiOS aberto", 15)
+        m.clique(60, 35)   # item "Desligar"
+        m.esperar_serial("[SAGUI] desligando", 30)
+        desligou = False
+        try:
+            m.proc.wait(timeout=30)
+            desligou = True
+        except Exception:
+            pass
+        verificar(desligou and "[ACPI]" in m.serial(),
+                  "Desligar no menu SaguiOS corta a energia pela ACPI (QEMU encerrou)")
     return 0
 
 

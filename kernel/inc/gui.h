@@ -5,11 +5,12 @@
 #include "desenho.h"
 
 #define BARRA_SUPERIOR 24
+#define BARRA_BOTAO_L  108   /* largura do botão SaguiOS (ícone + nome) na barra */
 
 /* Área de trabalho (area_trabalho.c) */
 bool area_iniciar(void);
 void area_fundo(superficie_t *s);          /* copia o fundo pronto para o recorte de s */
-void area_barra(superficie_t *s);          /* barra superior com o relógio */
+void area_barra(superficie_t *s);          /* barra superior: menu SaguiOS, alternador e relógio */
 bool area_relogio_mudou(void);
 int  area_icone_em(int x, int y);          /* índice do ícone sob o ponto, ou -1 */
 void area_icone_abrir(int i);
@@ -17,6 +18,7 @@ int  area_qtd_icones(void);
 void area_icone_retangulo(int i, int *x, int *y, int *l, int *a);
 void area_icone_direito(int i);
 bool area_pendrive(bool presente, const char *rotulo);
+int  area_barra_janela_em(int x, int y);   /* id da faixa do alternador sob o ponto, ou 0 */
 
 /* Gerenciador de janelas (janelas.c) */
 bool gui_iniciar(void);                    /* liga a área de trabalho e o gerenciador */
@@ -26,5 +28,9 @@ void gui_mostrar(void);
 void gui_aviso(const char *texto);   /* notificação no canto da tela por alguns segundos */
 struct processo;
 void janelas_do_processo_fechar(struct processo *p);
+/* Janelas abertas para o alternador da barra: a 0 é a de cima (em foco). */
+int  janela_listar(int i, char *titulo, uint32_t max);   /* id, ou 0 quando acabaram */
+int  janela_focada_id(void);
+void janela_focar(int id);          /* traz a janela para cima e dá o foco */
 
 #endif

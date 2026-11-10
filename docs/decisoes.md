@@ -1120,3 +1120,30 @@ projeto e preserva o build freestanding; funcionalidades sem suporte no kernel
 do subset. O teste H43 cobre a API realmente implementada. A lista de APIs e
 limites esta em `docs/mlibc.md`; a analise de porte upstream continua como
 referencia em `https://docs.managarm.org/mlibc-book/porting/intro.html`.
+
+## D038. Desligar pela ACPI própria e menu SaguiOS na barra (H28)
+
+**Decisão:** o nome "SaguiOS" da barra superior virou botão de menu, com
+"Desligar" e "Reiniciar" (Esc ou clique fora fecha; com o menu aberto o
+primeiro clique só fecha, não passa para as janelas). O slogan "um sistema
+operacional escrito do zero por IA" saiu da barra e ficou só na janela
+"Sobre o SaguiOS", onde já estava; no lugar dele, um alternador com uma faixa
+por janela aberta — a em foco fica verde, um clique traz a janela para cima.
+Desligar é a chamada nova `SIS_DESLIGAR` (64), implementada em
+`kernel/nucleo/energia.c` sem biblioteca de ACPI: achar a RSDP na EBDA (o
+ponteiro em 0x40E é lido por uma janela de mapeamento, pois a página 0 fica
+desligada de propósito) ou na varredura de 0xE0000 a 0xFFFFF, conferir as
+somas de verificação, seguir até a FADT pela RSDT, achar o pacote `\_S5` no
+DSDT e escrever `SLP_EN | SLP_TYP` nas portas PM1a_CNT e PM1b_CNT da FADT.
+Sem ACPI (ou sem `\_S5`), escrever o valor que o QEMU espera na porta 0x604 e
+o do VirtualBox na 0x4004; se a energia não cortar, parar a CPU e avisar na
+tela que o desligamento tem de ser no botão do gabinete.
+
+**Motivo:** desligar de verdade é um pedido ao firmware, e o PRD proíbe
+código de outros sistemas, então só os 4 campos que o estado S5 precisa foram
+implementados (RSDP → RSDT → FADT + `\_S5`), com as somas conferidas — nem
+precisou de interpretador de AML. Um menu pendurado no nome do sistema é onde
+quem vem de outros sistemas espera achar "desligar" (o reiniciar continua
+sendo o pulso de reset do controlador do teclado). E o espaço do slogan é mais
+útil alternando janelas do que repetindo uma informação que pertence ao
+"Sobre".
