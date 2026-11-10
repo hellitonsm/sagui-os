@@ -12,10 +12,10 @@ Teste primeiro na máquina virtual. Se der erro, mande o print antes de ir para 
 O SaguiOS agora liga direto numa **área de trabalho**:
 
 - fundo em degradê verde, amarelo e azul, com o **sagui** em pixel art no canto;
-- **barra superior** com o nome do sistema e o relógio;
+- **barra superior** com o menu SaguiOS (nome do sistema) e o relógio;
 - **ícones** de Arquivos, Terminal, Editor, Calculadora, Banana e Sobre (**duplo clique** abre);
 - **janelas** com barra de título: arraste pela barra, clique para trazer para a frente, **X** para fechar;
-- o **Terminal** abre sozinho ao ligar, com o `sagsh` dentro (todos os comandos da fase 3 continuam lá).
+- a área de trabalho **nasce limpa**: o **Terminal** (com o `sagsh` dentro, todos os comandos da fase 3) abre pelo duplo clique no ícone.
 
 Todos os programas gráficos são programas comuns no anel 3: o kernel só desenha as molduras e entrega os cliques e as teclas.
 
@@ -24,12 +24,14 @@ Todos os programas gráficos são programas comuns no anel 3: o kernel só desen
 ## Etapa 1: VirtualBox (`saguios.vdi`)
 
 1. Troque o disco da VM pelo `saguios.vdi` novo e ligue. Deixe a janela da VM em **1024x768 ou maior** (ou em tela cheia).
-2. **Tela esperada** (veja `docs/capturas/H24-terminal-ps-conta.png`): a área de trabalho com os ícones à esquerda, o sagui no canto e a janela **Terminal** aberta com o prompt `sagui:/$`.
+2. **Tela esperada** (veja `docs/capturas/H20-area-de-trabalho.png`): a área de trabalho com os ícones à esquerda, o sagui no canto e a barra superior — sem janela alguma. Duplo clique no ícone **Terminal** abre o prompt `sagui:/$`.
 3. Teste:
 
 | O que fazer | O que deve acontecer |
 | --- | --- |
 | Arrastar o Terminal pela barra de título | A janela acompanha o mouse, sem deixar rastro. |
+| Clicar no nome **SaguiOS** na barra | Abre o menu: **Desligar** corta a energia (a VM/máquina desliga), **Reiniciar** reinicia; Esc ou clique fora fecha. |
+| Clicar numa **faixa do alternador** na barra (à direita do nome) | A janela correspondente vem para a frente; a que está em foco fica verde. |
 | No Terminal: `ps` e `ls bin \| conta` | Os processos (inclusive `janelas (kernel)` e `terminal`) e a contagem dos programas. |
 | Duplo clique no ícone **Arquivos** | Abre o gerenciador de arquivos com as pastas e os arquivos com ícones. |
 | No Arquivos: duplo clique em `historia`, depois em `linux.txt` | Entra na pasta e abre o texto no **Editor**. |
@@ -49,7 +51,7 @@ Todos os programas gráficos são programas comuns no anel 3: o kernel só desen
 
 1. Grave o `saguios.img` no pendrive e dê boot (F12, **USB HDD**).
 2. **O que você deve ver no G470:**
-   1. A **área de trabalho** com o degradê, o sagui, os ícones, o relógio na barra e o Terminal aberto.
+   1. A **área de trabalho** com o degradê, o sagui, os ícones, o relógio na barra e o menu SaguiOS (desligar/reiniciar). O Terminal abre pelo ícone.
    2. O **touchpad** arrastando janelas e o **duplo clique** abrindo os programas pelos ícones.
    3. O **Sagui Pega Banana** jogável com as setas.
 3. Atenção especial no G470:

@@ -13,7 +13,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu import Maquina, verificar, imagem_console, criar_pendrive, pendrive_qemu, cor_do_pixel, RAIZ  # noqa: E402
+from qemu import Maquina, verificar, abrir_terminal, imagem_console, criar_pendrive, pendrive_qemu, cor_do_pixel, RAIZ  # noqa: E402
 
 NOTA = "Nota salva no pendrive pelo SaguiOS. Ação!"
 
@@ -40,7 +40,8 @@ def main():
     pen = criar_pendrive("h34-pen", rotulo="MEUPEN", arquivos={"leia.txt": "já estava no pendrive\n"})
     # ---------------- caminho pela interface gráfica ----------------
     with Maquina("h34", "ide", extras=["-device", "usb-ehci,id=ehci"]) as m:
-        m.esperar_serial("sagui:/$", 120)
+        m.esperar_serial("area de trabalho no ar", 120)
+        abrir_terminal(m)   # o Terminal agora abre pelo ícone (D039)
         time.sleep(1)
         espetar(m, pen, "p1")
         m.esperar_serial("notificacao: Pendrive conectado: MEUPEN (64 MB)", 20)

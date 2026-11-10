@@ -28,7 +28,7 @@ def main():
     tamanho = int(open(os.path.join(RAIZ, "build", "tamanho.txt")).read())
     verificar(tamanho > 0, f"imagem com {tamanho} bytes úteis medida e registrada")
     with Maquina("h28", "ide") as m:
-        m.esperar_serial("sagui:/$", 120)
+        m.esperar_serial("area de trabalho no ar", 120)
         time.sleep(1)
         for nome, titulo in (("Arquivos", "Arquivos"), ("Calculadora", "Calculadora"), ("Banana", "Sagui Pega Banana")):
             abrir_icone(m, nome)
@@ -40,12 +40,12 @@ def main():
         s = m.serial()
         v = re.findall(r"sobre: versao (.*?), imagem (\d+) bytes, (\d+) processos", s)[-1]
         verificar(v[0].startswith("1.0") and int(v[1]) == tamanho, f"Sobre mostra a versão {v[0]} e o tamanho da imagem ({v[1]} bytes)")
-        verificar(int(v[2]) >= 7, f"Sobre mostra {v[2]} processos ativos (ocioso, janelas, terminal, sagsh e os programas abertos)")
+        verificar(int(v[2]) >= 6, f"Sobre mostra {v[2]} processos ativos (ocioso, janelas e os programas abertos)")
         time.sleep(1)
         m.captura("H28-programas-abertos")
         criadas = len(re.findall(r"\[GUI\] janela \d+ criada", s))
         fechadas = len(re.findall(r"\[GUI\] fechar janela", s))
-        verificar(criadas >= 5 and fechadas == 0, f"{criadas} janelas abertas ao mesmo tempo (Terminal + 4 programas)")
+        verificar(criadas >= 4 and fechadas == 0, f"{criadas} janelas abertas ao mesmo tempo (Arquivos, Calculadora, Banana e Sobre)")
         # Fecha o Sobre e espalha as janelas para a captura de três programas lado a lado.
         m.tecla("ret")
         m.esperar_serial("(sobre-o-sistema) terminou", 10)

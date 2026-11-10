@@ -2,12 +2,13 @@
 """IDE: executar exemplos Go e Lua na máquina convidada."""
 import re
 import time
-from qemu import Maquina, verificar
+from qemu import Maquina, verificar, abrir_terminal
 
 
 def main():
     with Maquina('h39-ide', 'ide') as m:
-        m.esperar_serial('sagui:/$', 120)
+        m.esperar_serial('area de trabalho no ar', 120)
+        abrir_terminal(m)   # o Terminal agora abre pelo ícone (D039)
         m.comando('ide /go/ola.go')
         m.esperar_serial('ide: pronto', 30)
         match = re.findall(r'criada por \d+: "IDE - sem nome" (\d+)x(\d+) em \((\d+),(\d+)\)', m.serial())[-1]

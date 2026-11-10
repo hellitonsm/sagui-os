@@ -11,7 +11,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu import Maquina, verificar  # noqa: E402
+from qemu import Maquina, verificar, abrir_terminal  # noqa: E402
 
 BOTOES = {"C": (0, 0), "<-": (1, 0), "÷": (2, 0), "×": (3, 0), "7": (0, 1), "8": (1, 1), "9": (2, 1), "-": (3, 1),
           "4": (0, 2), "5": (1, 2), "6": (2, 2), "+": (3, 2), "1": (0, 3), "2": (1, 3), "3": (2, 3), "=": (3, 3),
@@ -24,7 +24,8 @@ def ultimo_visor(serial):
 
 def main():
     with Maquina("h26", "ide") as m:
-        m.esperar_serial("sagui:/$", 120)
+        m.esperar_serial("area de trabalho no ar", 120)
+        abrir_terminal(m)   # o Terminal agora abre pelo ícone (D039)
         time.sleep(1)
         m.comando("calculadora")
         m.esperar_serial("calculadora: pronta", 20)

@@ -20,7 +20,7 @@ def main():
             m.esperar_serial("area de trabalho no ar", 120)
             m.esperar_serial("[GUI] relogio:", 20)
             png = m.captura("H20-area-de-trabalho", guardar=(modo == "ide"))
-            topo, meio, base = cor_do_pixel(png, 1000, 40), cor_do_pixel(png, 1000, 384), cor_do_pixel(png, 1000, 760)   # à direita do Terminal, que abre no boot
+            topo, meio, base = cor_do_pixel(png, 1000, 40), cor_do_pixel(png, 1000, 384), cor_do_pixel(png, 1000, 760)   # x=1000: área livre à direita dos ícones
             verificar(topo[1] > topo[0] and topo[1] > topo[2], f"[{modo}] topo verde {topo}")
             verificar(meio[0] > 180 and meio[1] > 150 and meio[2] < 90, f"[{modo}] meio amarelo {meio}")
             verificar(base[2] > base[0] and base[2] > base[1], f"[{modo}] base azul {base}")

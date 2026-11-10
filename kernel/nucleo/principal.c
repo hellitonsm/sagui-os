@@ -291,17 +291,13 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
         autoteste_executar(info_boot.teste);
 
     /* H20: com vídeo e sem a opção --console, a área de trabalho assume a
-     * tela; o shell passa a rodar dentro do programa Terminal (H24). */
+     * tela. Ela nasce limpa: o Terminal (com o sagsh dentro dele) e todos os
+     * programas abrem pelos ícones (D039). */
     if (grafico && !(info_boot.opcoes & 2) && gui_iniciar()) {
         console_esconder(true);
         klog("[SAGUI] area de trabalho no ar\n");
-        if (info_boot.teste[0] == '/') {
+        if (info_boot.teste[0] == '/')
             rodar_programa_de_teste(info_boot.teste);   /* testes da fase 5: programa gráfico */
-        } else {
-            char *argv_t[] = { "terminal", NULL };
-            int pid = processo_executar("/bin/terminal", 1, argv_t, NULL);
-            klog("[SAGUI] terminal: %d\n", pid);
-        }
         for (;;)
             cpu_espera();   /* o processo 0 só descansa; o resto são processos e a tarefa das janelas */
     }

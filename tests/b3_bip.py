@@ -12,14 +12,15 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu import Maquina, verificar  # noqa: E402
+from qemu import Maquina, verificar, abrir_terminal  # noqa: E402
 
 SOM = ["-audiodev", "none,id=som", "-machine", "pcspk-audiodev=som"]
 
 
 def main():
     with Maquina("b3", "ide", extras=SOM) as m:
-        m.esperar_serial("sagui:/$", 120)
+        m.esperar_serial("area de trabalho no ar", 120)
+        abrir_terminal(m)   # o Terminal agora abre pelo ícone (D039)
         time.sleep(1)
         out = m.comando("bip 440 300")
         verificar("bip: 440 Hz por 300 ms" in out, "comando bip 440 300")

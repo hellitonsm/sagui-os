@@ -181,6 +181,14 @@ def imagem_console():
     return imagem_de_teste("", ["--vesa", "--console"])
 
 
+def abrir_terminal(m):
+    """Abre o Terminal pelo ícone da área de trabalho (o 2º da coluna da
+    esquerda) e espera o prompt do sagsh. A área de trabalho não abre o
+    Terminal sozinho ao ligar (D039): quem quiser o shell, clica no ícone."""
+    m.clique(20 + 48, 24 + 16 + 1 * 84 + 32, duplo=True)
+    m.esperar_serial("sagui:/$", 30)
+
+
 class FalhaTeste(Exception):
     pass
 

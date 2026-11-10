@@ -11,7 +11,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu import Maquina, verificar  # noqa: E402
+from qemu import Maquina, verificar, abrir_terminal  # noqa: E402
 
 TEXTO = "Olá, SaguiOS! Ação e coração."
 
@@ -31,7 +31,8 @@ def item(a, i):
 
 def main():
     with Maquina("h23", "ide") as m:
-        m.esperar_serial("sagui:/$", 120)
+        m.esperar_serial("area de trabalho no ar", 120)
+        abrir_terminal(m)   # o Terminal agora abre pelo ícone (D039)
         time.sleep(1)
         # Nota criada no Editor (H25), para reabrir pelo Arquivos.
         m.comando("editor")

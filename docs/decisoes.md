@@ -1147,3 +1147,18 @@ quem vem de outros sistemas espera achar "desligar" (o reiniciar continua
 sendo o pulso de reset do controlador do teclado). E o espaço do slogan é mais
 útil alternando janelas do que repetindo uma informação que pertence ao
 "Sobre".
+
+## D039. Área de trabalho nasce limpa: o Terminal abre pelo ícone (H24, H28)
+
+**Decisão:** ao ligar no modo gráfico, o kernel sobe a área de trabalho e
+mais nada; o Terminal (e o `sagsh` dentro dele) deixa de ser aberto
+automaticamente no boot e passa a abrir pelo duplo clique no ícone, como
+qualquer outro programa. O caminho do `--console` (terminal de tela cheia,
+usado pelos testes das fases 2 a 4) continua subindo o `sagsh` direto.
+
+**Motivo:** a área de trabalho agora tem o alternador de janelas na barra
+(D038), então navegar entre programas não depende de uma janela de Terminal
+já aberta; e uma tela inicial limpa é o esperado em quem vem de outros
+sistemas. Os testes que usavam o Terminal do boot (H23 a H28, B3, B4, H34,
+H39) passam a abri-lo pelo ícone; os que só queriam o sinal de boot
+esperam o log "area de trabalho no ar".

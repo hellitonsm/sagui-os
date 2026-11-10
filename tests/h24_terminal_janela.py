@@ -2,9 +2,9 @@
 """H24 - Terminal em janela.
 
 Critério: captura com o terminal em janela rodando `ps` e `ls bin | conta`.
-Também: o sistema abre o Terminal sozinho ao ligar, a edição com setas
-funciona dentro dele, os comandos dos programas gráficos são reconhecidos
-e "sair" fecha a janela.
+Também: a área de trabalho nasce limpa (sem janela alguma) e o Terminal abre
+pelo ícone (D039), a edição com setas funciona dentro dele, os comandos dos
+programas gráficos são reconhecidos e "sair" fecha a janela.
 """
 import os
 import re
@@ -12,16 +12,20 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu import Maquina, verificar, RAIZ  # noqa: E402
+from qemu import Maquina, verificar, abrir_terminal, RAIZ  # noqa: E402
 
 PROGRAMAS = sorted([f[:-2] for f in os.listdir(os.path.join(RAIZ, "userland", "programas")) if f.endswith(".c")] + ["sagui3d"])   # o Sagui 3D (B4) fica em userland/sagui3d
 
 
 def main():
     with Maquina("h24", "ide") as m:
-        m.esperar_serial("sagui:/$", 120)
+        m.esperar_serial("area de trabalho no ar", 120)
+        time.sleep(1)
         s = m.serial()
-        verificar('"Terminal"' in s and "executar /bin/sagsh" in s, "ao ligar, o sistema abre o Terminal com o sagsh dentro")
+        verificar("criada por" not in s, "ao ligar, a área de trabalho vem limpa: nenhuma janela aberta")
+        abrir_terminal(m)
+        s = m.serial()
+        verificar('"Terminal"' in s and "executar /bin/sagsh" in s, "duplo clique no ícone abre o Terminal, com o sagsh dentro")
         time.sleep(1)
         out = m.comando("ps")
         verificar(re.search(r"terminal", out) and "sagsh" in out and "janelas (kernel)" in out,
