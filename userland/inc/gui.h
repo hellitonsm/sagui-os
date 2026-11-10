@@ -65,6 +65,12 @@ bool caixa_tratar(jan_t *j, caixa_t *c, const evento_t *e);   /* true = Enter */
 void caixa_definir(caixa_t *c, const char *texto);
 
 /* ---- área de texto com várias linhas e rolagem ---- */
+
+/* Realce opcional de um trecho da linha. A função recebe a linha inteira, o
+ * tamanho, a posição e devolve a cor do trecho, dizendo em *consumir quantos
+ * caracteres têm a mesma cor (mínimo 1). Serve para realce de sintaxe. */
+typedef uint32_t (*area_cor_t)(const char *linha, int tam, int pos, int *consumir, void *ctx);
+
 typedef struct {
     int   x, y, l, a;
     char *buf;            /* texto (Latin-1), terminado em zero */
@@ -74,6 +80,13 @@ typedef struct {
     bool  foco;
     bool  modificado;
     bool  somente_leitura;
+    /* Recursos opcionais, desligados por padrão (area_iniciar zera tudo). */
+    bool  numeros_linha;  /* margem com o número de cada linha */
+    bool  auto_indentar;  /* Enter copia a indentação (e abre bloco em { ) */
+    int   marca_ini;      /* trecho destacado (busca); tam 0 = nenhum */
+    int   marca_tam;
+    area_cor_t cor_token; /* realce de sintaxe; NULL = cor normal */
+    void  *cor_ctx;
 } area_t;
 bool area_iniciar(area_t *a, int x, int y, int l, int al);
 void area_definir(area_t *a, const char *texto, int n);

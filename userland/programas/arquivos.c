@@ -1,8 +1,8 @@
 /* arquivos [pasta] - o gerenciador de arquivos do SaguiOS (H23).
  *
  * Mostra uma pasta como lista com ícones (pastas primeiro). Duplo clique:
- * pasta entra, arquivo de texto abre no Editor, código (.go/.lua) abre no
- * IDE, programa executa. Botões para voltar, criar pasta e apagar. */
+ * pasta entra, arquivo de texto abre no Editor, código (.go/.lua/.c/.h/.mk)
+ * abre no IDE, programa executa. Botões para voltar, criar pasta e apagar. */
 #include "sagui.h"
 #include "gui.h"
 
@@ -164,13 +164,6 @@ static void voltar(void)
     carregar();
 }
 
-static bool eh_codigo(const char *nome)
-{
-    size_t tam = tam_texto(nome);
-    return (tam >= 3 && compara_texto(nome + tam - 3, ".go") == 0) ||
-           (tam >= 4 && compara_texto(nome + tam - 4, ".lua") == 0);
-}
-
 static bool eh_media(const char *nome)
 {
     size_t tam = tam_texto(nome);
@@ -190,7 +183,7 @@ static void abrir_item(int i)
         argv[0] = nomes[i]; argv[1] = NULL;
         pid = executar(c, argv);
         registrar("arquivos: executando %s (pid %d)", c, pid);
-    } else if (eh_codigo(nomes[i])) {
+    } else if (eh_codigo_fonte(nomes[i])) {
         argv[0] = "ide"; argv[1] = c; argv[2] = NULL;
         pid = executar("/bin/ide", argv);
         registrar("arquivos: abrindo no IDE %s (pid %d)", c, pid);

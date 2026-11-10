@@ -64,7 +64,7 @@ static const comando_t comandos[] = {
     { "bip", NULL, false, false, "toca um bip", "bip [Hz [ms]] | bip escala", "Toca uma nota no alto-falante do PC (padrão: 880 Hz por 200 ms)." },
     { "arquivos", NULL, false, true, "abre o Arquivos", "arquivos [pasta]", "Abre o Arquivos numa janela." },
     { "editor", NULL, false, true, "editor de texto", "editor [arquivo]", "Abre o Editor de texto numa janela." },
-    { "ide", NULL, false, true, "editor de código", "ide [arquivo]", "Abre a IDE para editar, compilar e executar programas Go e Lua." },
+    { "ide", NULL, false, true, "editor de código", "ide [arquivo]", "Abre a IDE para editar, compilar e executar Go, Lua, C (tinycc) e receitas .mk (make)." },
     { "calculadora", NULL, false, true, "calculadora", "calculadora", "Abre a Calculadora numa janela." },
     { "tocador", NULL, false, true, "toca .mus/.vid", "tocador [arquivo.mus|arquivo.vid]", "Abre o Tocador: toca música em notas (.mus) e vídeo em quadros (.vid) de /musicas e /videos." },
     { "loja", NULL, false, true, "loja de apps", "loja [listar|instalar <nome>|executar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]", "Abre a Loja: Go compila e empacota .loj, Lua copia .lua, instala em /store e configura o link." },
@@ -517,16 +517,14 @@ static bool executar_linha(char *linha)
     if (et[qtd - 1].argc == 0) { mostrar("sagsh: pipe sem comando\n"); return true; }
     for (int i = 0; i < qtd; i++) et[i].argv[et[i].argc] = NULL;
 
-    /* Arquivos .go e .lua abrem no IDE, nao no editor de texto nem como binario.
-     * "ola.go" vira "ide ola.go" e "/go/ola.go" vira "ide /go/ola.go". */
+    /* Arquivos de código (.go, .lua, .c, .h e .mk) abrem na IDE, nao no
+     * editor de texto nem como binario. "ola.go" vira "ide ola.go" e
+     * "/go/ola.go" vira "ide /go/ola.go". */
     for (int i = 0; i < qtd; i++) {
         if (et[i].argc == 0) continue;
         const char *n = et[i].argv[0];
         if (!n) continue;
-        size_t tam = tam_texto(n);
-        int eh_codigo = (tam >= 3 && compara_texto(n + tam - 3, ".go") == 0) ||
-                        (tam >= 4 && compara_texto(n + tam - 4, ".lua") == 0);
-        if (!eh_codigo) continue;
+        if (!eh_codigo_fonte(n)) continue;
         if (et[i].argc >= MAX_PALAVRAS - 1) {
             mostrar("sagsh: linha longa demais para abrir no IDE\n");
             return true;

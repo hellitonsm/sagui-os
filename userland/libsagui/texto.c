@@ -99,6 +99,18 @@ bool eh_espaco(int c)
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
+/* Extensões que o sistema abre na IDE (o editor de código). Fica na libsagui
+ * para o shell, o gerenciador de arquivos e a própria IDE usarem a mesma
+ * lista: .go, .lua, .c, .h e .mk (receitas do make). */
+bool eh_codigo_fonte(const char *nome)
+{
+    const char *p = acha_ultimo_char(nome, '.');
+    if (!p || p == nome) return false;
+    return compara_texto(p, ".go") == 0 || compara_texto(p, ".lua") == 0 ||
+           compara_texto(p, ".c") == 0 || compara_texto(p, ".h") == 0 ||
+           compara_texto(p, ".mk") == 0;
+}
+
 /* Converte, no lugar, sequências UTF-8 válidas de caracteres do Latin-1
  * (U+0080 a U+00FF, dois bytes: C2/C3 + continuação) para um byte só. O
  * resto fica como está. Devolve o novo tamanho. Se o texto terminar no meio

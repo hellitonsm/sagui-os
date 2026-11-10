@@ -286,6 +286,25 @@ static int total_linhas(area_t *a)
     return n;
 }
 
+/* Largura da margem dos números de linha (0 = sem margem). */
+static int margem_das_linhas(area_t *a)
+{
+    if (!a->numeros_linha) return 0;
+    int digitos = 1;
+    for (int n = total_linhas(a); n >= 10; n /= 10) digitos++;
+    return digitos * LETRA_L + 12;
+}
+
+static uint32_t cor_do_trecho(area_t *a, const char *linha, int n, int pos, int *consumir)
+{
+    *consumir = 1;
+    if (!a->cor_token) return COR_TEXTO;
+    uint32_t cor = a->cor_token(linha, n, pos, consumir, a->cor_ctx);
+    if (*consumir < 1) *consumir = 1;
+    if (pos + *consumir > n) *consumir = n - pos;
+    return cor;
+}
+
 static void cursor_visivel(area_t *a)
 {
     int lin, col, vis = area_linhas_visiveis(a);
@@ -296,18 +315,54 @@ static void cursor_visivel(area_t *a)
 
 void area_desenhar(jan_t *j, area_t *a)
 {
-    int texto_l = a->l - BARRA_ROLAGEM;
+    int texto_l = a->l - BARRA_ROLAGEM, margem = margem_das_linhas(a);
     g_retangulo(j, a->x, a->y, a->l, a->a, COR_BRANCO);
     g_moldura(j, a->x, a->y, a->l, a->a, a->foco ? COR_DESTAQUE : COR_BORDA);
-    int vis = area_linhas_visiveis(a), cabem = (texto_l - 10) / LETRA_L;
+    int vis = area_linhas_visiveis(a), cabem = (texto_l - 10 - margem) / LETRA_L;
+    if (cabem < 1) cabem = 1;
     int lin_cur, col_cur;
     linha_coluna(a, a->cursor, &lin_cur, &col_cur);
     int pos = inicio_da_linha(a, a->topo);
+    int tx0 = a->x + 5 + margem;
+
+    if (margem) {
+        g_retangulo(j, a->x + 1, a->y + 1, margem - 1, a->a - 2, 0xF0F2F4);
+        g_retangulo(j, a->x + margem, a->y + 1, 1, a->a - 2, 0xD5DADF);
+    }
+
     for (int k = 0; k < vis && pos <= a->tam; k++) {
         int n = tamanho_da_linha(a, pos);
-        g_texto_n(j, a->x + 5, a->y + 4 + k * LETRA_A, a->buf + pos, n < cabem ? n : cabem, COR_TEXTO);
+        int y = a->y + 4 + k * LETRA_A;
+        if (a->numeros_linha) {
+            char num[16];
+            int nd = formatar_texto(num, sizeof num, "%d", a->topo + k + 1);
+            g_texto(j, a->x + margem - 4 - nd * LETRA_L, y, num, 0x8A939C);
+        }
+        if (a->marca_tam > 0) {
+            int m_ini = a->marca_ini, m_fim = a->marca_ini + a->marca_tam;
+            int ini = pos > m_ini ? pos : m_ini;
+            int fim = pos + n < m_fim ? pos + n : m_fim;
+            if (fim > ini) {
+                int col = ini - pos, qtd = fim - ini;
+                if (col < cabem) {
+                    if (col + qtd > cabem) qtd = cabem - col;
+                    if (qtd > 0)
+                        g_retangulo(j, tx0 + col * LETRA_L, y, qtd * LETRA_L, LETRA_A, 0xFFF2A8);
+                }
+            }
+        }
+        int mostrados = n < cabem ? n : cabem;
+        int x = tx0;
+        for (int i = 0; i < mostrados; ) {
+            int passo = 1;
+            uint32_t cor = cor_do_trecho(a, a->buf + pos, n, i, &passo);
+            if (i + passo > mostrados) passo = mostrados - i;
+            g_texto_n(j, x, y, a->buf + pos + i, passo, cor);
+            x += passo * LETRA_L;
+            i += passo;
+        }
         if (a->foco && !a->somente_leitura && a->topo + k == lin_cur && col_cur <= cabem)
-            g_retangulo(j, a->x + 5 + col_cur * LETRA_L, a->y + 4 + k * LETRA_A, 2, LETRA_A, COR_TEXTO);
+            g_retangulo(j, tx0 + col_cur * LETRA_L, y, 2, LETRA_A, COR_TEXTO);
         pos += n + 1;
         if (pos > a->tam) break;
     }
@@ -365,7 +420,8 @@ bool area_tratar(jan_t *j, area_t *a, const evento_t *e)
                 if (a->topo > total - vis) a->topo = total - vis;
                 if (a->topo < 0) a->topo = 0;
             } else {
-                int lin = a->topo + (e->y - a->y - 4) / LETRA_A, col = (e->x - a->x - 5 + LETRA_L / 2) / LETRA_L;
+                int lin = a->topo + (e->y - a->y - 4) / LETRA_A;
+                int col = (e->x - a->x - 5 - margem_das_linhas(a) + LETRA_L / 2) / LETRA_L;
                 int total = total_linhas(a);
                 if (lin >= total) lin = total - 1;
                 if (lin < 0) lin = 0;
@@ -390,7 +446,33 @@ bool area_tratar(jan_t *j, area_t *a, const evento_t *e)
     else if (a->somente_leitura) return false;
     else if (t == '\b') { if (a->cursor > 0) { remover(a, a->cursor - 1); a->cursor--; mudou = true; } }
     else if (t == TECLA_DELETE) { if (a->cursor < a->tam) { remover(a, a->cursor); mudou = true; } }
-    else if (t == '\n') { inserir(a, "\n", 1); mudou = true; }
+    else if (t == '\n') {
+        if (!a->auto_indentar) {
+            inserir(a, "\n", 1);
+        } else {
+            /* Copia a indentação da linha atual e, se ela abre um bloco,
+             * acrescenta quatro espaços. Vale para C, Go, Lua e .mk. */
+            int lin, col, ini;
+            linha_coluna(a, a->cursor, &lin, &col);
+            (void)col;
+            ini = inicio_da_linha(a, lin);
+            char espacos[128];
+            int ne = 0;
+            while (ini + ne < a->tam && ne < 120 &&
+                   (a->buf[ini + ne] == ' ' || a->buf[ini + ne] == '\t')) {
+                espacos[ne] = a->buf[ini + ne];
+                ne++;
+            }
+            int p = a->cursor - 1;
+            while (p >= ini && (a->buf[p] == ' ' || a->buf[p] == '\t')) p--;
+            bool abre = p >= ini && (a->buf[p] == '{' || a->buf[p] == '[' || a->buf[p] == '(');
+            if (abre && ne + 4 < (int)sizeof espacos)
+                for (int k = 0; k < 4; k++) espacos[ne++] = ' ';
+            inserir(a, "\n", 1);
+            if (ne) inserir(a, espacos, ne);
+        }
+        mudou = true;
+    }
     else if (t == '\t') { inserir(a, "    ", 4); mudou = true; }
     else if (t >= 0x20 && t < 0x100 && t != 0x7F) { char c = (char)t; inserir(a, &c, 1); mudou = true; }
     else return false;
