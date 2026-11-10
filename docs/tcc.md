@@ -7,8 +7,8 @@ o compilador do subconjunto (`csagui`, ver `docs/asm-c.md`) nem o interpretador
 Go/Lua — é o compilador C de verdade.
 
 ```text
-tinycc -o /tmp/ola /tcc/hello-tcc.c
-/tmp/ola
+tinycc /tcc/hello-tcc.c     # gera ./hello-tcc (sem -o)
+./hello-tcc
 ```
 
 `/tcc/hello-tcc.c` é o exemplo empacotado na imagem. O teste `tests/h46_tinycc.py`
@@ -90,18 +90,22 @@ O tinycc compila a biblioteca no hospedeiro e a embute na imagem junto com o
 resto do sysroot:
 
 ```text
-tinycc -o /tmp/exemplo-gui /tcc/exemplo-gui.c -lsaguigui
-/tmp/exemplo-gui
+tinycc /tcc/exemplo-gui.c -lsaguigui   # gera ./exemplo-gui (sem -o)
+./exemplo-gui
 ```
 
-O exemplo empacotado na imagem (`rootfs/tcc/exemplo-gui.c`) cria uma janela
-240x140 com rótulo, caixa de texto (`caixa_t`) e botão (`botao_t`). Sem
-argumento ele abre a janela e entra no loop de eventos; com `--autoteste`
-exercita os componentes com eventos sintéticos (digita "oi" na caixa, aperta
-e solta o botão) e imprime marcadores — é isso que o teste `/testes/gui_tinycc`
-verifica no convidado. Os testes gráficos precisam da área de trabalho no ar
-(`--vesa`, sem `--console`), porque o compositor só existe nesse modo; por
-isso o `tests/h47_gui_tinycc.py` usa `imagem_de_teste("/testes/gui_tinycc", ["--vesa"])`.
+O exemplo empacotado na imagem (`rootfs/tcc/exemplo-gui.c`) é uma **demonstração
+que roda sozinha na tela** — sem precisar de humano: abre a janela, deixa um
+relógio de uptime correndo no canto, espera 1 s, digita `SaguiOS` na caixa de
+texto letra a letra, clica no próprio botão 3 vezes (o contador sobe na tela),
+marca `TUDO OK`, fecha sozinha e imprime os marcadores que o teste
+`/testes/gui_tinycc` confere. Com `--interativo` a janela fica aberta esperando
+você digitar e clicar (feche no X). Esse é o critério: se a janela não aparece
+na tela e não reage, o teste falha.
+
+Os testes gráficos precisam da área de trabalho no ar (`--vesa`, sem
+`--console`), porque o compositor só existe nesse modo; por isso o
+`tests/h47_gui_tinycc.py` usa `imagem_de_teste("/testes/gui_tinycc", ["--vesa"])`.
 
 O `gui.h` expõe (veja `userland/inc/gui.h`):
 
@@ -118,11 +122,45 @@ O `gui.h` expõe (veja `userland/inc/gui.h`):
 | Eventos | `proximo_evento` (`EV_CLIQUE`, `EV_SOLTOU`, `EV_MOVER`, `EV_TECLA`, `EV_FECHAR`) |
 
 Um programa de verdade começa criando a janela e reage a `proximo_evento`;
-veja o bloco `else` de `rootfs/tcc/exemplo-gui.c` para o esqueleto mínimo
-(loop interativo com botão e caixa).
+veja o bloco `--interativo` de `rootfs/tcc/exemplo-gui.c` para o esqueleto
+mínimo (loop de eventos interativo com botão e caixa).
 
 O `gui.h` usa os tipos do `abi.h` (`evento_t`, `retangulo_t`, `EV_*`) e
 inclui `sagui.h` — ambos já estão em `/usr/include` no sysroot.
+
+## make e arquivos .mk
+
+O `/bin/make` compila programas descritos em arquivos `.mk`. Ele não é o GNU
+make: cada `.mk` é uma receita simples de `CHAVE = valor` com tudo o que o
+tinycc precisa — fonte, saída, bibliotecas, opções e compilador.
+
+```text
+make /jogos/grafico/sudoku.mk    # compila um programa
+make -all /jogos/grafico         # compila todos os .mk da pasta
+make                             # lista os .mk da pasta atual
+```
+
+Campos aceitos (aliases entre parênteses):
+
+| Chave | Para quê | Padrão |
+| --- | --- | --- |
+| `NOME` | nome mostrado durante a compilação | nome do `.mk` |
+| `FONTE` (`SRC`) / `FONTES` (`SOURCES`) | um ou vários fontes `.c` | — |
+| `SAIDA` (`ALVO`, `TARGET`, `OUT`) | executável gerado | primeiro fonte sem `.c` |
+| `BIBLIOTECAS` (`LIBS`) | bibliotecas ligadas | `-lsaguigui` |
+| `OPCOES` (`CFLAGS`, `FLAGS`) | opções do compilador | vazio |
+| `INCLUI` (`INCLUDES`) | `-I...` | vazio |
+| `COMPILADOR` (`CC`) | compilador | `/bin/tinycc` |
+| `EXECUTAR` (`RUN`) | `sim` roda depois de compilar | `nao` |
+
+Os caminhos dos fontes são resolvidos a partir da pasta do `.mk`; a saída é
+criada na pasta atual, como no gcc (`make /jogos/grafico/sudoku.mk` a partir
+de `/` gera `/sudoku`). `make -all` só compila, sem executar, para não abrir
+várias janelas de uma vez.
+
+As receitas prontas dos jogos gráficos ficam em `/jogos/grafico/*.mk`
+(`sudoku.mk`, `tetris.mk`, `velha.mk`) e usam `BIBLIOTECAS = -lsaguigui` e
+`OPCOES = -static`. Veja [jogos.md](jogos.md#jogos-gráficos-tinycc--libsaguigui).
 
 ## Observações sobre a libc upstream
 
@@ -150,8 +188,9 @@ argumentos. (O `tools/tinycc-sagui/crt1-sagui.asm` já usava o layout correto.)
 ```text
 tinycc -v                    # versão
 tinycc -E -o - /tcc/hello-tcc.c   # só pré-processar
-tinycc -c -o /tmp/ola.o /tcc/hello-tcc.c
-tinycc -o /tmp/ola /tcc/hello-tcc.c
+tinycc -c /tcc/hello-tcc.c        # gera ./hello-tcc.o
+tinycc /tcc/hello-tcc.c           # gera ./hello-tcc (sem -o)
+tinycc -o /tmp/ola /tcc/hello-tcc.c   # nome/caminho escolhido com -o
 ```
 
 ## Onde estão as peças
@@ -170,6 +209,8 @@ tinycc -o /tmp/ola /tcc/hello-tcc.c
 | Kit gráfico usado pelo tinycc | `userland/libsagui/gui.c` → `libsaguigui.a`; header `userland/inc/gui.h` → `/usr/include/gui.h` |
 | Exemplo gráfico | `rootfs/tcc/exemplo-gui.c` → `/tcc/exemplo-gui.c` |
 | Teste gráfico no convidado | `userland/testes/gui_tinycc.c` → `/testes/gui_tinycc` (via `tests/h47_gui_tinycc.py`, `--vesa`) |
+| `make` (compilador de `.mk`) | `userland/programas/make.c` → `/bin/make` |
+| Jogos gráficos e receitas `.mk` | `rootfs/jogos/grafico/` → `/jogos/grafico/` |
 | Exemplo | `rootfs/tcc/hello-tcc.c` |
 | Teste no convidado | `userland/testes/tinycc.c` → `/testes/tinycc` |
 | Teste de ABI | `userland/testes/abiargv.c` → `/testes/abiargv` |

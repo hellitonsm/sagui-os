@@ -3,8 +3,8 @@
 
 O sysroot instala /usr/lib/libsaguigui.a (kit grafico + fonte 8x16) e o
 header /usr/include/gui.h. O exemplo /tcc/exemplo-gui.c e compilado dentro
-do convidado com `tinycc -lsaguigui` e exercitado com eventos sinteticos
-(sem interacao).
+do convidado com `tinycc -lsaguigui` e roda a demonstracao visivel (janela,
+relogio, caixa auto-digitada e botao clicado pelo proprio exemplo).
 """
 import os
 import sys
@@ -16,12 +16,12 @@ from qemu import Maquina, verificar, imagem_de_teste  # noqa: E402
 def main():
     with Maquina("h47-gui-tinycc", "ide", imagem=imagem_de_teste("/testes/gui_tinycc", ["--vesa"])) as m:
         m.esperar_serial("[GUI-TINYCC] exemplo compilado e linkado com -lsaguigui", 120)
-        m.esperar_serial("[GUI-TINYCC] janela, caixa e botao exercitados no convidado", 60)
+        m.esperar_serial("[GUI-TINYCC] janela demonstrada ao vivo no convidado", 60)
         m.esperar_serial("[GUI-TINYCC] biblioteca grafica do tinycc validada", 60)
         m.esperar_serial("(gui_tinycc) terminou com codigo 0", 60)
         s = m.serial()
         verificar("[GUI-TINYCC] biblioteca grafica do tinycc validada" in s,
-                  "exemplo compilado com -lsaguigui e componentes exercitados")
+                  "exemplo compilado com -lsaguigui e demonstracao ao vivo executada")
         m.captura("H47-gui-tinycc")
     return 0
 

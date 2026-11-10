@@ -1,7 +1,8 @@
 /* gui_tinycc.c - teste da biblioteca grafica do tinycc no convidado:
  * compila o exemplo /tcc/exemplo-gui.c ligando contra libsaguigui.a
- * (/usr/lib/libsaguigui.a no sysroot) e executa o resultado com eventos
- * sinteticos (sem interacao). */
+ * (/usr/lib/libsaguigui.a no sysroot) e executa a DEMONSTRACAO VISIVEL
+ * (janela real, relogio, auto-digitacao, auto-cliques), conferindo os
+ * marcadores que o proprio exemplo imprime. */
 #include "sagui.h"
 
 static int rodar(char *const args[])
@@ -65,17 +66,22 @@ int principal(int argc, char **argv)
     }
     registrar("[GUI-TINYCC] exemplo compilado e linkado com -lsaguigui\n");
 
-    /* Executa no modo de eventos sinteticos (sem interacao). */
-    char *exemplo[] = { "/tmp/exemplo-gui", "--autoteste", NULL };
+    /* Roda a DEMONSTRACAO na tela: a janela abre, o relogio corre, a
+     * caixa se digita sozinha e o botao conta os proprios cliques.
+     * O programa fecha sozinho ao final (codigo 0). */
+    char *exemplo[] = { "/tmp/exemplo-gui", NULL };
     if (capturar(exemplo, buf, sizeof buf, &codigo) < 0 || codigo != 0 ||
-        !contem(buf, "texto='oi'") ||
-        !contem(buf, "botao clicado: sim") ||
-        !contem(buf, "programa grafico validado")) {
+        !contem(buf, "janela aberta pelo tinycc") ||
+        !contem(buf, "caixa recebeu 'SaguiOS' auto-digitada") ||
+        !contem(buf, "botao clicado 3 vezes") ||
+        !contem(buf, "TUDO OK") ||
+        !contem(buf, "demonstracao concluida")) {
         imprimir_em(ERROS, "[GUI-TINYCC] exemplo: codigo %d, saida %s\n", codigo, buf);
         return 2;
     }
     apagar("/tmp/exemplo-gui");
-    registrar("[GUI-TINYCC] janela, caixa e botao exercitados no convidado\n");
+    registrar("[GUI-TINYCC] janela demonstrada ao vivo no convidado\n");
+    imprimir("%s", buf);   /* mostra a demonstracao na janela do Terminal */
     registrar("[GUI-TINYCC] biblioteca grafica do tinycc validada\n");
     imprimir("[GUI-TINYCC] biblioteca grafica do tinycc validada\n");
     return 0;

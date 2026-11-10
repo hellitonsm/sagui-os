@@ -184,6 +184,22 @@ tinycc -o /tmp/ex /tcc/exemplo-gui.c -lsaguigui
 
 Veja o teste `/testes/gui_tinycc` e [`docs/tcc.md`](docs/tcc.md#biblioteca-gráfica-libsaguigui).
 
+O `/bin/make` compila programas descritos em arquivos `.mk` (fonte, saida,
+bibliotecas e opcoes num so lugar). Os jogos graficos ficam em
+`/jogos/grafico` com as receitas prontas:
+
+```text
+make -all /jogos/grafico
+/sudoku
+/tetris
+/velha
+```
+
+Os executaveis sao criados na pasta atual (a partir da raiz, `/sudoku` etc.).
+
+Veja [`docs/jogos.md`](docs/jogos.md#jogos-gráficos-tinycc--libsaguigui) e o
+formato do `.mk` em [`docs/tcc.md`](docs/tcc.md#make-e-arquivos-mk).
+
 ### IDE de código
 
 No Terminal, execute `ide` para abrir o editor de código. Os botões carregam
@@ -281,7 +297,7 @@ testes_eli/  fotos dos testes do Eli no G470
 | [`docs/virtualbox.md`](docs/virtualbox.md) | Como ligar a rede no VirtualBox (placas, NAT, Bridge, Host-only) |
 | [`docs/go.md`](docs/go.md) | Compilador nativo do subconjunto Go (`gosagui`) |
 | [`docs/asm-c.md`](docs/asm-c.md) | Assembler x86 reduzido (`asagui`) e compilador do subconjunto C (`csagui`) |
-| [`docs/jogos.md`](docs/jogos.md) | C compilado dentro do sistema (`csagui` 0.3): Sudoku, Pong e Tetris em `/jogos` |
+| [`docs/jogos.md`](docs/jogos.md) | Jogos em C dentro do sistema: Sudoku, Pong e Tetris em `/jogos`; Sudoku, Tetris e Velha graficos em `/jogos/grafico` |
 | [`docs/tcc.md`](docs/tcc.md) | TinyCC como compilador C completo do SaguiOS: sysroot nativo em `/usr`, uso, limites |
 | [`docs/lua.md`](docs/lua.md) | Interpretador nativo do subconjunto de Lua (`lua`) |
 | [`docs/gui-lua.md`](docs/gui-lua.md) | Biblioteca gráfica `gui` no Lua nativo: janelas, botões, caixas, listas e diálogos |

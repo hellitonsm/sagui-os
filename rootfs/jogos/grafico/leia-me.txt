@@ -1,0 +1,45 @@
+Jogos graficos do SaguiOS
+=========================
+
+Estes jogos sao programas C de verdade, compilados DENTRO do SaguiOS pelo
+tinycc, usando a biblioteca grafica libsaguigui (janela, desenho e eventos).
+Cada jogo tem um arquivo .mk com tudo o que o make precisa: o fonte, o nome
+do executavel, as bibliotecas e as opcoes.
+
+Para compilar todos de uma vez, no Terminal:
+
+    make -all /jogos/grafico
+
+Isso gera sudoku, tetris e velha na pasta atual. Se voce estiver na raiz
+(o normal ao abrir o Terminal), os programas ficam em /sudoku, /tetris e
+/velha. Depois basta rodar:
+
+    /sudoku
+    /tetris
+    /velha
+
+Se estiver em outra pasta, rode ./sudoku, ./tetris e ./velha.
+
+Ou compile so um:
+
+    make /jogos/grafico/sudoku.mk
+
+Os jogos abrem uma janela de verdade. Feche com Q (ou Esc) ou no X da janela.
+
+Sudoku   - setas movem, 1-9 colocam, 0 apaga, R recomeca.
+Tretis   - setas movem/descem, W gira, R recomeca.
+Velha    - clique ou 1-9; setas + Enter; R recomeca. Voce e X, a CPU e O.
+
+Formato de um arquivo .mk (uma chave por linha; # comenta):
+
+    NOME        = nome que aparece na compilacao
+    FONTE       = arquivo.c          (ou FONTES = a.c b.c)
+    SAIDA       = nome do executavel
+    BIBLIOTECAS = -lsaguigui
+    OPCOES      = -static
+    INCLUI      = -I/usr/include
+    COMPILADOR  = /bin/tinycc
+    EXECUTAR    = nao                (sim = roda depois de compilar)
+
+Os caminhos dos fontes sao relativos a pasta do .mk. A SAIDA e criada na
+pasta atual, como no gcc.

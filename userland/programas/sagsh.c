@@ -69,6 +69,7 @@ static const comando_t comandos[] = {
     { "tocador", NULL, false, true, "toca .mus/.vid", "tocador [arquivo.mus|arquivo.vid]", "Abre o Tocador: toca música em notas (.mus) e vídeo em quadros (.vid) de /musicas e /videos." },
     { "loja", NULL, false, true, "loja de apps", "loja [listar|instalar <nome>|executar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]", "Abre a Loja: Go compila e empacota .loj, Lua copia .lua, instala em /store e configura o link." },
     { "gosagui", NULL, false, false, "compila Go", "gosagui build -o destino fonte.go", "Compila um subconjunto de Go nativo para um ELF do SaguiOS." },
+    { "make", "compilar", false, false, "compila .mk", "make <arquivo.mk> | make -all [pasta]", "Compila os programas descritos em arquivos .mk (fonte, saida, bibliotecas, opcoes). Com -all, compila todos os .mk da pasta." },
     { "banana", NULL, false, true, "jogo do sagui", "banana", "Abre o jogo Sagui Pega Banana." },
     { "sagui3d", NULL, false, true, "jogo em 3D", "sagui3d [fase]", "Abre o jogo Sagui 3D (ou só uma fase, dando o arquivo)." },
 };

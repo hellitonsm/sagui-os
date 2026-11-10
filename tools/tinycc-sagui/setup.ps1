@@ -40,6 +40,31 @@ if ($linkSrc -notmatch '0x40000000') {
     Write-Host "== [setup] ELF_START_ADDR ajustado para 0x40000000"
 }
 
+# Sem -o, o tinycc gravaria "a.out". No SaguiOS o executavel recebe o nome do
+# fonte (sem extensao), para o usuario rodar ./exemplo-gui direto. O ajuste e
+# feito no fonte vendorizado, como o do ELF_START_ADDR acima.
+$tccC = Join-Path $tinyccDir 'tcc.c'
+$tccSrc = (Get-Content $tccC -Raw) -replace "`r`n", "`n"
+if ($tccSrc -notmatch 'SaguiOS: sem -o') {
+    $antigo = @(
+        '    if ((s->just_deps || s->output_type == TCC_OUTPUT_OBJ) && !s->option_r && *ext)',
+        '        strcpy(ext, ".o");',
+        '    else',
+        '        strcpy(buf, "a.out");'
+    ) -join "`n"
+    $novo = @(
+        '    if ((s->just_deps || s->output_type == TCC_OUTPUT_OBJ) && !s->option_r && *ext)',
+        '        strcpy(ext, ".o");',
+        '    else if (s->output_type == TCC_OUTPUT_EXE && first_file && strcmp(first_file, "-"))',
+        '        *ext = 0;   /* SaguiOS: sem -o, o executavel tem o nome do fonte */',
+        '    else',
+        '        strcpy(buf, "a.out");'
+    ) -join "`n"
+    $tccSrc = $tccSrc.Replace($antigo, $novo)
+    Set-Content $tccC $tccSrc -Encoding Ascii -NoNewline
+    Write-Host "== [setup] saida padrao do tinycc ajustada (nome do fonte)"
+}
+
 # config.h para o alvo Linux i386 (in-process; sem dlopen, sem backtrace).
 @"
 #define TARGETOS_Linux 1

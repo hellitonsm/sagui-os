@@ -54,7 +54,10 @@ function Invoke-Nativo {
             & $Exe @Argumentos *> $null
         } else {
             # A saida do programa nao pode se misturar com o codigo devolvido.
-            & $Exe @Argumentos 2>&1 | Out-Host
+            # O ForEach-Object converte os ErrorRecord que o PowerShell cria
+            # para o stderr em texto comum; sem isso o stderr do VBoxManage
+            # aparece como "NativeCommandError" no console.
+            & $Exe @Argumentos 2>&1 | ForEach-Object { "$_" } | Out-Host
         }
         return $LASTEXITCODE
     } finally {
@@ -83,6 +86,53 @@ function Wait-VmRodando {
     return $false
 }
 
+# Pasta onde o VirtualBox guarda as VMs criadas sem --basefolder. O valor pode
+# ser mudado com "VBoxManage setproperty machinefolder", entao perguntamos ao
+# proprio VirtualBox em vez de fixar %USERPROFILE%\VirtualBox VMs.
+function Get-PastaVmPadrao {
+    param([string]$VBox)
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $linhas = & $VBox list systemproperties 2>$null } finally { $ErrorActionPreference = $anterior }
+    foreach ($linha in $linhas) {
+        if ($linha -match '^Default machine folder:\s+(.+?)\s*$') { return $Matches[1] }
+    }
+    return (Join-Path $env:USERPROFILE 'VirtualBox VMs')
+}
+
+# Uma VM cujo .vbox nao carrega (por exemplo, porque o disco que ela referencia
+# nao esta mais registrado) continua aparecendo em "list vms", mas showvminfo
+# falha. O nome fica reservado e createvm responde "Machine settings file ...
+# already exists". Aqui tiramos essa entrada quebrada do registro e apagamos o
+# .vbox antigo; a VM sera recriada do zero logo em seguida.
+function Remove-VmQuebrada {
+    param([string]$VBox, [string]$Nome)
+
+    # So age quando a VM esta registrada mas nao carrega. Uma VM valida (mesmo
+    # desligada) responde ao showvminfo e nunca e tocada por esta funcao.
+    if ((Invoke-Nativo $VBox @('showvminfo', $Nome) -Silencioso) -eq 0) { return $false }
+
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $lista = & $VBox list vms 2>$null } finally { $ErrorActionPreference = $anterior }
+    $padrao = '"' + [regex]::Escape($Nome) + '"\s+\{([^}]+)\}'
+    $uuid = $null
+    foreach ($linha in @($lista)) {
+        if ($linha -match $padrao) { $uuid = $Matches[1]; break }
+    }
+    if (-not $uuid) { return $false }
+
+    # Numa VM inacessivel o unregistervm pode devolver erro ("The object is not
+    # ready") e mesmo assim remover a entrada; por isso o codigo nao e checado.
+    Invoke-Nativo $VBox @('unregistervm', $uuid) -Silencioso | Out-Null
+
+    $pasta = Join-Path (Get-PastaVmPadrao -VBox $VBox) $Nome
+    foreach ($sufixo in @('.vbox', '.vbox-prev')) {
+        Remove-Item -Force -LiteralPath (Join-Path $pasta ($Nome + $sufixo)) -ErrorAction SilentlyContinue
+    }
+    return $true
+}
+
 if (Get-VmRodando $vbox $VM) {
     if ($SoRodar) {
         Write-Host "A VM '$VM' já está ligada."
@@ -91,25 +141,52 @@ if (Get-VmRodando $vbox $VM) {
     throw "A VM '$VM' está ligada. Desligue-a antes de rodar este script (VBoxManage controlvm $VM poweroff)."
 }
 
-# Solta o registro de um .vdi que sera recriado. O arquivo novo recebe outro
-# UUID, e o VirtualBox recusa um UUID diferente do que esta no registro.
-function Remove-RegistroVdi {
-    param([string]$VBox, [string]$Caminho, [string]$NomeVm)
-    Invoke-Nativo $VBox @('storageattach', $NomeVm, '--storagectl', 'IDE Controller',
-        '--port', '0', '--device', '0', '--type', 'hdd', '--medium', 'none') -Silencioso | Out-Null
+# Devolve o UUID com que um .vdi esta registrado no VirtualBox, ou $null se
+# este caminho ainda nao aparece no registro de midias.
+function Get-UuidRegistrado {
+    param([string]$VBox, [string]$Caminho)
     $anterior = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try { $linhas = & $VBox list hdds 2>$null } finally { $ErrorActionPreference = $anterior }
     $uuid = $null
     foreach ($linha in $linhas) {
         if ($linha -match '^UUID:\s+(\S+)') { $uuid = $Matches[1] }
-        elseif ($linha -match '^Location:\s+(.+?)\s*$') {
-            if ($uuid -and $Matches[1] -ieq $Caminho) {
-                Invoke-Nativo $VBox @('closemedium', 'disk', $uuid) -Silencioso | Out-Null
-                $uuid = $null
-            }
+        elseif ($linha -match '^Location:\s+(.+?)\s*$' -and $Matches[1] -ieq $Caminho) {
+            return $uuid
         }
     }
+    return $null
+}
+
+# Solta o registro de um .vdi que sera recriado. Enquanto outra VM usar o mesmo
+# arquivo (por exemplo uma "sagui-final" criada a mao), o closemedium falha:
+# nesse caso o registro antigo continua valendo, e New-Vdi recria o .vdi com o
+# mesmo UUID para nao deixa-lo "inaccessible".
+function Remove-RegistroVdi {
+    param([string]$VBox, [string]$Caminho, [string]$NomeVm)
+    Invoke-Nativo $VBox @('storageattach', $NomeVm, '--storagectl', 'IDE Controller',
+        '--port', '0', '--device', '0', '--type', 'hdd', '--medium', 'none') -Silencioso | Out-Null
+    $uuid = Get-UuidRegistrado -VBox $VBox -Caminho $Caminho
+    if ($uuid) {
+        Invoke-Nativo $VBox @('closemedium', 'disk', $uuid) -Silencioso | Out-Null
+    }
+}
+
+# Um .vdi registrado com outro UUID fica "inaccessible" no VirtualBox. Nesse
+# caso o arquivo precisa ser refeito mesmo que pareca atualizado.
+function Test-MedioInacessivel {
+    param([string]$VBox, [string]$Caminho)
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $linhas = & $VBox list hdds 2>$null } finally { $ErrorActionPreference = $anterior }
+    $estado = $null
+    foreach ($linha in $linhas) {
+        if ($linha -match '^State:\s+(\S+)') { $estado = $Matches[1] }
+        elseif ($linha -match '^Location:\s+(.+?)\s*$' -and $Matches[1] -ieq $Caminho) {
+            return ($estado -ieq 'inaccessible')
+        }
+    }
+    return $false
 }
 
 function New-Vdi {
@@ -121,7 +198,8 @@ function New-Vdi {
         throw 'build\saguios.img não existe; rode sem -SoRodar para compilar primeiro.'
     }
     if ((Test-Path -LiteralPath $vdi) -and
-        ((Get-Item -LiteralPath $vdi).LastWriteTime -ge (Get-Item -LiteralPath $img).LastWriteTime)) {
+        ((Get-Item -LiteralPath $vdi).LastWriteTime -ge (Get-Item -LiteralPath $img).LastWriteTime) -and
+        -not (Test-MedioInacessivel -VBox $VBox -Caminho $vdi)) {
         Write-Host "VDI já está atualizado: $vdi"
         return $vdi
     }
@@ -142,9 +220,16 @@ function New-Vdi {
         try { $fs.Write($zeros, 0, $zeros.Length) } finally { $fs.Dispose() }
     }
 
+    # Reaproveita o UUID do registro atual. Se outra VM usa este .vdi, o
+    # VirtualBox nao deixa fechar a midia, e um UUID novo deixaria o disco
+    # "inaccessible" (o arquivo nao bate mais com o que esta no registro).
+    $uuid = Get-UuidRegistrado -VBox $VBox -Caminho $vdi
+
     Remove-RegistroVdi -VBox $VBox -Caminho $vdi -NomeVm $VM
     Remove-Item -Force -LiteralPath $vdi -ErrorAction SilentlyContinue
-    $code = Invoke-Nativo $VBox @('convertfromraw', $raw, $vdi, '--format', 'VDI')
+    $argumentos = @('convertfromraw', $raw, $vdi, '--format', 'VDI')
+    if ($uuid) { $argumentos += @('--uuid', $uuid) }
+    $code = Invoke-Nativo $VBox $argumentos
     Remove-Item -Force -LiteralPath $raw -ErrorAction SilentlyContinue
     if ($code -ne 0 -or -not (Test-Path -LiteralPath $vdi)) {
         throw "VBoxManage convertfromraw falhou (código $code)"
@@ -159,7 +244,8 @@ if ($Apagar) {
     Write-Host "Apagando a VM '$VM' (se existir)..."
     # Sem desanexar, "unregistervm --delete" apaga também o .vdi do build\.
     Invoke-Nativo $vbox @('storageattach', $VM, '--storagectl', 'IDE Controller', '--port', '0', '--device', '0', '--type', 'hdd', '--medium', 'none') -Silencioso | Out-Null
-    Invoke-Nativo $vbox @('unregistervm', $VM, '--delete') -Silencioso | Out-Null
+    $code = Invoke-Nativo $vbox @('unregistervm', $VM, '--delete') -Silencioso
+    if ($code -ne 0) { Remove-VmQuebrada -VBox $vbox -Nome $VM | Out-Null }
     Write-Host 'Pronto. O disco em build\saguios.vdi continua no lugar.'
     return
 }
@@ -229,9 +315,12 @@ if ($SoRodar) {
 Write-Host "Configurando a VM '$VM' ..."
 $code = Invoke-Nativo $vbox @('showvminfo', $VM) -Silencioso
 if ($code -ne 0) {
+    if (Remove-VmQuebrada -VBox $vbox -Nome $VM) {
+        Write-Host '  registro antigo/inacessível removido; recriando do zero...'
+    }
     Write-Host "  criando a VM '$VM'..."
     $code = Invoke-Nativo $vbox @('createvm', '--name', $VM, '--ostype', 'Other', '--register') -Silencioso
-    if ($code -ne 0) { throw 'createvm falhou' }
+    if ($code -ne 0) { throw "createvm falhou (código $code)" }
 
     # 512 MB, BIOS tradicional (o SaguiOS não usa EFI), mouse/teclado PS/2
     # (é o que o sistema lê) e 16 MB de vídeo para o VESA 1024x768x32.
