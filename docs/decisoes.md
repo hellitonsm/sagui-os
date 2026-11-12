@@ -1227,3 +1227,29 @@ topo e dois de três pontos claros no centro), não por tempo fixo, e o botão
 só age na máquina local — a VM é escolhida com `-Vm`. O `-AutotesteLigar`
 cobre o caminho inteiro, inclusive com a VM desligada.
 
+## D042. O grep tem motor de expressões próprio, sem alocar (H50)
+
+**Decisão:** o `grep` não usa a `libc` (não existe no SaguiOS): o motor de
+expressões é o `userland/libsagui/expressao.c`, com o parser de BRE e ERE, um
+NFA de Thompson e uma Pike VM que guarda o início do casamento para devolver
+sempre o trecho mais à esquerda e mais longo, como o grep do Linux. O motor
+cabe em buffers fixos (`expressao.h`): nenhuma alocação e nenhuma recursão
+funda. Os arquivos são lidos inteiros com a alocação da libsagui (limite de
+32 MiB) e convertidos de UTF-8 para Latin-1 na entrada, como o `cat` faz
+(D027).
+
+**Motivo:** o grep precisa das mesmas garantias do resto do userland —
+`-ffreestanding`, sem `malloc`, com pilha de 64 KiB. Um motor próprio e
+fechado também deixa o comportamento previsível no convidado: `-F` usa um
+casador literal separado (com `-i`, `-w` e `-x`), e `-w`/`-x` viram
+condições do NFA, não uma segunda passada sobre a linha.
+
+**O que fica de fora, de propósito:** `-P` (PCRE), referências anteriores
+(`\1` a `\9`) e `-z` (linhas terminadas em NUL). Os dois primeiros não têm
+lugar num motor sem alocação; o terceiro muda a leitura de arquivo inteiro.
+Essas opções são recusadas com mensagem clara, e o `grep --help` lista o que
+existe. As cores (`--color=always`) usam SGR e por isso o terminal do kernel
+e a janela Terminal passaram a entender `ESC [ ... m`, guardando a cor por
+célula; `--color` sem valor vira `auto`, que neste sistema sem `isatty` é
+tratado como `never`.
+

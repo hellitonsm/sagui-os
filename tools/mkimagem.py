@@ -129,7 +129,7 @@ def main():
     img += b"\0" * (setores_arquivo * SETOR - len(img))
     with open(a.saida, "wb") as f:
         f.write(img)
-    with open(a.saida.rsplit("/", 1)[0] + "/tamanho.txt", "w") as f:
+    with open(os.path.join(os.path.dirname(a.saida) or ".", "tamanho.txt"), "w") as f:
         f.write(str(util))
 
     print(f"mkimagem: estágio 2 LBA {e2_lba} ({setores(len(e2))} set), kernel LBA {k_lba} "

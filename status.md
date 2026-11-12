@@ -1,14 +1,14 @@
 # Status do SaguiOS
 
-_Atualizado em 2026-11-11T20:16:39_
+_Atualizado em 2026-11-11T22:50:03_
 
-- **Situação:** Trabalhando na H49: Janela de arquivos do SaguiOS no Windows
+- **Situação:** Trabalhando na H50: grep com os recursos do grep do Linux
 - **Fase atual:** 7
-- **História atual:** H49
+- **História atual:** H50
 - **Progresso geral:** 100.0%
 - **Bloqueio:** nenhum
-- **Imagem:** 1659904 bytes úteis
-- **Linhas de código:** boot 903, kernel 12402, userland 19103
+- **Imagem:** 1735680 bytes úteis
+- **Linhas de código:** boot 903, kernel 12455, userland 22110
 
 ## Fases
 
@@ -67,9 +67,12 @@ _Atualizado em 2026-11-11T20:16:39_
 | H35 | Rede no VirtualBox (e1000, PCnet, DHCP, ARP) | feito | 220 |
 | H48 | Arquivos do SaguiOS pela rede, do Windows | feito | 24 |
 | H49 | Janela de arquivos do SaguiOS no Windows | feito | 1 |
+| H50 | grep com os recursos do grep do Linux | feito | 145 |
 
 ## Últimas ações
 
+- 2026-11-11T22:44:37: H50 concluida: grep com os recursos do Linux, 53 verificacoes no convidado e cores SGR nos terminais
+- 2026-11-11T22:44:36: H50 concluída
 - 2026-11-11T20:16:38: H49: botao 'Pasta acima' movido para a barra de acoes (desabilitado na raiz) e validado no -AutotesteJanela
 - 2026-11-11T20:10:20: H49: botao Ligar servidor validado com a VM desligada (liga, espera boot, abre Terminal, digita servidor e lista 18 entradas)
 - 2026-11-11T19:55:34: H49 concluída: tools/windows/sagui-gui.ps1: janela WinForms autocontida com navegacao, GET/PUT, pastas, renomear, apagar, arrastar-e-soltar e barra de progresso; -Autoteste e -AutotesteJanela passaram ao vivo na VM (18 entradas, ida e volta byte a byte)
@@ -83,5 +86,3 @@ _Atualizado em 2026-11-11T20:16:39_
 - 2026-11-03T23:45:56: Fase 7 entregue. Aguardando teste do Eli.
 - 2026-11-03T23:45:56: B4 concluída: Sagui 3D: motor 2,5D próprio, três fases em texto, macacos-prego, sementes, cascas, porteira da banana, cacho dourado, sons com o bip; teste automático e capturas
 - 2026-11-03T23:32:48: B4 Sagui 3D: motor 2,5D, três fases, macacos-prego, bananas, cascas, porteira e cacho dourado; teste automático passando
-- 2026-11-03T23:02:29: Início da B4: Bônus: Sagui 3D
-- 2026-11-03T23:02:23: B3 concluída: Comando bip, sons no Sagui Pega Banana, fila de notas tocada pelo tique do relógio (D029); canal 2 conferido no QEMU

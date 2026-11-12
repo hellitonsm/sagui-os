@@ -7,7 +7,7 @@ para PCs x86 de 32 bits, rodando de verdade num notebook de 2011.
 
 Feito por Claude (Anthropic) para o projeto do **Eli Rigobeli**.
 
-`1,6 MB` · `sem GRUB` · `sem libc externa` · `sem código de outros sistemas` · `51 testes automáticos`
+`1,6 MB` · `sem GRUB` · `sem libc externa` · `sem código de outros sistemas` · `52 testes automáticos`
 
 <img src="docs/capturas/B4-3-fase1-corredor.png" width="49%" alt="Sagui 3D, o jogo em primeira pessoa do SaguiOS">
 <img src="docs/capturas/H28-tres-programas.png" width="49%" alt="Área de trabalho do SaguiOS com três programas abertos">
@@ -77,12 +77,12 @@ na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 
 | | |
 | --- | --- |
-| Imagem de boot | **1.659.904 bytes** úteis |
-| Linhas de código | boot 903, kernel 12.402, userland 19.103 (mais 4.742 de ferramentas e testes) |
-| Programas | 45 em `/bin`: shell, comandos, servidor de arquivos pela rede, compiladores nativos, `lua` e 8 programas gráficos |
-| Testes automáticos | 51 scripts (49 H + 2 bônus), incluindo o teste do servidor de arquivos pela rede, o dos compiladores nativos e o da biblioteca gráfica do tinycc |
-| Decisões registradas | 40, com o raciocínio de cada uma |
-| Erros registrados | 34, com sintoma, causa e correção |
+| Imagem de boot | **1.735.680 bytes** úteis |
+| Linhas de código | boot 903, kernel 12.455, userland 22.110 (mais 4.778 de ferramentas e testes) |
+| Programas | 46 em `/bin`: shell, comandos, servidor de arquivos pela rede, compiladores nativos, `lua` e 8 programas gráficos |
+| Testes automáticos | 52 scripts (50 H + 2 bônus), incluindo o teste do servidor de arquivos pela rede, o dos compiladores nativos e o da biblioteca gráfica do tinycc |
+| Decisões registradas | 42, com o raciocínio de cada uma |
+| Erros registrados | 36, com sintoma, causa e correção |
 | Commits | ~55, um por história |
 
 ## Experimentar
@@ -306,8 +306,8 @@ testes_eli/  fotos dos testes do Eli no G470
 | Documento | O que tem |
 | --- | --- |
 | [`docs/resumo-final.md`](docs/resumo-final.md) | Resumo do projeto, tempo de cada fase e a tabela de conceitos do livro do Tanenbaum preenchida |
-| [`docs/decisoes.md`](docs/decisoes.md) | As 31 decisões de projeto e a seção do Sagui 3D |
-| [`docs/erros.md`](docs/erros.md) | Os 21 erros encontrados, inclusive os achados no G470 |
+| [`docs/decisoes.md`](docs/decisoes.md) | As 42 decisões de projeto e a seção do Sagui 3D |
+| [`docs/erros.md`](docs/erros.md) | Os 36 erros encontrados, inclusive os achados no G470 |
 | [`docs/virtualbox.md`](docs/virtualbox.md) | Como ligar a rede no VirtualBox (placas, NAT, Bridge, Host-only) |
 | [`docs/go.md`](docs/go.md) | Compilador nativo do subconjunto Go (`gosagui`) |
 | [`docs/asm-c.md`](docs/asm-c.md) | Assembler x86 reduzido (`asagui`) e compilador do subconjunto C (`csagui`) |
@@ -317,7 +317,7 @@ testes_eli/  fotos dos testes do Eli no G470
 | [`docs/gui-lua.md`](docs/gui-lua.md) | Biblioteca gráfica `gui` no Lua nativo: janelas, botões, caixas, listas e diálogos |
 | [`docs/mlibc.md`](docs/mlibc.md) | Shim C/POSIX do SaguiOS, APIs e limites (não é o upstream) |
 | [`docs/diario.md`](docs/diario.md) | O diário do projeto, fase a fase |
-| [`docs/historias/`](docs/historias/) | Uma página por história (H01 a H34, B1 a B4) |
+| [`docs/historias/`](docs/historias/) | Uma página por história (H01 a H35, H48 a H50, B1 a B4) |
 | [`status.md`](status.md) e [`dashboard/`](dashboard/index.html) | Situação de cada fase e história |
 
 ## As regras do projeto

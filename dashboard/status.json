@@ -1,9 +1,9 @@
 {
   "titulo": "SaguiOS: um sistema operacional escrito do zero por IA",
-  "atualizado": "2026-11-11T20:16:39",
-  "situacao": "Trabalhando na H49: Janela de arquivos do SaguiOS no Windows",
+  "atualizado": "2026-11-11T22:50:03",
+  "situacao": "Trabalhando na H50: grep com os recursos do grep do Linux",
   "fase_atual": 7,
-  "historia_atual": "H49",
+  "historia_atual": "H50",
   "bloqueio": "",
   "mensagem_fase": "",
   "fases": [
@@ -590,6 +590,19 @@
       "fim": "2026-11-11T19:55:34",
       "minutos": 1,
       "resultado": "tools/windows/sagui-gui.ps1: janela WinForms autocontida com navegacao, GET/PUT, pastas, renomear, apagar, arrastar-e-soltar, barra de progresso, o botao \"Pasta acima\" (desabilitado na raiz) e o botao \"Ligar servidor\" (liga a VM, abre o Terminal e digita servidor); -Autoteste, -AutotesteJanela e -AutotesteLigar passaram ao vivo na VM, inclusive com a VM desligada (18 entradas na raiz)"
+    },
+    {
+      "id": "H50",
+      "fase": 7,
+      "titulo": "grep com os recursos do grep do Linux",
+      "objetivo": "Ter no SaguiOS um comando grep com os mesmos recursos do grep do Linux: expressoes regulares (BRE e ERE), opcoes de selecao, prefixos, contexto, recursao, cores e codigos de saida.",
+      "aceite": "O /bin/grep casa BRE, ERE e literais (-F), entende -e/-f, -i, -v, -w, -x, -n, -b, -c, -l, -L, -o, -q, -s, -r/-R, -H/-h, -A/-B/-C e -NUM, -m, --color, --include/--exclude, arquivos binarios e entrada padrao; o teste h50 no convidado passa sem falhas e o shell o oferece como grep/procurar.",
+      "estado": "feito",
+      "bonus": false,
+      "inicio": "2026-11-11T20:20:00",
+      "fim": "2026-11-11T22:44:36",
+      "minutos": 145,
+      "resultado": "userland/programas/grep.c com motor de expressoes proprio (userland/libsagui/expressao.c: parser BRE/ERE, NFA de Thompson e Pike VM para o casamento mais a esquerda e mais longo), 53 verificacoes no convidado (RESULTADO h50_grep: SUCESSO), cores SGR no terminal do kernel e na janela Terminal, entrada no sagsh como grep/procurar e teste tests/h50_grep.py"
     }
   ],
   "tanenbaum": [
@@ -673,6 +686,14 @@
     }
   ],
   "acoes": [
+    {
+      "data": "2026-11-11T22:44:37",
+      "texto": "H50 concluida: grep com os recursos do Linux, 53 verificacoes no convidado e cores SGR nos terminais"
+    },
+    {
+      "data": "2026-11-11T22:44:36",
+      "texto": "H50 concluída"
+    },
     {
       "data": "2026-11-11T20:16:38",
       "texto": "H49: botao 'Pasta acima' movido para a barra de acoes (desabilitado na raiz) e validado no -AutotesteJanela"
@@ -904,14 +925,6 @@
     {
       "data": "2026-11-03T18:53:31",
       "texto": "H21 concluída: Gerenciador de janelas no kernel, memória compartilhada, eventos por janela; arrastar e fechar testados"
-    },
-    {
-      "data": "2026-11-03T18:53:30",
-      "texto": "Erro corrigido: Rastros ao arrastar janelas"
-    },
-    {
-      "data": "2026-11-03T18:46:46",
-      "texto": "Início da H21: Gerenciador de janelas"
     }
   ],
   "erros": [
@@ -1424,13 +1437,13 @@
   ],
   "linhas": {
     "boot": 903,
-    "kernel": 12402,
-    "userland": 19103,
-    "ferramentas": 4742
+    "kernel": 12455,
+    "userland": 22110,
+    "ferramentas": 4778
   },
   "imagem": {
-    "bytes_util": 1659904,
-    "bytes_arquivo": 1671168
+    "bytes_util": 1735680,
+    "bytes_arquivo": 1736704
   },
   "progresso_geral": 100.0
 }

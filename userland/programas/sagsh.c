@@ -42,6 +42,7 @@ static const comando_t comandos[] = {
     { "mkdir", "criar-pasta", false, false, "cria pasta", "mkdir <pasta>", "Cria uma pasta nova." },
     { "rmdir", "remover-pasta", false, false, "apaga pasta vazia", "rmdir <pasta>", "Remove uma pasta, se estiver vazia." },
     { "wc", "conta", false, false, "conta linhas", "wc [arquivo]", "Conta linhas, palavras e letras de um arquivo ou da entrada (ex.: ls bin | conta)." },
+    { "grep", "procurar", false, false, "procura um texto", "grep [opções] padrão [arquivo...]", "Procura um padrão nas linhas dos arquivos (ou da entrada), como o grep do Linux: -i, -v, -w, -n, -r, -E, -F, --color e mais (veja grep --help)." },
     { "ps", "processos", false, false, "lista processos", "ps", "Mostra os processos em execução: PID, pai, estado, memória e tempo de CPU." },
     { "kill", "matar", false, false, "encerra processo", "kill <pid>", "Encerra um processo pelo número (veja os números com ps)." },
     { "clear", "limpar", true, false, "limpa a tela", "clear", "Limpa a tela." },
