@@ -7,7 +7,7 @@ para PCs x86 de 32 bits, rodando de verdade num notebook de 2011.
 
 Feito por Claude (Anthropic) para o projeto do **Eli Rigobeli**.
 
-`562 KB` · `sem GRUB` · `sem libc externa` · `sem código de outros sistemas` · `48 testes automáticos`
+`1,6 MB` · `sem GRUB` · `sem libc externa` · `sem código de outros sistemas` · `51 testes automáticos`
 
 <img src="docs/capturas/B4-3-fase1-corredor.png" width="49%" alt="Sagui 3D, o jogo em primeira pessoa do SaguiOS">
 <img src="docs/capturas/H28-tres-programas.png" width="49%" alt="Área de trabalho do SaguiOS com três programas abertos">
@@ -20,7 +20,7 @@ Feito por Claude (Anthropic) para o projeto do **Eli Rigobeli**.
 
 O SaguiOS é um sistema operacional completo, do carregador de boot ao jogo em 3D, escrito
 inteiro neste projeto, seguindo a especificação em [`prd.md`](prd.md). Ele dá boot por um
-pendrive num **Lenovo G470** (2011), no VirtualBox e no QEMU, e cabe em **575.488 bytes**
+pendrive num **Lenovo G470** (2011), no VirtualBox e no QEMU, e cabe em **1.659.904 bytes**
 úteis.
 
 Tudo o que vai dentro da imagem foi escrito aqui: carregador de boot em dois estágios, kernel,
@@ -77,12 +77,12 @@ na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 
 | | |
 | --- | --- |
-| Imagem de boot | **702.464 bytes** úteis |
-| Linhas de código | boot 903, kernel 11.204, programas 9.849 (mais 4.004 de ferramentas e testes) |
-| Programas | 40 em `/bin`: shell, comandos, compiladores nativos, `lua` e 8 programas gráficos |
-| Testes automáticos | 48 scripts (46 H + 2 bônus), incluindo o teste dos compiladores nativos e o da biblioteca gráfica do tinycc |
-| Decisões registradas | 33, com o raciocínio de cada uma |
-| Erros registrados | 24, com sintoma, causa e correção |
+| Imagem de boot | **1.659.904 bytes** úteis |
+| Linhas de código | boot 903, kernel 12.402, userland 19.103 (mais 4.742 de ferramentas e testes) |
+| Programas | 45 em `/bin`: shell, comandos, servidor de arquivos pela rede, compiladores nativos, `lua` e 8 programas gráficos |
+| Testes automáticos | 51 scripts (49 H + 2 bônus), incluindo o teste do servidor de arquivos pela rede, o dos compiladores nativos e o da biblioteca gráfica do tinycc |
+| Decisões registradas | 40, com o raciocínio de cada uma |
+| Erros registrados | 34, com sintoma, causa e correção |
 | Commits | ~55, um por história |
 
 ## Experimentar
@@ -119,6 +119,20 @@ resolvem, pelo DNS do DHCP). Não há HTTPS/TLS, fragmentação de IPv4,
 redirecionamentos nem `chunked`. Para conferir no VirtualBox, veja
 [`docs/virtualbox.md`](docs/virtualbox.md); `make rodar` e `make rodar-pcnet`
 abrem o sistema no QEMU com cada uma das duas placas.
+
+O caminho inverso também funciona: o comando `servidor` liga o servidor de
+arquivos do SaguiOS na porta 2500, e do Windows o cliente
+`tools\windows\sagui-fs.ps1` lista, baixa e envia arquivos pelo
+redirecionamento de porta da NAT (regra `sagui-arquivos`, aplicada pelos
+scripts que criam a VM):
+`listar`, `info`, `baixar`, `enviar`, `apagar`, `criar-pasta`,
+`remover-pasta` e `renomear`. Para quem prefere o mouse, a mesma conversa
+está na janela `tools\windows\sagui-gui.ps1` (PowerShell 5.1 + WinForms):
+navegar com duplo clique, subir com o botão "↑ Pasta acima", baixar, enviar
+pelo botão ou arrastando do Explorer, criar pasta, renomear e apagar. O botão
+"Ligar servidor" liga a VM e o servidor com um clique, sem precisar abrir o
+Terminal à mão. O guia completo está em
+[`docs/virtualbox.md`](docs/virtualbox.md#arquivos-pela-rede-do-windows).
 
 ## Compilar e testar
 

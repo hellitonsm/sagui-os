@@ -104,7 +104,7 @@ static bool esperar(uint8_t tipo, oferta_t *o)
     pct_prazo_iniciar(&prazo, ESPERA_MS);
     while (!pct_prazo_acabou(&prazo)) {
         uint16_t n = 0;
-        if (!pct_ip_receber(17, 0, resposta, sizeof resposta, &n, 20)) { pct_pausa(); continue; }
+        if (!pct_ip_receber(17, 0, resposta, sizeof resposta, &n, 20, NULL)) { pct_pausa(); continue; }
         if (n < 244) continue;
         if (pct_get16(resposta) != DHCP_SERVIDOR || pct_get16(resposta + 2) != DHCP_CLIENTE) continue;
         uint16_t tam_udp = pct_get16(resposta + 4);

@@ -35,6 +35,7 @@ unsigned tempo_ms(void)               { return (unsigned)chamar(SIS_TEMPO, 0, 0,
 int  ler_data(data_t *d)              { return chamar(SIS_DATA, (unsigned)d, 0, 0); }
 int  info_sistema(int t, void *b, unsigned n) { return chamar(SIS_INFO_SISTEMA, (unsigned)t, (unsigned)b, n); }
 int  http_obter(const char *u, void *b, unsigned n) { return chamar(SIS_HTTP_OBTER, (unsigned)u, (unsigned)b, n); }
+int  servidor_arquivos(unsigned ms)    { return chamar(SIS_SERVIDOR_ARQUIVOS, ms, 0, 0); }
 int  info_rede(info_rede_t *i)        { return chamar(SIS_REDE_INFO, (unsigned)i, 0, 0); }
 void *aumentar_memoria(unsigned n)    { int r = chamar(SIS_AUMENTAR_MEM, n, 0, 0); return (r < 0 && r > -100) ? NULL : (void *)r; }
 void reiniciar(void)                  { chamar(SIS_REINICIAR, 0, 0, 0); }

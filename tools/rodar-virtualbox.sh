@@ -90,6 +90,18 @@ VBoxManage modifyvm "$VM_NAME" --nic-promisc1 deny --macaddress1 auto 2>/dev/nul
 VBoxManage modifyvm "$VM_NAME" --cable-connected1 on 2>/dev/null \
     || VBoxManage modifyvm "$VM_NAME" --cableconnected1 on 2>/dev/null || true
 
+# Encaminhamento de porta da NAT: a porta 2500 do convidado (o servidor de
+# arquivos SAGUI/1, ver kernel/rede/servidor.c e o cliente
+# tools/windows/sagui-fs.ps1) fica escutando no host em 127.0.0.1:2500. Só o
+# localhost do host pode conectar, nada é exposto para a rede em volta. A regra
+# tem nome, então a antiga é removida primeiro (o erro é ignorado quando a
+# regra ainda não existe) e reaplicada sempre.
+VBoxManage modifyvm "$VM_NAME" --natpf1 delete "sagui-arquivos" >/dev/null 2>&1 || true
+if ! VBoxManage modifyvm "$VM_NAME" --natpf1 "sagui-arquivos,tcp,127.0.0.1,2500,,2500" >/dev/null 2>&1; then
+    echo "AVISO: não consegui encaminhar a porta 2500 do convidado para o host." >&2
+    echo "        O cliente de arquivos (tools/windows/sagui-fs.ps1) não vai conectar." >&2
+fi
+
 # --- disco: reanexa o VDI atual -------------------------------------------
 anexar_disco() {
     VBoxManage storageattach "$VM_NAME" \
@@ -112,6 +124,7 @@ fi
 echo "VM '$VM_NAME' pronta:"
 echo "  placa:  Intel PRO/1000 MT Desktop ($NIC_TYPE) em $NIC_MODE"
 echo "  disco:  $VDI"
+echo "  porta:  127.0.0.1:2500 -> 2500 do convidado (cliente de arquivos)"
 echo "Para ligar: VBoxManage startvm \"$VM_NAME\"   (ou $0 --rodar)"
 
 if [[ "$Acao" == "--rodar" ]]; then

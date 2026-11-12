@@ -72,6 +72,7 @@ unsigned tempo_ms(void);
 int      ler_data(data_t *d);
 int      info_sistema(int tipo, void *buf, unsigned n);
 int      http_obter(const char *url, void *resposta, unsigned capacidade);
+int      servidor_arquivos(unsigned ms);   /* 1 = atendeu uma conexao; 0 = ninguem ligou; <0 = erro */
 int      info_rede(info_rede_t *info);   /* 1 = ha placa, 0 = nao ha */
 void    *aumentar_memoria(unsigned bytes);
 void     reiniciar(void);

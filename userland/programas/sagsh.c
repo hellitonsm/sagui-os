@@ -61,6 +61,7 @@ static const comando_t comandos[] = {
     { "usb", NULL, false, false, "diagnóstico USB", "usb", "Mostra os controladores USB 2.0, as portas e os dispositivos." },
     { "rede", NULL, false, false, "placa e endereço IP", "rede", "Mostra a placa de rede, o MAC, o endereço IP, o gateway e o DNS." },
     { "wget", NULL, false, false, "baixa por HTTP", "wget <url> [arquivo]", "Baixa uma página ou arquivo por HTTP (sem HTTPS), ex.: wget http://10.0.2.2/leia-me.txt" },
+    { "servidor", NULL, false, false, "arquivos na rede", "servidor", "Liga o servidor de arquivos na porta 2500: o Windows conecta com tools/windows/sagui-fs.ps1 (redirecionamento de porta da NAT). Saia com q." },
     { "bip", NULL, false, false, "toca um bip", "bip [Hz [ms]] | bip escala", "Toca uma nota no alto-falante do PC (padrão: 880 Hz por 200 ms)." },
     { "arquivos", NULL, false, true, "abre o Arquivos", "arquivos [pasta]", "Abre o Arquivos numa janela." },
     { "editor", NULL, false, true, "editor de texto", "editor [arquivo]", "Abre o Editor de texto numa janela." },

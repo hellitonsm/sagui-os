@@ -62,7 +62,8 @@
 #define SIS_REDE_INFO       61 /* (&info_rede) -> 1 se ha placa, 0 se nao */
 #define SIS_TLS             62 /* (base) define base do segmento TLS GS do processo */
 #define SIS_DESLIGAR        64 /* () corta a energia pela ACPI; o menu SaguiOS usa */
-#define SIS_MAX            65
+#define SIS_SERVIDOR_ARQUIVOS 65 /* (ms) servidor de arquivos na porta 2500: 1 atendeu, 0 ninguém */
+#define SIS_MAX            66
 
 /* Erros (sempre negativos) */
 #define ERRO_INVALIDO      -1

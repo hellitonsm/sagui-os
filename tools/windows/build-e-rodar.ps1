@@ -352,6 +352,16 @@ Invoke-Nativo $vbox @('modifyvm', $VM, '--nic-promisc1', 'deny', '--macaddress1'
 $code = Invoke-Nativo $vbox @('modifyvm', $VM, '--cable-connected1', 'on') -Silencioso
 if ($code -ne 0) { Invoke-Nativo $vbox @('modifyvm', $VM, '--cableconnected1', 'on') -Silencioso | Out-Null }
 
+# Encaminhamento de porta da NAT: a porta 2500 do convidado (o servidor de
+# arquivos SAGUI/1, ver kernel/rede/servidor.c e o cliente
+# tools/windows/sagui-fs.ps1) fica escutando no host em 127.0.0.1:2500. Só o
+# localhost do host pode conectar, nada é exposto para a rede em volta. A regra
+# tem nome, então a antiga é removida primeiro (o erro é ignorado quando a
+# regra ainda não existe) e reaplicada a cada build.
+Invoke-Nativo $vbox @('modifyvm', $VM, '--natpf1', 'delete', 'sagui-arquivos') -Silencioso | Out-Null
+$code = Invoke-Nativo $vbox @('modifyvm', $VM, '--natpf1', 'sagui-arquivos,tcp,127.0.0.1,2500,,2500') -Silencioso
+if ($code -ne 0) { throw 'não consegui encaminhar a porta 2500 do convidado para o host (NAT)' }
+
 # O .vdi é regenerado a cada build (com outro UUID), então desanexa e anexa de
 # novo. Se o VirtualBox ainda estiver com o disco antigo registrado, solta o
 # registro (closemedium) e tenta mais uma vez.
@@ -367,6 +377,7 @@ Write-Host ''
 Write-Host "VM '$VM' pronta:"
 Write-Host '  placa: Intel PRO/1000 MT Desktop (82540EM) em NAT'
 Write-Host "  disco: $vdi"
+Write-Host '  porta: 127.0.0.1:2500 -> 2500 do convidado (cliente de arquivos)'
 if ($SemRodar) {
     Write-Host "Para ligar depois: VBoxManage startvm `"$VM`""
 } else {

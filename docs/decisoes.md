@@ -1162,3 +1162,68 @@ já aberta; e uma tela inicial limpa é o esperado em quem vem de outros
 sistemas. Os testes que usavam o Terminal do boot (H23 a H28, B3, B4, H34,
 H39) passam a abri-lo pelo ícone; os que só queriam o sinal de boot
 esperam o log "area de trabalho no ar".
+
+## D040. Arquivos pela rede: servidor no kernel, um por vez (H48)
+
+**Decisão:** o pedido de "um programa no Windows que conecta ao sistema de
+arquivos" virou um servidor TCP dentro do kernel (`kernel/rede/servidor.c`,
+protocolo `SAGUI/1`, porta 2500) acionado pela chamada
+`SIS_SERVIDOR_ARQUIVOS` (65): cada chamada espera uma conexão por até o
+prazo de milissegundos pedido e atende quem ligar até o fim. O programa
+userland `servidor` liga as fatias (na frente, sai com `q`; com `&`, para
+com `kill`), e o cliente do Windows é `tools/windows/sagui-fs.ps1`, que
+chega pelo encaminhamento de porta `sagui-arquivos` da NAT (aplicado pelos
+scripts que criam a VM, host `127.0.0.1:2500` → convidado `2500`, só para o
+próprio computador). O protocolo é texto em Latin-1, uma linha por comando
+(LIST/INFO/GET/PUT/RM/MKDIR/RMDIR/REN/SAIR), com os limites de propósito:
+linha de 512 bytes, LIST de 128 entradas e PUT de 8 MiB.
+
+**Motivo:** a pilha de rede é um estado serializado (pacotes.c/tcp), então
+"um por vez" é a forma honesta de expor arquivos sem reescrever a pilha em
+uma de interrupções: a chamada de sistema segura um cadeado
+(`rede_pilha_reservar`, dono por PID e recuperação se o dono morreu) e o
+`wget` concorrente recebe `ERRO_OCUPADO` em vez de corromper o estado. O
+VFS também não tem cadeado (as outras chamadas rodam com as interrupções
+desligadas do começo ao fim), e o servidor é o único que o toca com elas
+ligadas — cada acesso entra numa seção curta `cli`/`sti`, e o `GET`/`PUT`
+seguram o nó para um `rm` no meio não liberar a memória. Rodar o servidor
+no kernel evita copiar os bytes para o userland; rodar o *loop* no
+userland deixa as fatias curtas e o processo mataível. Do lado do host, a
+porta só no `127.0.0.1` é de propósito: nada do convidado fica exposto na
+rede em volta. E `/usb` montado não passa pelo servidor porque o
+pendrive pertence ao processo que o montou — a árvore em RAM é o que a
+rede vê.
+
+## D041. A janela de arquivos repete o protocolo, de propósito (H49)
+
+**Decisão:** a GUI do cliente de arquivos é um arquivo único,
+`tools/windows/sagui-gui.ps1` (PowerShell 5.1 + WinForms), que repete as
+funções do protocolo `SAGUI/1` em vez de carregar o `sagui-fs.ps1` como
+biblioteca. Cada ação abre e fecha a própria conexão TCP (o servidor atende
+um comando por conexão), e o botão "Conectar" só testa o caminho com um
+`LIST /`. A CLI continua intacta para scripts e testes.
+
+**Motivo:** o projeto entrega as ferramentas do Windows como "copiar e
+rodar", sem instalar nada e sem depender de caminho relativo entre scripts;
+um arquivo só é mais fácil de mandar para outra máquina e de explicar. Como
+o protocolo é pequeno (oito comandos de texto), repetir as funções custa
+pouco e deixa a janela independente da CLI. Abrir uma conexão por operação
+é a consequência natural do servidor de uma conexão por vez (D040): manter
+uma conexão aberta só para "estar conectado" seguraria a rede e impediria o
+`wget` do convidado. O `-Autoteste` e o `-AutotesteJanela` existem para
+provar a janela sem depender de cliques: o primeiro exercita o protocolo, o
+segundo constrói a janela, conecta, navega e volta com o servidor ligado.
+
+**O botão "Ligar servidor" (mesma história):** o caminho de ligar a VM,
+esperar a área de trabalho e abrir o Terminal com `servidor` também ficou na
+janela, em vez de virar outro script. Ele usa o `VBoxManage` para consultar
+o estado e tirar a captura de tela, e a COM API do VirtualBox
+(`VirtualBox.Session`) para mover o mouse e teclar dentro do convidado —
+a técnica que a H48 já tinha validado à mão. Ficou na própria janela porque
+é a continuação natural do botão "Conectar": quem abre a janela quer ver os
+arquivos, não decorar que precisa ligar a VM e digitar um comando antes.
+A prontidão da área de trabalho é reconhecida pela captura (barra escura no
+topo e dois de três pontos claros no centro), não por tempo fixo, e o botão
+só age na máquina local — a VM é escolhida com `-Vm`. O `-AutotesteLigar`
+cobre o caminho inteiro, inclusive com a VM desligada.
+

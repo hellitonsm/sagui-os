@@ -113,7 +113,7 @@ static bool dns_resolver(const char *nome, uint32_t *ip)
         if (!pct_ip_enviar(cfg->dns, 17, u, (uint16_t)(UDP_LEN + tamanho))) continue;
 
         uint16_t n = 0;
-        if (!pct_ip_receber(17, cfg->dns, resposta, sizeof resposta, &n, 700)) continue;
+        if (!pct_ip_receber(17, cfg->dns, resposta, sizeof resposta, &n, 700, NULL)) continue;
         if (n < UDP_LEN + 12) continue;
         if (pct_get16(resposta) != 53) continue;      /* veio do servidor DNS */
         uint16_t tam_udp = pct_get16(resposta + 4);
@@ -161,7 +161,7 @@ static bool tcp_receber(uint32_t peer, uint16_t porta_destino, uint8_t *dados,
     pct_prazo_iniciar(&prazo, ms);
     while (!pct_prazo_acabou(&prazo)) {
         uint16_t n = 0;
-        if (!pct_ip_receber(6, peer, resposta, sizeof resposta, &n, 20)) { pct_pausa(); continue; }
+        if (!pct_ip_receber(6, peer, resposta, sizeof resposta, &n, 20, NULL)) { pct_pausa(); continue; }
         if (n < TCP_LEN) continue;
         const uint8_t *t = resposta;
         if (pct_get16(t + 2) != porta_destino) continue;       /* outra conexão */
@@ -316,10 +316,14 @@ int32_t sis_http_obter(uint32_t urlp, uint32_t dst, uint32_t cap, uint32_t d, ui
     char url[256];
     int n = usuario_texto((const char *)urlp, url, sizeof url);
     if (n < 1) return n < 0 ? n : ERRO_INVALIDO;
+    /* O servidor de arquivos (H48) passa fatias longas segurando a pilha;
+     * sem o cadeado os buffers estáticos seriam pisados pelos dois lados. */
+    if (!rede_pilha_reservar()) return ERRO_OCUPADO;
     /* int 0x80 usa interrupt gate e entra com IF=0. Habilitamos IRQs para
      * que o relógio ande durante o polling; a pilha é serializada por isso. */
     __asm__ volatile("sti" ::: "memory");
     int32_t r = http_obter(url, (void *)dst, cap);
     __asm__ volatile("cli" ::: "memory");
+    rede_pilha_liberar();
     return r;
 }

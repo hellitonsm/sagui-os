@@ -45,6 +45,15 @@ const uint8_t *rede_mac(void);
 bool     rede_enviar(const void *quadro, uint16_t bytes);
 uint16_t rede_receber(void *quadro, uint16_t capacidade);
 
+/* Cadeado da pilha (D040): os buffers são estáticos e o polling roda com as
+ * interrupções ligadas, então duas chamadas de rede ao mesmo tempo (o wget
+ * e o servidor de arquivos) pisariam uma na outra. Quem for usar a pilha
+ * por muito tempo reserva aqui; quem chega e não consegue recebe
+ * ERRO_OCUPADO. O dono é um pid: se o dono morreu segurando (kill no meio
+ * de uma fatia), o cadeado é tomado de volta. */
+bool rede_pilha_reservar(void);
+void rede_pilha_liberar(void);
+
 /* Descobre o MAC de quem responde por um IP (ARP, com cache de 8 entradas).
  * "proximo_salto" devolve o MAC do destino se ele está na mesma sub-rede, ou
  * o do gateway caso contrário — é o que a pilha IP precisa. */

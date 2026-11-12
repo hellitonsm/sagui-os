@@ -106,9 +106,74 @@ wget http://example.com/
 ```
 
 Para o caminho inverso (alcançar um serviço do hóspede a partir do anfitrião),
-use **Avançado → Encaminhamento de portas**: por exemplo, anfitrião `8080` →
-hóspede `80`. O SaguiOS não tem servidor HTTP; o encaminhamento serve para os
-testes futuros.
+use **Avançado → Encaminhamento de portas**. O SaguiOS tem um serviço que se
+aproveita disso: o servidor de arquivos da porta 2500 (seção abaixo). Os
+scripts do repositório aplicam a regra `sagui-arquivos` automaticamente
+(anfitrião `127.0.0.1:2500` → hóspede `2500`; só o próprio computador
+conecta, nada fica exposto na rede em volta); à mão, é Configurações → Rede
+→ Avançado → Encaminhamento de portas.
+
+## Arquivos pela rede, do Windows
+
+O comando `servidor` do shell liga o servidor de arquivos do SaguiOS na porta
+2500 (protocolo `SAGUI/1`, ver `kernel/rede/servidor.c`): ele atende uma
+conexão por vez, direto do kernel, e sair é com `q` — ou rode com `&` e pare
+com `kill <pid>`. Do lado do Windows, o cliente é
+`tools\windows\sagui-fs.ps1`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\windows\sagui-fs.ps1 listar
+powershell -ExecutionPolicy Bypass -File tools\windows\sagui-fs.ps1 baixar leia-me.txt
+powershell -ExecutionPolicy Bypass -File tools\windows\sagui-fs.ps1 enviar nota.txt docs/nota.txt
+```
+
+Os comandos são `listar` (`ls`), `info` (`i`), `baixar` (`get`), `enviar`
+(`put`), `apagar` (`rm`), `criar-pasta` (`mkdir`), `remover-pasta` (`rmdir`)
+e `renomear` (`ren`; a origem não pode ter espaços). O caminho remoto é o do
+SaguiOS (`bin`, `/docs`, `../leia-me.txt`); o local, o do Windows. Como o
+encaminhamento da NAT é aplicado pelo `build-e-rodar.ps1` a cada build e pelo
+`rodar-virtualbox.sh`, o `127.0.0.1:2500` do Windows chega ao hóspede.
+
+### A janela de arquivos
+
+Para quem prefere o mouse, a mesma conversa está em
+`tools\windows\sagui-gui.ps1` (PowerShell 5.1 + WinForms, um arquivo só):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\windows\sagui-gui.ps1
+```
+
+A janela abre já tentando conectar em `127.0.0.1:2500`. Nela dá para navegar
+com duplo clique (ou Enter), subir com o botão "↑ Pasta acima" ou Backspace,
+atualizar com F5, baixar com duplo clique ou "Baixar", enviar pelo botão
+"Enviar..." ou arrastando arquivos do Explorer para a lista, criar pasta,
+renomear e apagar (Delete) — tudo pela pasta mostrada no campo "Pasta". O
+progresso aparece na barra de estado e os erros do servidor viram uma caixa
+de aviso. O botão "↑ Pasta acima" fica desabilitado na raiz.
+
+Cada operação abre a própria conexão (o servidor atende um comando por vez);
+"Conectar" só confere o caminho com um `LIST /`. A CLI `sagui-fs.ps1`
+continua existindo para scripts, e a janela repete o protocolo de propósito
+para ser um arquivo só. Para validar sem mexer no mouse: `-TesteJanela`
+constrói a janela, `-Autoteste` exercita o protocolo e `-AutotesteJanela`
+conecta, navega e volta sem abrir diálogos (os dois últimos precisam do
+`servidor` ligado).
+
+O botão **"Ligar servidor"** faz o caminho inteiro com um clique: se o
+servidor ainda não responde, ele liga a VM (ou retoma, se estiver pausada),
+espera a área de trabalho do SaguiOS, abre o Terminal, digita `servidor` e
+confirma a porta 2500. Ele precisa do VirtualBox instalado e da máquina
+local (`127.0.0.1` ou `localhost`); a VM é a `saguiOS` por padrão, mude com
+`-Vm "outro nome"`. Como o convidado não tem posicionamento absoluto de
+mouse, o botão move o ponteiro por passos pela COM API do VirtualBox e usa
+os scan codes do teclado ABNT2 — a mesma técnica que a H48 validou à mão.
+`-AutotesteLigar` exercita esse botão de verdade, inclusive com a VM
+desligada.
+
+Dois limites de propósito: a pilha de rede atende um por vez (enquanto o
+servidor está ligado, o `wget` do SaguiOS avisa que a rede está ocupada; ao
+encerrar o servidor, o `wget` volta a funcionar), e o servidor só enxerga a
+árvore em RAM — arquivos do pendrive montado em `/usb` não passam.
 
 ## Rede bridge e somente anfitrião
 
@@ -129,8 +194,9 @@ tools/rodar-virtualbox.sh --rodar     # cria/atualiza a VM "saguiOS" e liga
 
 O script configura 512 MB, BIOS tradicional (sem EFI), mouse e teclado PS/2,
 16 MB de vídeo e **Adaptador 1 = Intel PRO/1000 MT Desktop em NAT** — e
-reconecta a placa e o disco toda vez que roda, então uma VM criada antes
-também passa a usar a placa certa. Outras opções:
+reconecta a placa, o disco e o encaminhamento da porta 2500 toda vez que
+roda, então uma VM criada antes também passa a usar a placa certa. Outras
+opções:
 
 | Comando | O que faz |
 | --- | --- |

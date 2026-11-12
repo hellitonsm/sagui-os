@@ -29,9 +29,12 @@ bool pct_ip_enviar(uint32_t destino, uint8_t protocolo, const uint8_t *carga, ui
 
 /* Espera até "ms" por um IPv4 do protocolo dado (0 = qualquer) vindo do IP
  * de origem "origem" (0 = qualquer). Copia só a carga (o que vem depois do
- * cabeçalho IP) e devolve o tamanho dela. */
+ * cabeçalho IP) e devolve o tamanho dela. Se "quem" não for NULL, recebe o
+ * IP de origem do pacote aceito (é como o servidor de arquivos descobre com
+ * quem está falando). */
 bool pct_ip_receber(uint8_t protocolo, uint32_t origem, uint8_t *saida,
-                    uint16_t capacidade, uint16_t *bytes, uint32_t ms);
+                    uint16_t capacidade, uint16_t *bytes, uint32_t ms,
+                    uint32_t *quem);
 
 /* Prazo: conta pelo relógio do sistema e, para o caso de o relógio não estar
  * andando (IRQs desligadas), também um número máximo de voltas. */

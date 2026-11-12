@@ -20,6 +20,7 @@
 #include "console.h"
 #include "relogio.h"
 #include "sistema.h"
+#include "processo.h"
 
 typedef struct {
     const char *nome;
@@ -152,6 +153,30 @@ bool rede_proximo_salto(uint32_t destino, uint8_t *mac)
 
 /* --------------------------------------------------- interface da placa */
 bool rede_disponivel(void) { return cfg.presente; }
+
+/* Cadeado da pilha de rede (ver rede.h). O dono é o pid do processo que
+ * reservou; os pids só crescem (nunca são reaproveitados), então um pid
+ * morto não aponta para ninguém novo. Se o dono virou zumbi (ou a entrada
+ * já foi liberada), ele foi morto no meio de uma fatia e nunca vai soltar:
+ * o cadeado é tomado. */
+static int pilha_dono;   /* 0 = livre */
+
+bool rede_pilha_reservar(void)
+{
+    if (pilha_dono == atual->pid) return true;       /* já é o dono desta fatia */
+    if (pilha_dono) {
+        processo_t *dono = processo_por_pid(pilha_dono);
+        if (dono && dono->estado != P_ZUMBI) return false;
+    }
+    pilha_dono = atual->pid;
+    return true;
+}
+
+void rede_pilha_liberar(void)
+{
+    if (pilha_dono == atual->pid) pilha_dono = 0;
+}
+
 
 /* Relê o link na placa: no VirtualBox ele só sobe uns segundos depois do
  * reset, então guardar o valor lido na inicialização dava "sem sinal" para

@@ -96,7 +96,8 @@ bool pct_ip_enviar(uint32_t destino, uint8_t protocolo, const uint8_t *carga, ui
 }
 
 bool pct_ip_receber(uint8_t protocolo, uint32_t origem, uint8_t *saida,
-                    uint16_t capacidade, uint16_t *bytes, uint32_t ms)
+                    uint16_t capacidade, uint16_t *bytes, uint32_t ms,
+                    uint32_t *quem)
 {
     const rede_info_t *cfg = rede_info();
     pct_prazo_t prazo;
@@ -120,6 +121,7 @@ bool pct_ip_receber(uint8_t protocolo, uint32_t origem, uint8_t *saida,
         if (carga > capacidade) carga = capacidade;
         for (uint16_t i = 0; i < carga; i++) saida[i] = ip[cab + i];
         *bytes = carga;
+        if (quem) *quem = pct_get32(ip + 12);
         return true;
     }
     *bytes = 0;
