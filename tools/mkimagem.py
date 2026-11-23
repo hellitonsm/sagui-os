@@ -28,6 +28,7 @@ TOOLCHAIN_BIN = os.path.normpath(
 SETOR = 512
 KERNEL_ENDERECO = 0x100000
 OPC_VESA = 1
+OPC_LONGO = 8   # boot/cabecalho.inc: kernel de 64 bits
 TIPO_PARTICAO = 0xDA  # "dados sem sistema de arquivos": nenhum sistema tenta montar
 GEOM_CABECAS, GEOM_SETORES = 255, 63
 ALINHAMENTO_ARQUIVO = 64 * SETOR  # arquivo final múltiplo de 32 KB...
@@ -79,6 +80,7 @@ def main():
     ap.add_argument("--saida", required=True)
     ap.add_argument("--vesa", action="store_true", help="estágio 2 troca para o modo gráfico VESA")
     ap.add_argument("--console", action="store_true", help="sem área de trabalho: terminal de tela cheia")
+    ap.add_argument("--vesa-largo", action="store_true", help="testes: prefere um modo largo de 768 linhas (1366x768)")
     ap.add_argument("--teste", default="", help="nome de um autoteste do kernel (só para os testes automáticos)")
     a = ap.parse_args()
 
@@ -103,7 +105,13 @@ def main():
     r_lba = k_lba + setores(len(kern))
     total = r_lba + setores(len(rd))
 
-    opcoes = (OPC_VESA if a.vesa else 0) | (2 if a.console else 0)
+    # Kernel ELF64 (3.0, D076): o estágio 2 entra no modo longo antes de
+    # saltar para ele. A classe vem do byte 4 do cabeçalho ELF (1 = 32 bits,
+    # 2 = 64 bits), como diz a especificação ELF.
+    with open(a.kernel_elf, "rb") as f:
+        classe_elf = f.read(5)[4]
+    opcoes = (OPC_VESA if a.vesa else 0) | (2 if a.console else 0) | (4 if a.vesa_largo else 0) \
+        | (OPC_LONGO if classe_elf == 2 else 0)
     cab = struct.pack("<IHHIIIIIIIIIIIIII",
                       0x44484753, 1, opcoes,
                       e2_lba, setores(len(e2)),

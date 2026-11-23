@@ -3,6 +3,7 @@
  * O console tem dois motores: o modo texto da placa VGA (fases 1 a 3, e
  * reserva se o modo gráfico não ligar) e o terminal gráfico desenhado com a
  * fonte própria (fase 4 em diante). Quem escreve não precisa saber qual. */
+#include "cpu.h"
 #include "console.h"
 
 void textovga_iniciar(void);
@@ -71,11 +72,37 @@ void kprintf(const char *fmt, ...)
     va_start(ap, fmt);
     formatar(buf, sizeof buf, fmt, ap);
     va_end(ap);
+    /* A linha inteira sai de uma vez: sem isso, o log de uma tarefa do kernel
+     * (a rede, por exemplo) podia entrar no meio da frase de outra. */
+    bool i0 = int_salva_desliga();
     for (char *p = buf; *p; p++) {
         console_char(*p);
         serial_char(*p);
     }
+    int_restaura(i0);
     console_mostrar();
+}
+
+/* O diário do kernel também fica na memória (os últimos 64 KB), para o
+ * comando "registro" mostrar no hardware de verdade, onde ninguém lê a
+ * porta serial. */
+#define DIARIO_TAM 65536
+static char diario[DIARIO_TAM];
+static uint32_t diario_fim;           /* quantos bytes já entraram (cresce sempre) */
+
+static void diario_guardar(const char *t)
+{
+    for (; *t; t++) diario[diario_fim++ % DIARIO_TAM] = *t;
+}
+
+int diario_copiar(char *destino, int max)
+{
+    uint32_t qtd = diario_fim < DIARIO_TAM ? diario_fim : DIARIO_TAM;
+    if ((uint32_t)max - 1 < qtd) qtd = (uint32_t)max - 1;
+    uint32_t ini = diario_fim - qtd;
+    for (uint32_t i = 0; i < qtd; i++) destino[i] = diario[(ini + i) % DIARIO_TAM];
+    destino[qtd] = 0;
+    return (int)qtd;
 }
 
 void klog(const char *fmt, ...)
@@ -85,5 +112,8 @@ void klog(const char *fmt, ...)
     va_start(ap, fmt);
     formatar(buf, sizeof buf, fmt, ap);
     va_end(ap);
+    bool i0 = int_salva_desliga();   /* a linha inteira de uma vez (ver kprintf) */
     serial_texto(buf);
+    diario_guardar(buf);
+    int_restaura(i0);
 }

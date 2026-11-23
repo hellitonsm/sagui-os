@@ -1,14 +1,14 @@
 # Status do SaguiOS
 
-_Atualizado em 2026-11-11T22:50:03_
+_Atualizado em 2026-11-23T08:44:58_
 
-- **Situação:** Trabalhando na H50: grep com os recursos do grep do Linux
+- **Situação:** Fase 7 confirmada no hardware. Seguindo para a fase 8.
 - **Fase atual:** 7
-- **História atual:** H50
+- **História atual:** -
 - **Progresso geral:** 100.0%
 - **Bloqueio:** nenhum
-- **Imagem:** 1735680 bytes úteis
-- **Linhas de código:** boot 903, kernel 12455, userland 22110
+- **Imagem:** 8277504 bytes úteis (meta 1474560 bytes = 1,44 MB)
+- **Linhas de código:** boot 1083, kernel 18645, userland 92901
 
 ## Fases
 
@@ -64,25 +64,21 @@ _Atualizado em 2026-11-11T22:50:03_
 | B2 | Bônus: boot por UEFI | Cancelado pelo Eli: o objetivo do SaguiOS é rodar em computadores antigos, com BIOS tradicional. |  |
 | B3 | Bônus: bip | feito | 5 |
 | B4 | Bônus: Sagui 3D | feito | 43 |
-| H35 | Rede no VirtualBox (e1000, PCnet, DHCP, ARP) | feito | 220 |
-| H48 | Arquivos do SaguiOS pela rede, do Windows | feito | 24 |
-| H49 | Janela de arquivos do SaguiOS no Windows | feito | 1 |
-| H50 | grep com os recursos do grep do Linux | feito | 145 |
 
 ## Últimas ações
 
-- 2026-11-11T22:44:37: H50 concluida: grep com os recursos do Linux, 53 verificacoes no convidado e cores SGR nos terminais
-- 2026-11-11T22:44:36: H50 concluída
-- 2026-11-11T20:16:38: H49: botao 'Pasta acima' movido para a barra de acoes (desabilitado na raiz) e validado no -AutotesteJanela
-- 2026-11-11T20:10:20: H49: botao Ligar servidor validado com a VM desligada (liga, espera boot, abre Terminal, digita servidor e lista 18 entradas)
-- 2026-11-11T19:55:34: H49 concluída: tools/windows/sagui-gui.ps1: janela WinForms autocontida com navegacao, GET/PUT, pastas, renomear, apagar, arrastar-e-soltar e barra de progresso; -Autoteste e -AutotesteJanela passaram ao vivo na VM (18 entradas, ida e volta byte a byte)
-- 2026-11-11T19:55:31: Início da H49: Janela de arquivos do SaguiOS no Windows
-- 2026-11-10T22:08:02: H48 concluída: servidor de arquivos SAGUI/1 na porta 2500 (kernel, syscall 65, comando servidor) + cliente sagui-fs.ps1 no Windows + encaminhamento sagui-arquivos na NAT; validado ao vivo na VM do VirtualBox com 18 conexoes do host, GET byte a byte, PUT, pastas e wget depois do q (erros 33 e 34 corrigidos no caminho)
-- 2026-11-10T22:07:11: Erro corrigido: sagui-fs.ps1 listar mostrava a ajuda; com listar certo, Nao e possivel indexar em uma matriz nula
-- 2026-11-10T22:07:11: Erro corrigido: No Terminal em janela, o servidor encerrava sozinho (0 conexoes) logo depois do banner, sem ninguem apertar Esc
-- 2026-11-10T21:43:38: Início da H48: Arquivos do SaguiOS pela rede, do Windows
-- 2026-11-05T15:40:00: H35 concluída: rede nas placas do VirtualBox (Intel PRO/1000 e AMD PCnet), DHCP, ARP, DNS e comando rede
 - 2026-11-04T00:19:30: Eli confirmou: funcionou tudo perfeitamente (bônus)
 - 2026-11-03T23:45:56: Fase 7 entregue. Aguardando teste do Eli.
 - 2026-11-03T23:45:56: B4 concluída: Sagui 3D: motor 2,5D próprio, três fases em texto, macacos-prego, sementes, cascas, porteira da banana, cacho dourado, sons com o bip; teste automático e capturas
 - 2026-11-03T23:32:48: B4 Sagui 3D: motor 2,5D, três fases, macacos-prego, bananas, cascas, porteira e cacho dourado; teste automático passando
+- 2026-11-03T23:02:29: Início da B4: Bônus: Sagui 3D
+- 2026-11-03T23:02:23: B3 concluída: Comando bip, sons no Sagui Pega Banana, fila de notas tocada pelo tique do relógio (D029); canal 2 conferido no QEMU
+- 2026-11-03T22:57:35: Início da B3: Bônus: bip
+- 2026-11-03T22:57:35: Fase 6 aprovada pelo Eli. Fase bônus replanejada: B1 e B2 cancelados pelo Eli, B3 mantido, B4 (Sagui 3D) novo.
+- 2026-11-03T22:57:09: Eli confirmou: fase 6 ok
+- 2026-11-03T21:56:30: Fase 6 entregue. Aguardando teste do Eli.
+- 2026-11-03T21:55:57: Erro corrigido: G470: com dois pendrives, o de dados não aparece; usb mostra hub do EHCI 0 parado na configuração
+- 2026-11-03T21:36:41: Fase 6 entregue. Aguardando teste do Eli.
+- 2026-11-03T21:26:31: Erro corrigido: FAT32 criada depois da partição do SaguiOS não é vista
+- 2026-11-03T21:26:31: Erro corrigido: G470: pendrive não aparece; usb mostra porta ocupada sem pendrive
+- 2026-11-03T21:21:11: Bloqueio: G470: o pendrive não aparece (fase 6). Correção em andamento: H30-fix

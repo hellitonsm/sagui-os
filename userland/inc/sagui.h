@@ -23,18 +23,9 @@ typedef _Bool              bool;
 #define NULL  ((void *)0)
 
 typedef __builtin_va_list va_list;
-#ifndef va_start
 #define va_start(l, u) __builtin_va_start(l, u)
-#endif
-#ifndef va_arg
 #define va_arg(l, t)   __builtin_va_arg(l, t)
-#endif
-#ifndef va_end
 #define va_end(l)      __builtin_va_end(l)
-#endif
-#ifndef va_copy
-#define va_copy(d, s)  __builtin_va_copy(d, s)
-#endif
 
 #define ENTRADA 0
 #define SAIDA   1
@@ -71,12 +62,33 @@ int      dormir(unsigned ms);
 unsigned tempo_ms(void);
 int      ler_data(data_t *d);
 int      info_sistema(int tipo, void *buf, unsigned n);
-int      http_obter(const char *url, void *resposta, unsigned capacidade);
-int      servidor_arquivos(unsigned ms);   /* 1 = atendeu uma conexao; 0 = ninguem ligou; <0 = erro */
-int      info_rede(info_rede_t *info);   /* 1 = ha placa, 0 = nao ha */
 void    *aumentar_memoria(unsigned bytes);
 void     reiniciar(void);
-void     desligar(void);
+void     desligar(void);   /* grava os pendrives e desliga (H36) */
+int      bytes_aleatorios(void *destino, unsigned n);   /* bytes imprevisíveis, para chaves (H50) */
+/* Configurações do sistema (H37): guardadas em /usb/.saguios/configuracoes.txt. */
+int      config_ler(const char *chave, char *valor, int max);    /* tamanho, ou ERRO_NAO_EXISTE */
+int      config_gravar(const char *chave, const char *valor);    /* 1 guardada no pendrive, 0 só até desligar */
+int      ajustar_data(const data_t *d);                         /* acerta o relógio da placa-mãe (H38) */
+/* Som pela placa (H41): quadros de 16 bits, estéreo, 48 kHz (4 bytes cada). */
+#define SOM_TAXA 48000
+int      som_abrir(void);                                       /* fonte, ou ERRO_NAO_EXISTE sem placa */
+int      som_enviar(int fonte, const void *quadros, unsigned bytes);   /* bytes aceitos (não espera) */
+int      som_fechar(int fonte);
+int      som_volume(int novo);                                  /* -1 só consulta; devolve 0-100 */
+/* Rede (fase 3 da 2.0). IPs na ordem da rede (o primeiro número no byte baixo). */
+int      rede_info(info_rede_t *r);
+int      rede_socket(int tipo);                                 /* REDE_UDP, REDE_ICMP, REDE_TCP */
+int      rede_conectar(int s, unsigned ip, int porta);
+int      rede_enviar(int s, const void *dados, unsigned n);
+int      rede_receber(int s, void *dados, unsigned max, unsigned *origem);   /* 0 = nada ainda */
+int      rede_fechar(int s);
+void     ip_para_texto(unsigned ip, char *texto);               /* texto com 16 bytes */
+unsigned texto_para_ip(const char *texto);                      /* 0 se não for IP */
+int      dns_resolver(const char *nome, unsigned *ip);          /* 0, ERRO_NAO_EXISTE ou ERRO_REDE */
+int      rede_estado(int s);                                    /* TCP: 0 conectando, 1 aberta, 2 o outro lado terminou, <0 falhou */
+int      tcp_conectar(unsigned ip, int porta, unsigned ms);     /* socket pronto, ou erro */
+int      tcp_enviar_tudo(int s, const void *dados, unsigned n);
 int      modo_terminal(int modo);
 int      limpar_tela(void);
 
@@ -86,10 +98,20 @@ int  fechar_janela(int id);
 int  atualizar_janela(int id, const retangulo_t *r);   /* r = NULL: a janela toda */
 int  proximo_evento(int id, evento_t *e, bool esperar); /* 1 = veio um evento */
 int  titulo_janela(int id, const char *titulo);
+int  janela_opcoes(int id, int opcoes, int larg_min, int alt_min);   /* JAN_REDIMENSIONAVEL (H78) */
+int  janela_modo(int id, int modo);   /* JAN_MODO_NORMAL, _MAXIMIZADA ou _TELA_CHEIA (D071) */
+int  menu_janela(int id, int x, int y, const char *itens);
+/* Área de cópia do sistema (texto): copiar num programa, colar em outro. */
+int  area_copia_gravar(const char *t, unsigned n);
+int  area_copia_ler(char *buf, unsigned max);   /* -> tamanho do texto guardado (pode ser > max) */           /* "A|B|C"; escolha em EV_MENU (H81) */
 
 /* ---- dispositivos (fase 6) ---- */
 int  listar_discos(int indice, info_disco_t *d);   /* 1 = achou, 0 = acabou */
 int  montar(const char *nome);                     /* "usb0" -> /usb */
+int  disco_setores(pedido_setores_t *p);           /* setores crus (instalador) */
+int  disco_reler(const char *nome);                /* reconhecer o formato de novo */
+int  disco_liberar(const char *nome, const char *resumo); /* a pessoa digita o nome do disco numa caixa do kernel, que mostra o resumo (D063) */
+int  disco_tabela(const char *nome, tabela_disco_t *t);  /* a tabela de partições, lida e conferida pelo kernel (D066) */
 int  desmontar(const char *nome);
 
 /* ---- som (bônus B3): volta na hora, o kernel toca em segundo plano ---- */
@@ -100,7 +122,6 @@ void silenciar(void);
 /* ---- jogos (bônus B4) ---- */
 int  teclas_seguradas(unsigned char mapa[32]);   /* 1 = em foco; CV_* em abi.h */
 #define SEGURADA(mapa, cv) (((mapa)[(cv) >> 3] >> ((cv) & 7)) & 1)
-int  tecla_tentada(void);   /* modo bruto: o proximo byte da tecla, ou -1 se nao ha */
 
 /* ---- memória e texto ---- */
 void  *memcpy(void *d, const void *s, size_t n);
@@ -118,7 +139,6 @@ bool   comeca_com(const char *s, const char *prefixo);
 int    texto_para_int(const char *s);
 size_t utf8_para_latin1(char *s, size_t n, size_t *sobra);   /* texto UTF-8 de fora -> Latin-1 */
 bool   eh_espaco(int c);
-bool   eh_codigo_fonte(const char *nome);   /* .c .h .go .lua .mk: abre na IDE */
 
 void *aloca(size_t n);
 void *aloca_zerado(size_t n);
@@ -138,7 +158,26 @@ int  registrar_texto(const char *t);
 
 /* ---- entrada ---- */
 int  ler_linha(int fd, char *buf, unsigned max);   /* tamanho, ou -1 no fim do arquivo */
+/* Ajudas dos utilitários de texto (H91: head, sort, cut...). */
+int   abrir_para_ler(const char *programa, const char *nome);   /* "-" = ENTRADA; avisa o erro sozinho */
+char *ler_ate_o_fim(int fd, unsigned *tam);                         /* tudo até o fim, com um zero no fim; NULL sem memória */
+bool  converter_numero(const char *s, int *valor);             /* false se não for um inteiro decimal */
+int   minuscula_latin1(int c);
+
+/* ---- apoio aos programas de arquivos (H93; apoio_arquivos.c) ---- */
+int      ler_arquivo_inteiro(const char *caminho, uint8_t **dados);   /* tamanho (dados alocados), ou erro */
+uint32_t data_para_unix(const data_t *d);   /* segundos desde 1/1/1970 (tar, gzip) */
+uint32_t data_para_dos(const data_t *d);    /* hora << 16 | data, como no MS-DOS (zip) */
+
+/* ---- idioma (D073; idioma.c) ----
+ * traduzir("texto em português") devolve o texto na língua de "sistema.idioma"
+ * (pt, es ou en), tirado de /sistema/idiomas/<língua>.txt, ou o próprio texto
+ * se não houver tradução. A língua é lida no primeiro uso. */
+const char *traduzir(const char *texto_pt);
+const char *idioma(void);          /* "pt", "es" ou "en" */
+void        idioma_recarregar(void);   /* relê a configuração (vale a escolha mais recente) */
 
 int principal(int argc, char **argv);
+int  ler_tela(uint32_t *pixels, unsigned bytes);   /* largura | altura << 16; bytes = 0 só mede */
 
 #endif

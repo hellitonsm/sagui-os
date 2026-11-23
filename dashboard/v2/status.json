@@ -1,0 +1,1493 @@
+{
+  "titulo": "SaguiOS 2.0: o sagui sai da mata",
+  "atualizado": "2026-11-14T03:11:54",
+  "situacao": "Trabalhando na H80: Ponto flutuante nos programas",
+  "fase_atual": 11,
+  "historia_atual": "H80",
+  "bloqueio": "H46 (rede no G470): a placa interna é Atheros AR8152 (sem manual público); o Eli está comprando o TP-Link UE300 (RTL8153, USB-A). H73 espera a chave do OpenRouter. Som do G470: esperando o 'registro HDA'.",
+  "mensagem_fase": "Eli, a fase 8 (Sagui Code) está pronta: entrega/v2-fase8/ e docs/teste-v2-fase8.md. O teste final (5 pedidos com a IA de verdade, H73) precisa da sua chave do OpenRouter.",
+  "raiz": "../../",
+  "links": [
+    {
+      "texto": "PRD 2.0",
+      "url": "../../prd2.md"
+    },
+    {
+      "texto": "Painel da versão 1.0",
+      "url": "../index.html"
+    }
+  ],
+  "tabela_titulo": "O que o SaguiOS 2.0 vai saber fazer",
+  "tabela_coluna": "Capacidade",
+  "tamanho_inicial": 575488,
+  "fases": [
+    {
+      "numero": 1,
+      "nome": "Base e Configurações",
+      "estado": "aguardando teste",
+      "progresso": 100.0
+    },
+    {
+      "numero": 2,
+      "nome": "Som",
+      "estado": "aguardando teste",
+      "progresso": 100.0
+    },
+    {
+      "numero": 3,
+      "nome": "Rede",
+      "estado": "aguardando teste",
+      "progresso": 80.0
+    },
+    {
+      "numero": 4,
+      "nome": "TCP e HTTPS",
+      "estado": "aguardando teste",
+      "progresso": 100.0
+    },
+    {
+      "numero": 5,
+      "nome": "Terminal e SSH",
+      "estado": "aguardando teste",
+      "progresso": 100.0
+    },
+    {
+      "numero": 6,
+      "nome": "Sagui Navegador",
+      "estado": "aguardando teste",
+      "progresso": 100.0
+    },
+    {
+      "numero": 7,
+      "nome": "Compilador C",
+      "estado": "aguardando teste",
+      "progresso": 100.0
+    },
+    {
+      "numero": 8,
+      "nome": "Sagui Code",
+      "estado": "aguardando teste",
+      "progresso": 80.0
+    },
+    {
+      "numero": 9,
+      "nome": "Visual moderno",
+      "estado": "aguardando teste",
+      "progresso": 100.0
+    },
+    {
+      "numero": 10,
+      "nome": "Instalação no HD (opcional, a decidir)",
+      "estado": "a fazer",
+      "progresso": 0,
+      "opcional": true
+    },
+    {
+      "numero": 11,
+      "nome": "Versão 2.1: comunidade, Cipó e vídeo",
+      "estado": "em andamento",
+      "progresso": 83.3
+    }
+  ],
+  "historias": [
+    {
+      "id": "H35",
+      "fase": 1,
+      "titulo": "Comando `pci` e inventário de hardware",
+      "objetivo": "Lista os dispositivos PCI com classe, fabricante e modelo (com nomes conhecidos para os mais comuns) e grava o relatório em `/usb/hardware.txt`.",
+      "aceite": "no QEMU aparecem a placa de rede, o controlador de som e os EHCI; no `docs/teste-v2-fase1.md` o Eli recebe o pedido de fotografar a saída no G470, que define o driver de rede (H46).",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T00:30:04",
+      "fim": "2026-11-13T00:35:06",
+      "minutos": 5,
+      "resultado": "Comando pci com classe, fabricante, modelo e o que o SaguiOS já usa; relatório em /usb/hardware.txt"
+    },
+    {
+      "id": "H36",
+      "fase": 1,
+      "titulo": "Desligar e reiniciar",
+      "objetivo": "Leitura das tabelas ACPI (o suficiente para desligar), reinício pelo método ACPI com o controlador de teclado como reserva. Menu na barra de cima com **Desligar** e **Reiniciar**, perguntando antes se há pendrive montado (desmonta antes de desligar). Comandos `desligar` e `reiniciar`.",
+      "aceite": "o QEMU termina sozinho ao desligar; reiniciar volta ao boot; com pendrive montado, os dados ficam gravados.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T00:35:06",
+      "fim": "2026-11-13T00:40:59",
+      "minutos": 6,
+      "resultado": "Desligar pelo ACPI (_S5_ da DSDT), reiniciar pelo reset do ACPI/0xCF9/teclado, pendrives gravados antes, botão de energia na barra e janela Energia"
+    },
+    {
+      "id": "H37",
+      "fase": 1,
+      "titulo": "Configurações guardadas",
+      "objetivo": "Formato `chave = valor` em `/usb/.saguios/configuracoes.txt` (seção 4, item 4), com leitura no boot e gravação ao mudar.",
+      "aceite": "mudar uma configuração, reiniciar com o mesmo pendrive e ela continua igual; sem pendrive, aviso e valores padrão.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T00:41:00",
+      "fim": "2026-11-13T00:43:52",
+      "minutos": 3,
+      "resultado": "Tabela de configurações no kernel, arquivo /usb/.saguios/configuracoes.txt, montagem automática do pendrive do SaguiOS (D031), comando config"
+    },
+    {
+      "id": "H38",
+      "fase": 1,
+      "titulo": "App Configurações",
+      "objetivo": "Janela com abas: **Relógio** (data, hora, fuso; o automático chega na fase 4), **Aparência** (cor ou desenho do fundo, tamanho dos ícones), **Sobre o computador** (memória, processador, dispositivos). Abas novas entram nas fases seguintes (Som, Rede, IA). Ajustar o espaçamento dos ícones da área de trabalho, que ficou apertado com o Sagui 3D.",
+      "aceite": "mudar o relógio pelo app muda o relógio da barra e do `data`; captura de cada aba.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T00:43:52",
+      "fim": "2026-11-13T00:50:05",
+      "minutos": 6,
+      "resultado": "App Configurações com Relógio (acerta o CMOS, fuso), Aparência (5 fundos, sagui do canto) e Sobre o computador; ícones em duas colunas (D032)"
+    },
+    {
+      "id": "H39",
+      "fase": 1,
+      "titulo": "Remover programas",
+      "objetivo": "Programas instalados ficam em `/usb/programas/` (persistentes) e aparecem na área de trabalho e no Terminal; a aba **Programas** das Configurações lista os instalados e remove com confirmação. Os programas que vêm com o sistema podem ser ocultados, não apagados.",
+      "aceite": "instalar um programa de teste copiando para `/usb/programas/`, ele aparece; remover pelas Configurações, ele some e o arquivo é apagado.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T00:50:05",
+      "fim": "2026-11-13T00:54:44",
+      "minutos": 5,
+      "resultado": "Programas em /usb/programas viram ícone e comando; aba Programas remove com confirmação e esconde ícones do sistema"
+    },
+    {
+      "id": "H40",
+      "fase": 2,
+      "titulo": "Driver Intel HD Audio",
+      "objetivo": "Controlador (comandos ao codec pelas filas da especificação), descoberta do codec e do caminho até a saída (alto-falante e fone), reprodução por DMA com lista de buffers.",
+      "aceite": "o QEMU grava num `.wav` uma senoide de 440 Hz tocada pelo SaguiOS; o teste mede a frequência gravada.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T01:08:35",
+      "fim": "2026-11-13T01:15:43",
+      "minutos": 7,
+      "resultado": "Driver Intel HD Audio: CORB/RIRB, descoberta do caminho pino-DAC no codec, fluxo de saída 48 kHz/16 bits por DMA; tom de 440 Hz conferido no .wav do QEMU"
+    },
+    {
+      "id": "H41",
+      "fase": 2,
+      "titulo": "Som para os programas",
+      "objetivo": "Chamadas de sistema de som, mistura de vários programas tocando ao mesmo tempo, volume. Aba **Som** nas Configurações.",
+      "aceite": "dois programas tocando juntos aparecem misturados no `.wav`; volume em 0 grava silêncio.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T01:15:43",
+      "fim": "2026-11-13T01:17:13",
+      "minutos": 2,
+      "resultado": "Misturador com até 8 programas + notas, volume com corte em 16 bits, chamadas SIS_SOM_*, aba Som nas Configurações; mistura conferida por Goertzel no .wav"
+    },
+    {
+      "id": "H42",
+      "fase": 2,
+      "titulo": "Tocador e sons do sistema",
+      "objetivo": "Comando `tocar arquivo.wav`, sons do sistema (início, notificação, pendrive conectado) com opção de desligar, e o Sagui 3D e o Sagui Pega Banana usando o som novo quando houver placa (o bip continua como reserva).",
+      "aceite": "captura do `.wav` com os sons do jogo; no G470, o Eli ouve o som de início.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T01:17:13",
+      "fim": "2026-11-13T01:19:08",
+      "minutos": 2,
+      "resultado": "Tocador de WAV (8/16 bits, mono/estéreo, qualquer taxa), canto do sagui, sons de início e de aviso, bip e jogos pela placa (D033)"
+    },
+    {
+      "id": "H43",
+      "fase": 3,
+      "titulo": "Driver Intel PRO/1000",
+      "objetivo": "Placa de rede usada pelo QEMU e pelo VirtualBox: inicialização, filas de envio e recepção, interrupções, endereço físico (MAC), estado do cabo.",
+      "aceite": "o teste vê pacotes indo e voltando pela rede do QEMU.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T01:35:10",
+      "fim": "2026-11-13T01:36:19",
+      "minutos": 1,
+      "resultado": "Driver Intel PRO/1000 (anéis de descritores, sem interrupções), endereço físico, cabo"
+    },
+    {
+      "id": "H44",
+      "fase": 3,
+      "titulo": "Ethernet, ARP, IPv4, ICMP e UDP",
+      "objetivo": "A pilha básica no kernel e o comando `ping`.",
+      "aceite": "`ping 10.0.2.2` (o QEMU) responde; tempo e perda mostrados.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": null,
+      "fim": "2026-11-13T01:36:19",
+      "minutos": null,
+      "resultado": "Ethernet, ARP com fila de espera, IPv4, ICMP (eco), UDP com soma; comando ping"
+    },
+    {
+      "id": "H45",
+      "fase": 3,
+      "titulo": "DHCP e DNS",
+      "objetivo": "Endereço automático no boot e resolução de nomes; comando `rede` (endereço, máscara, rota, DNS) e `ping google.com`.",
+      "aceite": "no QEMU, o DHCP pega o endereço sozinho e um nome resolve pelo DNS do QEMU; teste \"internet\" com um nome real.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": null,
+      "fim": "2026-11-13T01:36:19",
+      "minutos": null,
+      "resultado": "Cliente DHCP no kernel, resolvedor de DNS próprio na libsagui; comandos rede, dns e ping por nome"
+    },
+    {
+      "id": "H46",
+      "fase": 3,
+      "titulo": "Rede no G470",
+      "objetivo": "Driver da placa do G470, se o manual for público (decidido com a foto do H35); se não for, driver **USB CDC (ECM/NCM)** para um adaptador USB-Ethernet (seção 3.2). Registrar a decisão em `docs/decisoes.md`.",
+      "aceite": "no G470 (ou com o adaptador), `ping` responde; teste automático do caminho escolhido no QEMU (o QEMU tem adaptador USB de rede padrão).",
+      "estado": "em andamento",
+      "bonus": false,
+      "inicio": "2026-11-13T22:20:36",
+      "fim": null,
+      "minutos": null,
+      "resultado": ""
+    },
+    {
+      "id": "H47",
+      "fase": 3,
+      "titulo": "Rede na interface",
+      "objetivo": "Aba **Rede** nas Configurações (estado, endereço, DHCP ou manual) e ícone de rede na barra de cima.",
+      "aceite": "capturas com a rede ligada e com o cabo desligado.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": null,
+      "fim": "2026-11-13T01:36:58",
+      "minutos": null,
+      "resultado": "Aba Rede (estado, DHCP ou manual) e ícone de rede na barra (verde, amarelo, cinza com x vermelho)"
+    },
+    {
+      "id": "H48",
+      "fase": 4,
+      "titulo": "TCP e sockets",
+      "objetivo": "Abertura e fechamento de conexão, números de sequência, confirmações, retransmissão, janela, e as chamadas de sistema de sockets para os programas.",
+      "aceite": "um programa do SaguiOS baixa 10 MB de um servidor da VPS sem perder nem trocar nenhum byte (conferido por hash), inclusive com perda de pacotes simulada.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": null,
+      "fim": "2026-11-13T02:25:47",
+      "minutos": null,
+      "resultado": "TCP cliente: três passos, anéis de 64 KB, reenvio com espera dobrando, três ACKs repetidos, estacionamento de pedaços fora de ordem (10 MB certos; com 5% de perda, 1 MB em 4,5 s em vez de 84 s); sockets TCP"
+    },
+    {
+      "id": "H49",
+      "fase": 4,
+      "titulo": "HTTP e relógio pela internet",
+      "objetivo": "Cliente HTTP/1.1 (com respostas em pedaços e redirecionamentos) numa biblioteca de usuário, comando `baixar <url> [arquivo]`, e NTP com a opção **Relógio automático** nas Configurações.",
+      "aceite": "`baixar http://...` de um servidor da VPS grava o arquivo certo no pendrive; o relógio acerta pelo NTP de teste.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": null,
+      "fim": "2026-11-13T02:50:51",
+      "minutos": null,
+      "resultado": "Cliente HTTP/1.1 (tamanho, pedaços, redirecionamento), comando baixar, relogio internet por NTP com fuso, relógio automático depois do DHCP"
+    },
+    {
+      "id": "H50",
+      "fase": 4,
+      "titulo": "Números aleatórios e resumos",
+      "objetivo": "Gerador do kernel (seção 4, item 2) com teste estatístico simples; SHA-256, SHA-384, SHA-512, HMAC e HKDF.",
+      "aceite": "todos os vetores oficiais passam; documentação de como a aleatoriedade é coletada no G470 sem RDRAND.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T02:25:47",
+      "fim": "2026-11-13T02:27:43",
+      "minutos": 2,
+      "resultado": "Gerador do kernel: jitter do RDTSC em cada interrupção e no boot (sem RDRAND), ChaCha20 com troca de chave a cada pedido (D035); SHA-2/HMAC/HKDF na libsagui-cripto"
+    },
+    {
+      "id": "H51",
+      "fase": 4,
+      "titulo": "Cifras e troca de chaves",
+      "objetivo": "AES-128 e AES-256 em GCM, ChaCha20-Poly1305, X25519.",
+      "aceite": "vetores oficiais; tempo constante onde a especificação recomenda (registrar como foi feito).",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T02:25:47",
+      "fim": "2026-11-13T02:25:47",
+      "minutos": 1,
+      "resultado": "AES-128/256 (sem tabelas, tempo constante), CTR, GCM, ChaCha20-Poly1305, X25519 e Ed25519; vetores oficiais (escrito pelo subagente Fable 5.2)"
+    },
+    {
+      "id": "H52",
+      "fase": 4,
+      "titulo": "Assinaturas e certificados",
+      "objetivo": "Números grandes, RSA (verificação PKCS#1 v1.5 e PSS), ECDSA P-256 e P-384, leitura de certificados X.509 em DER, validação de cadeia, nome e validade.",
+      "aceite": "vetores oficiais; uma cadeia de teste válida passa e cinco cadeias erradas (nome errado, vencida, assinatura falsa, autoridade desconhecida, cadeia quebrada) são recusadas com a mensagem certa.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T02:57:46",
+      "fim": "2026-11-13T02:57:46",
+      "minutos": 1,
+      "resultado": "Leitor DER estrito, X.509 (RSA, P-256/384, Ed25519, PKCS#1/PSS/ECDSA), cadeia com datas, CA, pathLen e nome (curinga RFC 6125); 30 cadeias boas e ruins testadas (subagente Fable 5.2)"
+    },
+    {
+      "id": "H53",
+      "fase": 4,
+      "titulo": "TLS 1.3",
+      "objetivo": "Cliente completo (troca de chaves X25519, cifras da H51, verificação do certificado pela H52, alertas), usado pelo `baixar https://...`.",
+      "aceite": "conecta no servidor TLS de teste da VPS; recusa o servidor com certificado errado; teste \"internet\" com sites reais.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": null,
+      "fim": "2026-11-13T07:26:21",
+      "minutos": null,
+      "resultado": "TLS 1.3 dentro do SaguiOS (ponte com TCP, gerador do kernel e relógio UTC): baixar https:// funciona com example.com e a Wikipédia (ChaCha20-Poly1305); âncora de confiança por nome + chave"
+    },
+    {
+      "id": "H54",
+      "fase": 4,
+      "titulo": "Certificados raiz e créditos",
+      "objetivo": "Os poucos certificados raiz necessários para os sites de aceite e para o OpenRouter, em `/sistema/certificados/`, com `CREDITOS.md`; comando para ver a lista.",
+      "aceite": "`baixar https://pt.wikipedia.org/` funciona (teste \"internet\"); `CREDITOS.md` lista cada certificado com origem e licença.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T07:26:21",
+      "fim": "2026-11-13T07:26:21",
+      "minutos": 1,
+      "resultado": "24 raízes públicas (Mozilla, MPL 2.0) em /sistema/certificados, escolhidas por tools/mkraizes.py, com CREDITOS.md"
+    },
+    {
+      "id": "H55",
+      "fase": 5,
+      "titulo": "Terminal completo",
+      "objetivo": "Emulação das sequências de terminal usadas por programas de servidor (cursor, apagar, cores de 16 e 256, regiões de rolagem, tela alternativa, títulos), UTF-8 e fonte com desenho de caixas. Abas e copiar e colar no Terminal.",
+      "aceite": "um arquivo de teste com as sequências desenha a tela esperada (comparação com captura de referência).",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T02:50:51",
+      "fim": "2026-11-13T02:50:51",
+      "minutos": 1,
+      "resultado": "Terminal novo: CSI, cores 16/256/24 bits, região de rolagem, tela alternativa, OSC, UTF-8 com volta ao Latin-1, molduras e blocos na fonte (0x80-0x9F), abas, histórico (Shift+PgUp), copiar arrastando e colar com o botão direito"
+    },
+    {
+      "id": "H56",
+      "fase": 5,
+      "titulo": "Transporte SSH",
+      "objetivo": "Troca de chaves `curve25519-sha256`, chave do servidor `ssh-ed25519` (com SHA-512), cifra `aes128-ctr` com `hmac-sha2-256` ou `aes256-gcm`, e o arquivo de servidores conhecidos (aviso na primeira conexão e alerta forte se a chave mudar).",
+      "aceite": "conecta no `sshd` local da VPS; recusa conexão quando a chave do servidor muda.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T07:58:47",
+      "fim": "2026-11-13T07:58:47",
+      "minutos": 1,
+      "resultado": "transporte contra o sshd local: 77 conferências; chave mudada recusada"
+    },
+    {
+      "id": "H57",
+      "fase": 5,
+      "titulo": "Login e sessão",
+      "objetivo": "Autenticação por senha e por chave Ed25519 (comando `ssh-chave` gera o par no pendrive), terminal remoto com tamanho da janela, `exit` limpo.",
+      "aceite": "login das duas formas; redimensionar a janela muda o tamanho no servidor.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T07:58:47",
+      "fim": "2026-11-13T07:58:47",
+      "minutos": 1,
+      "resultado": "ssh-chave + login pela chave no QEMU; senha recusada testada, aceita fica para o roteiro"
+    },
+    {
+      "id": "H58",
+      "fase": 5,
+      "titulo": "SSH de verdade",
+      "objetivo": "Comando `ssh usuario@servidor`.",
+      "aceite": "no teste automático, `htop` e `vim` rodam no servidor de teste e as capturas mostram a tela certa; no roteiro, o Eli entra num servidor dele.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T07:58:47",
+      "fim": "2026-11-13T07:58:47",
+      "minutos": 1,
+      "resultado": "ssh no Terminal: vim (setas em modo de aplicação) e htop com capturas"
+    },
+    {
+      "id": "H59",
+      "fase": 6,
+      "titulo": "Descompactação e PNG",
+      "objetivo": "DEFLATE, zlib e gzip, e o decodificador de PNG (todas as profundidades de cor e transparência).",
+      "aceite": "conjunto de PNGs de teste gerados na VPS decodificados iguais pixel a pixel.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T07:49:03",
+      "fim": "2026-11-13T07:49:03",
+      "minutos": 1,
+      "resultado": "DEFLATE/zlib/gzip e PNG: 27 PNGs iguais pixel a pixel, zlib níveis 0-9"
+    },
+    {
+      "id": "H60",
+      "fase": 6,
+      "titulo": "JPEG",
+      "objetivo": "Decodificador JPEG (sequencial e progressivo).",
+      "aceite": "JPEGs de teste comparados com a referência dentro da tolerância da especificação.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T07:49:03",
+      "fim": "2026-11-13T07:49:03",
+      "minutos": 1,
+      "resultado": "JPEG sequencial e progressivo, com reinício: 17 casos, erro médio <= 0,21"
+    },
+    {
+      "id": "H61",
+      "fase": 6,
+      "titulo": "Leitor de HTML",
+      "objetivo": "Leitura tolerante a erros, árvore de elementos, entidades, conjunto de caracteres, links e formulários simples (só leitura de busca, como a da Wikipédia).",
+      "aceite": "páginas de teste com HTML mal formado montam a árvore esperada.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T07:49:03",
+      "fim": "2026-11-13T07:49:09",
+      "minutos": 1,
+      "resultado": "árvores esperadas em 4 páginas mal formadas e 300 estragadas sem erro de memória"
+    },
+    {
+      "id": "H62",
+      "fase": 6,
+      "titulo": "Janela do navegador",
+      "objetivo": "Barra de endereço, voltar e avançar, favoritos, rolagem, layout em blocos (títulos, parágrafos, listas, citações, tabelas simples, imagens), cores básicas do HTML, `display: none` e pouco mais de CSS (registrar o que for suportado).",
+      "aceite": "páginas de teste servidas pela VPS renderizadas como as capturas de referência.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T07:59:13",
+      "fim": "2026-11-13T08:09:36",
+      "minutos": 10,
+      "resultado": "janela igual à referência pixel a pixel (topo e rolada); links, voltar/avançar, âncora, busca em UTF-8, favoritos, texto puro"
+    },
+    {
+      "id": "H63",
+      "fase": 6,
+      "titulo": "Sites de aceite",
+      "objetivo": "Abrir, com texto legível, links e imagens: um artigo da **Wikipédia em português**, `example.com`, uma página de documentação simples e o `README.md` do SaguiOS no GitHub (versão em texto).",
+      "aceite": "teste \"internet\" com capturas de cada site; roteiro para o Eli na VM e no G470.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T08:09:36",
+      "fim": "2026-11-13T08:15:37",
+      "minutos": 6,
+      "resultado": "Wikipédia (artigo, imagens e busca), example.com, man page do ls e README do SaguiOS, com capturas"
+    },
+    {
+      "id": "H64",
+      "fase": 7,
+      "titulo": "A linguagem",
+      "objetivo": "Definir em `docs/c-do-sagui.md` o C aceito: tipos inteiros, `char`, ponteiros, vetores, `struct`, `union`, `enum`, `typedef`, funções, laços, `switch`, `#include`, `#define` simples, e a `libsagui`. Sem ponto flutuante na primeira versão (como os programas atuais). Esse documento também é o manual que o Sagui Code manda para a IA.",
+      "aceite": "manual revisado com exemplos; lista do que fica de fora.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T18:17:51",
+      "fim": "2026-11-13T18:17:51",
+      "minutos": 1,
+      "resultado": "manual docs/c-do-sagui.md com exemplos e o que fica de fora"
+    },
+    {
+      "id": "H65",
+      "fase": 7,
+      "titulo": "Frente do compilador",
+      "objetivo": "Pré-processador, leitura, verificação de tipos e mensagens de erro **em português, com linha, coluna e uma dica** (pensadas para a IA conseguir se corrigir sozinha).",
+      "aceite": "50 programas de teste com erros dão as mensagens esperadas; 50 programas válidos passam.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T18:17:51",
+      "fim": "2026-11-13T18:17:52",
+      "minutos": 1,
+      "resultado": "70 programas com erro dão a mensagem esperada (linha, coluna, ^ e dica); 50 válidos compilam"
+    },
+    {
+      "id": "H66",
+      "fase": 7,
+      "titulo": "Fundo do compilador",
+      "objetivo": "Representação intermediária própria, geração de código x86 de 32 bits, montador e ligador próprios, ELF do SaguiOS ligado à `libsagui`.",
+      "aceite": "os 50 programas válidos rodam no SaguiOS com a saída esperada.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T18:17:51",
+      "fim": "2026-11-13T18:17:52",
+      "minutos": 1,
+      "resultado": "RI própria, x86, montador e ligador próprios; os 50 válidos rodam no SaguiOS"
+    },
+    {
+      "id": "H67",
+      "fase": 7,
+      "titulo": "Compilar dentro do sistema",
+      "objetivo": "Comando `cc arquivo.c -o programa`, botão **Compilar e rodar** no Editor e instalação do resultado em `/usb/programas/`.",
+      "aceite": "no QEMU, digitar um programa no Editor, compilar e rodar sem sair do SaguiOS.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T18:17:52",
+      "fim": "2026-11-13T18:17:52",
+      "minutos": 1,
+      "resultado": "cc no Terminal; Editor com Compilar e rodar (vai à linha do erro) e Instalar em /usb/programas"
+    },
+    {
+      "id": "H68",
+      "fase": 7,
+      "titulo": "Prova de fogo",
+      "objetivo": "Compilar **dentro do SaguiOS** programas da 1.0 (pelo menos `wc`, `cat`, `calculadora` e `banana`) e comparar o comportamento com as versões feitas pelo GCC.",
+      "aceite": "os programas compilados pelo SaguiOS passam nos mesmos testes da 1.0.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T18:17:52",
+      "fim": "2026-11-13T18:17:52",
+      "minutos": 1,
+      "resultado": "wc, cat, calculadora e banana feitos pelo cc passam nos testes da 1.0 (h15, h16, h24, h26, h27)"
+    },
+    {
+      "id": "H69",
+      "fase": 8,
+      "titulo": "JSON e cliente do OpenRouter",
+      "objetivo": "Leitor e escritor de JSON e cliente da API de conversa do OpenRouter (com chamada de ferramentas), por HTTPS. Aba **IA** nas Configurações: chave (guardada em `/usb/.saguios/chaves.txt`), modelo e limite de gasto por sessão.",
+      "aceite": "com o servidor falso da VPS, uma pergunta e uma resposta; com a API real, uma conversa registrada no diário.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T19:56:57",
+      "fim": "2026-11-13T19:56:57",
+      "minutos": 1,
+      "resultado": "JSON, POST, cliente do OpenRouter com stream e ferramentas, aba IA; servidor falso ok (conversa real espera a chave do Eli)"
+    },
+    {
+      "id": "H70",
+      "fase": 8,
+      "titulo": "O laço do agente",
+      "objetivo": "Ferramentas: `ler_arquivo`, `escrever_arquivo`, `editar_arquivo` (trocar um trecho), `listar_pasta`, `executar_comando`, `compilar` e `rodar`. Confirmação do usuário antes de sobrescrever, apagar ou rodar comandos; limite de passos por pedido.",
+      "aceite": "com o servidor falso, o laço completo (escrever, compilar com erro, corrigir, compilar, rodar) funciona e cada pedido de confirmação aparece.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T19:42:41",
+      "fim": "2026-11-13T19:42:41",
+      "minutos": 1,
+      "resultado": "laço completo com servidor falso e o cc de verdade: escrever, erro, corrigir, compilar, rodar; licenças e limite de passos"
+    },
+    {
+      "id": "H71",
+      "fase": 8,
+      "titulo": "Instruções e contexto",
+      "objetivo": "Texto de instruções do Sagui Code, manual da `libsagui` e de `docs/c-do-sagui.md` enviados na conversa, uso de cache de prompt quando o modelo escolhido suportar, e corte ou resumo das partes antigas quando a conversa crescer.",
+      "aceite": "conversa longa de teste não passa do limite configurado; o gasto estimado aparece ao fim de cada pedido.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T19:56:57",
+      "fim": "2026-11-13T19:56:57",
+      "minutos": 1,
+      "resultado": "instruções + manual + cabeçalhos com cache; conversa longa cortada abaixo do limite; gasto por pedido"
+    },
+    {
+      "id": "H72",
+      "fase": 8,
+      "titulo": "Interface",
+      "objetivo": "`saguicode` no Terminal: resposta aparecendo enquanto é gerada, histórico, salvar e abrir conversas no pendrive, comandos `/modelo`, `/gasto`, `/limpar`.",
+      "aceite": "capturas de uma sessão completa.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T19:56:57",
+      "fim": "2026-11-13T19:56:57",
+      "minutos": 1,
+      "resultado": "saguicode no Terminal: stream, histórico, /modelo /gasto /limite /limpar /salvar /abrir"
+    },
+    {
+      "id": "H73",
+      "fase": 8,
+      "titulo": "Aceite com IA de verdade",
+      "objetivo": "Cinco pedidos de referência (por exemplo: relógio analógico, conversor de temperatura, lista de tarefas, jogo da velha, visualizador de imagens do pendrive) feitos com a API real e um modelo escolhido pelo Eli. Registrar quantos deram certo de primeira, quantos precisaram de correção e o gasto.",
+      "aceite": "pelo menos 4 de 5 terminam com o programa rodando; capturas e números no diário.",
+      "estado": "a fazer",
+      "bonus": false,
+      "inicio": null,
+      "fim": null,
+      "minutos": null,
+      "resultado": ""
+    },
+    {
+      "id": "H74",
+      "fase": 9,
+      "titulo": "Vidro",
+      "objetivo": "Janelas e barras com transparência e desfoque do que está atrás, e sombras. O desfoque é recalculado só onde a tela mudou.",
+      "aceite": "capturas; tempo de quadro medido no QEMU e no G470.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T17:25:32",
+      "fim": "2026-11-13T17:25:33",
+      "minutos": 1,
+      "resultado": "vidro nas barras com desfoque por recorte; sombras; quadro inteiro em 12-17 ms no QEMU"
+    },
+    {
+      "id": "H75",
+      "fase": 9,
+      "titulo": "Forma",
+      "objetivo": "Cantos arredondados, barra de cima nova (menu, relógio, rede, som, energia) e uma barra de aplicativos com os programas abertos e fixados.",
+      "aceite": "capturas; clicar na barra alterna entre os programas.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T17:25:33",
+      "fim": "2026-11-13T17:25:33",
+      "minutos": 1,
+      "resultado": "cantos, doca com fixos e abertos, minimizar, menu do sagui, ícone de som"
+    },
+    {
+      "id": "H76",
+      "fase": 9,
+      "titulo": "Movimento e tema",
+      "objetivo": "Animações de abrir, fechar e minimizar, ícones redesenhados e tema claro ou escuro nas Configurações.",
+      "aceite": "capturas dos dois temas.",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T17:25:33",
+      "fim": "2026-11-13T17:25:33",
+      "minutos": 1,
+      "resultado": "animações de contorno, ícone do navegador, tema claro e escuro"
+    },
+    {
+      "id": "H77",
+      "fase": 9,
+      "titulo": "Leve no G470",
+      "objetivo": "Opção **Efeitos leves** (sem desfoque) e escolha automática se o computador for lento.",
+      "aceite": "no G470, abrir e arrastar janelas fica fluido (o Eli confirma no teste).",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T17:25:33",
+      "fim": "2026-11-13T17:25:33",
+      "minutos": 1,
+      "resultado": "efeitos automáticos pela medida do quadro, ou completos/leves nas Configurações"
+    },
+    {
+      "id": "H78",
+      "fase": 9,
+      "titulo": "Redimensionar e maximizar janelas (pedido do Eli)",
+      "objetivo": "Opção **Efeitos leves** (sem desfoque) e escolha automática se o computador for lento.",
+      "aceite": "no G470, abrir e arrastar janelas fica fluido (o Eli confirma no teste).",
+      "estado": "aguardando teste",
+      "bonus": false,
+      "inicio": "2026-11-13T19:42:41",
+      "fim": "2026-11-13T19:42:41",
+      "minutos": 1,
+      "resultado": "borda e canto, maximizar, duplo clique; Terminal, Navegador, Editor, Arquivos; ssh repassa o tamanho"
+    },
+    {
+      "id": "H79",
+      "fase": 9,
+      "titulo": "Correções do teste no G470",
+      "objetivo": "Opção **Efeitos leves** (sem desfoque) e escolha automática se o computador for lento.",
+      "aceite": "no G470, abrir e arrastar janelas fica fluido (o Eli confirma no teste).",
+      "estado": "feito",
+      "bonus": false,
+      "fim": "2026-11-13T23:17:06",
+      "resultado": "vidro do menu, escrita combinada, registro, programas de texto no Terminal, menu do botão direito"
+    },
+    {
+      "id": "H80",
+      "fase": 11,
+      "titulo": "Ponto flutuante nos programas",
+      "objetivo": "Opção **Efeitos leves** (sem desfoque) e escolha automática se o computador for lento.",
+      "aceite": "no G470, abrir e arrastar janelas fica fluido (o Eli confirma no teste).",
+      "estado": "feito",
+      "bonus": false,
+      "inicio": "2026-11-13T23:22:18",
+      "fim": "2026-11-13T23:22:18",
+      "minutos": 1,
+      "resultado": "FXSAVE/FXRSTOR por processo; programas com SSE2; três processos fazendo contas juntos sem se estragar"
+    },
+    {
+      "id": "H81",
+      "fase": 11,
+      "titulo": "Visual do Robson somado ao da 2.0",
+      "objetivo": "Opção **Efeitos leves** (sem desfoque) e escolha automática se o computador for lento.",
+      "aceite": "no G470, abrir e arrastar janelas fica fluido (o Eli confirma no teste).",
+      "estado": "feito",
+      "bonus": false,
+      "fim": "2026-11-14T01:37:55",
+      "resultado": "visual do Robson: ícones, letras, fundos, temas Mata e Azul, menus, barra de tarefas"
+    },
+    {
+      "id": "H82",
+      "fase": 11,
+      "titulo": "Cipó, o navegador (motor do #6)",
+      "objetivo": "Opção **Efeitos leves** (sem desfoque) e escolha automática se o computador for lento.",
+      "aceite": "no G470, abrir e arrastar janelas fica fluido (o Eli confirma no teste).",
+      "estado": "feito",
+      "bonus": false,
+      "fim": "2026-11-14T03:11:54",
+      "resultado": "Cipó: motor do #6 sobre a rede, o TLS e o som da 2.0; terceiros/ com licenças"
+    },
+    {
+      "id": "H83",
+      "fase": 11,
+      "titulo": "Pequenos da comunidade (#3, #4, #7)",
+      "objetivo": "Opção **Efeitos leves** (sem desfoque) e escolha automática se o computador for lento.",
+      "aceite": "no G470, abrir e arrastar janelas fica fluido (o Eli confirma no teste).",
+      "estado": "feito",
+      "bonus": false,
+      "fim": "2026-11-14T03:11:54",
+      "resultado": "poweroff, pode desligar, top, grep, uname, fetch, df, triangulos, chuva, make run, sites leves"
+    },
+    {
+      "id": "H84",
+      "fase": 11,
+      "titulo": "Driver de vídeo Intel HD 3000 (G470)",
+      "objetivo": "Opção **Efeitos leves** (sem desfoque) e escolha automática se o computador for lento.",
+      "aceite": "no G470, abrir e arrastar janelas fica fluido (o Eli confirma no teste).",
+      "estado": "feito",
+      "bonus": false,
+      "fim": "2026-11-14T01:37:55",
+      "resultado": "vídeo nativo do G470 (desligado por padrão), esperando o teste do Eli"
+    },
+    {
+      "id": "H85",
+      "fase": 11,
+      "titulo": "Créditos e versão 2.1",
+      "objetivo": "Opção **Efeitos leves** (sem desfoque) e escolha automática se o computador for lento.",
+      "aceite": "no G470, abrir e arrastar janelas fica fluido (o Eli confirma no teste).",
+      "estado": "a fazer",
+      "bonus": false
+    }
+  ],
+  "tanenbaum": [
+    {
+      "conceito": "Desligar e reiniciar",
+      "implementa": "ACPI e menu na barra de cima",
+      "historias": "H36",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "Configurações",
+      "implementa": "App com relógio, aparência, som, rede, IA e programas, guardadas no pendrive",
+      "historias": "H37 a H39",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "Som",
+      "implementa": "Driver Intel HD Audio, mistura e volume",
+      "historias": "H40 a H42",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "Rede",
+      "implementa": "Placa de rede, IPv4, DHCP, DNS, ping",
+      "historias": "H43 a H47",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "TCP e HTTP",
+      "implementa": "Conexões confiáveis, downloads, relógio pela internet",
+      "historias": "H48, H49",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "Criptografia e HTTPS",
+      "implementa": "SHA-2, AES-GCM, ChaCha20, X25519, RSA, ECDSA, X.509 e TLS 1.3 próprios",
+      "historias": "H50 a H54",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "Terminal e SSH",
+      "implementa": "Terminal completo e cliente SSH que roda vim e htop",
+      "historias": "H55 a H58",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "Navegador",
+      "implementa": "HTML, PNG, JPEG; Wikipédia e páginas simples",
+      "historias": "H59 a H63",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "Compilador C",
+      "implementa": "Compila programas dentro do próprio SaguiOS",
+      "historias": "H64 a H68",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "Sagui Code",
+      "implementa": "Agente de programação com IA pelo OpenRouter",
+      "historias": "H69 a H73",
+      "estado": "a fazer"
+    },
+    {
+      "conceito": "Visual moderno",
+      "implementa": "Vidro, desfoque, cantos arredondados, animações",
+      "historias": "H74 a H77",
+      "estado": "a fazer"
+    }
+  ],
+  "acoes": [
+    {
+      "data": "2026-11-14T03:11:54",
+      "texto": "Versão 2.1 entregue em entrega/v2.1 (regressão: 80 testes); esperando o teste do Eli"
+    },
+    {
+      "data": "2026-11-14T03:11:54",
+      "texto": "H83 concluída: poweroff, pode desligar, top, grep, uname, fetch, df, triangulos, chuva, make run, sites leves"
+    },
+    {
+      "data": "2026-11-14T03:11:54",
+      "texto": "H82 concluída: Cipó: motor do #6 sobre a rede, o TLS e o som da 2.0; terceiros/ com licenças"
+    },
+    {
+      "data": "2026-11-14T01:37:55",
+      "texto": "H84 concluída: vídeo nativo do G470 (desligado por padrão), esperando o teste do Eli"
+    },
+    {
+      "data": "2026-11-14T01:37:55",
+      "texto": "H81 concluída: visual do Robson: ícones, letras, fundos, temas Mata e Azul, menus, barra de tarefas"
+    },
+    {
+      "data": "2026-11-13T23:22:18",
+      "texto": "H80 concluída: FXSAVE/FXRSTOR por processo; programas com SSE2; três processos fazendo contas juntos sem se estragar"
+    },
+    {
+      "data": "2026-11-13T23:22:18",
+      "texto": "Início da H80: Ponto flutuante nos programas"
+    },
+    {
+      "data": "2026-11-13T23:17:06",
+      "texto": "Versão 2.1 planejada (H80 a H85): aproveitar os PRs da comunidade com crédito e o driver de vídeo do G470"
+    },
+    {
+      "data": "2026-11-13T23:17:06",
+      "texto": "H79 concluída: vidro do menu, escrita combinada, registro, programas de texto no Terminal, menu do botão direito"
+    },
+    {
+      "data": "2026-11-13T22:20:36",
+      "texto": "Início da H46: Rede no G470"
+    },
+    {
+      "data": "2026-11-13T21:49:17",
+      "texto": "Bloqueio: H46 (rede no G470): a placa interna é Atheros AR8152 (sem manual público); o Eli está comprando o TP-Link UE300 (RTL8153, USB-A). H73 espera a chave do OpenRouter. Som do G470: esperando o 'registro HDA'."
+    },
+    {
+      "data": "2026-11-13T21:34:04",
+      "texto": "Correções do teste do Eli no G470: vidro do menu, escrita combinada no vídeo, registro, diagnóstico do som, programas de texto no Terminal, menu do botão direito nos ícones"
+    },
+    {
+      "data": "2026-11-13T19:56:57",
+      "texto": "Fase 8 entregue. Aguardando teste do Eli."
+    },
+    {
+      "data": "2026-11-13T19:56:57",
+      "texto": "Bloqueio: H46 (rede no G470) espera a foto do pci ou o adaptador USB RTL8153; H73 (Sagui Code com IA de verdade) espera a chave do OpenRouter e a escolha do modelo pelo Eli"
+    },
+    {
+      "data": "2026-11-13T19:56:57",
+      "texto": "H72 concluída: saguicode no Terminal: stream, histórico, /modelo /gasto /limite /limpar /salvar /abrir"
+    },
+    {
+      "data": "2026-11-13T19:56:57",
+      "texto": "H71 concluída: instruções + manual + cabeçalhos com cache; conversa longa cortada abaixo do limite; gasto por pedido"
+    },
+    {
+      "data": "2026-11-13T19:56:57",
+      "texto": "H69 concluída: JSON, POST, cliente do OpenRouter com stream e ferramentas, aba IA; servidor falso ok (conversa real espera a chave do Eli)"
+    },
+    {
+      "data": "2026-11-13T19:56:57",
+      "texto": "Início da H72: Interface"
+    },
+    {
+      "data": "2026-11-13T19:56:57",
+      "texto": "Início da H71: Instruções e contexto"
+    },
+    {
+      "data": "2026-11-13T19:56:57",
+      "texto": "Início da H69: JSON e cliente do OpenRouter"
+    },
+    {
+      "data": "2026-11-13T19:42:41",
+      "texto": "Fase 9 entregue. Aguardando teste do Eli."
+    },
+    {
+      "data": "2026-11-13T19:42:41",
+      "texto": "Fase 7 entregue. Aguardando teste do Eli."
+    },
+    {
+      "data": "2026-11-13T19:42:41",
+      "texto": "H70 concluída: laço completo com servidor falso e o cc de verdade: escrever, erro, corrigir, compilar, rodar; licenças e limite de passos"
+    },
+    {
+      "data": "2026-11-13T19:42:41",
+      "texto": "Início da H70: O laço do agente"
+    },
+    {
+      "data": "2026-11-13T19:42:41",
+      "texto": "H78 concluída: borda e canto, maximizar, duplo clique; Terminal, Navegador, Editor, Arquivos; ssh repassa o tamanho"
+    },
+    {
+      "data": "2026-11-13T19:42:41",
+      "texto": "Início da H78: Redimensionar e maximizar janelas (pedido do Eli)"
+    },
+    {
+      "data": "2026-11-13T18:17:52",
+      "texto": "H68 concluída: wc, cat, calculadora e banana feitos pelo cc passam nos testes da 1.0 (h15, h16, h24, h26, h27)"
+    },
+    {
+      "data": "2026-11-13T18:17:52",
+      "texto": "H67 concluída: cc no Terminal; Editor com Compilar e rodar (vai à linha do erro) e Instalar em /usb/programas"
+    },
+    {
+      "data": "2026-11-13T18:17:52",
+      "texto": "Início da H68: Prova de fogo"
+    },
+    {
+      "data": "2026-11-13T18:17:52",
+      "texto": "Início da H67: Compilar dentro do sistema"
+    },
+    {
+      "data": "2026-11-13T18:17:52",
+      "texto": "H66 concluída: RI própria, x86, montador e ligador próprios; os 50 válidos rodam no SaguiOS"
+    },
+    {
+      "data": "2026-11-13T18:17:52",
+      "texto": "H65 concluída: 70 programas com erro dão a mensagem esperada (linha, coluna, ^ e dica); 50 válidos compilam"
+    },
+    {
+      "data": "2026-11-13T18:17:51",
+      "texto": "H64 concluída: manual docs/c-do-sagui.md com exemplos e o que fica de fora"
+    },
+    {
+      "data": "2026-11-13T18:17:51",
+      "texto": "Início da H66: Fundo do compilador"
+    },
+    {
+      "data": "2026-11-13T18:17:51",
+      "texto": "Início da H65: Frente do compilador"
+    },
+    {
+      "data": "2026-11-13T18:17:51",
+      "texto": "Início da H64: A linguagem"
+    },
+    {
+      "data": "2026-11-13T17:25:33",
+      "texto": "Início da H78: Redimensionar e maximizar janelas (pedido do Eli)"
+    },
+    {
+      "data": "2026-11-13T17:25:33",
+      "texto": "H77 concluída: efeitos automáticos pela medida do quadro, ou completos/leves nas Configurações"
+    },
+    {
+      "data": "2026-11-13T17:25:33",
+      "texto": "H76 concluída: animações de contorno, ícone do navegador, tema claro e escuro"
+    },
+    {
+      "data": "2026-11-13T17:25:33",
+      "texto": "H75 concluída: cantos, doca com fixos e abertos, minimizar, menu do sagui, ícone de som"
+    },
+    {
+      "data": "2026-11-13T17:25:33",
+      "texto": "H74 concluída: vidro nas barras com desfoque por recorte; sombras; quadro inteiro em 12-17 ms no QEMU"
+    },
+    {
+      "data": "2026-11-13T17:25:33",
+      "texto": "Início da H77: Leve no G470"
+    },
+    {
+      "data": "2026-11-13T17:25:33",
+      "texto": "Início da H76: Movimento e tema"
+    },
+    {
+      "data": "2026-11-13T17:25:33",
+      "texto": "Início da H75: Forma"
+    },
+    {
+      "data": "2026-11-13T17:25:32",
+      "texto": "Início da H74: Vidro"
+    },
+    {
+      "data": "2026-11-13T12:53:08",
+      "texto": "Eli pediu redimensionar, minimizar e maximizar janelas: virou a H78 (fase 9)"
+    },
+    {
+      "data": "2026-11-13T12:31:12",
+      "texto": "H69/H70: Sagui Code testado contra servidor falso (falta o laço com o cc e a conversa com a API real)"
+    },
+    {
+      "data": "2026-11-13T12:31:12",
+      "texto": "Início da H69: JSON e cliente do OpenRouter"
+    },
+    {
+      "data": "2026-11-13T12:23:13",
+      "texto": "Fase 6 entregue. Aguardando teste do Eli."
+    },
+    {
+      "data": "2026-11-13T08:15:37",
+      "texto": "H63 concluída: Wikipédia (artigo, imagens e busca), example.com, man page do ls e README do SaguiOS, com capturas"
+    },
+    {
+      "data": "2026-11-13T08:09:36",
+      "texto": "Início da H63: Sites de aceite"
+    },
+    {
+      "data": "2026-11-13T08:09:36",
+      "texto": "H62 concluída: janela igual à referência pixel a pixel (topo e rolada); links, voltar/avançar, âncora, busca em UTF-8, favoritos, texto puro"
+    },
+    {
+      "data": "2026-11-13T07:59:13",
+      "texto": "Início da H62: Janela do navegador"
+    },
+    {
+      "data": "2026-11-13T07:59:13",
+      "texto": "Fase 5 entregue. Aguardando teste do Eli."
+    },
+    {
+      "data": "2026-11-13T07:59:13",
+      "texto": "Início da H62: Janela do navegador"
+    },
+    {
+      "data": "2026-11-13T07:58:47",
+      "texto": "Início da H62: Janela do navegador"
+    },
+    {
+      "data": "2026-11-13T07:58:47",
+      "texto": "H58 concluída: ssh no Terminal: vim (setas em modo de aplicação) e htop com capturas"
+    },
+    {
+      "data": "2026-11-13T07:58:47",
+      "texto": "H57 concluída: ssh-chave + login pela chave no QEMU; senha recusada testada, aceita fica para o roteiro"
+    },
+    {
+      "data": "2026-11-13T07:58:47",
+      "texto": "H56 concluída: transporte contra o sshd local: 77 conferências; chave mudada recusada"
+    },
+    {
+      "data": "2026-11-13T07:58:47",
+      "texto": "Início da H58: SSH de verdade"
+    }
+  ],
+  "erros": [],
+  "capturas": [
+    {
+      "arquivo": "docs/v2/capturas/H63-6-readme.png",
+      "nome": "H63-6-readme.png",
+      "data": "2026-11-14T03:11:38"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H63-5-documentacao.png",
+      "nome": "H63-5-documentacao.png",
+      "data": "2026-11-14T03:11:31"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H63-4-example.png",
+      "nome": "H63-4-example.png",
+      "data": "2026-11-14T03:11:22"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H63-3-wikipedia-busca.png",
+      "nome": "H63-3-wikipedia-busca.png",
+      "data": "2026-11-14T03:11:16"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H63-2-wikipedia-rolada.png",
+      "nome": "H63-2-wikipedia-rolada.png",
+      "data": "2026-11-14T03:10:35"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H63-1-wikipedia.png",
+      "nome": "H63-1-wikipedia.png",
+      "data": "2026-11-14T03:10:33"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H62-7-texto-puro.png",
+      "nome": "H62-7-texto-puro.png",
+      "data": "2026-11-14T03:07:48"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H62-6-favoritos.png",
+      "nome": "H62-6-favoritos.png",
+      "data": "2026-11-14T03:07:45"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H62-5-busca.png",
+      "nome": "H62-5-busca.png",
+      "data": "2026-11-14T03:07:41"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H62-4-ancora.png",
+      "nome": "H62-4-ancora.png",
+      "data": "2026-11-14T03:07:36"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H62-3-pagina2.png",
+      "nome": "H62-3-pagina2.png",
+      "data": "2026-11-14T03:07:31"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H62-2-rolada.png",
+      "nome": "H62-2-rolada.png",
+      "data": "2026-11-14T03:07:25"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H62-1-topo.png",
+      "nome": "H62-1-topo.png",
+      "data": "2026-11-14T03:07:22"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H42-tocar.png",
+      "nome": "H42-tocar.png",
+      "data": "2026-11-14T03:06:52"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H40-som-teste.png",
+      "nome": "H40-som-teste.png",
+      "data": "2026-11-14T03:06:31"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H79-ctrl-c.png",
+      "nome": "H79-ctrl-c.png",
+      "data": "2026-11-14T03:06:18"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H84-5-vesa-largo.png",
+      "nome": "H84-5-vesa-largo.png",
+      "data": "2026-11-14T03:01:13"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H84-4-1366-maximizado.png",
+      "nome": "H84-4-1366-maximizado.png",
+      "data": "2026-11-14T03:00:55"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H84-3-1366x768.png",
+      "nome": "H84-3-1366x768.png",
+      "data": "2026-11-14T03:00:52"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H84-2-sim-sem-intel.png",
+      "nome": "H84-2-sim-sem-intel.png",
+      "data": "2026-11-14T02:54:37"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H84-1-desligado.png",
+      "nome": "H84-1-desligado.png",
+      "data": "2026-11-14T02:54:26"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H83-6-chuva.png",
+      "nome": "H83-6-chuva.png",
+      "data": "2026-11-14T02:54:14"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H83-5-triangulos.png",
+      "nome": "H83-5-triangulos.png",
+      "data": "2026-11-14T02:54:12"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H83-1-top.png",
+      "nome": "H83-1-top.png",
+      "data": "2026-11-14T02:54:08"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H83-4-df.png",
+      "nome": "H83-4-df.png",
+      "data": "2026-11-14T02:54:05"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H83-3-fetch.png",
+      "nome": "H83-3-fetch.png",
+      "data": "2026-11-14T02:54:04"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H83-2-grep.png",
+      "nome": "H83-2-grep.png",
+      "data": "2026-11-14T02:54:02"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H83-1-pode-desligar.png",
+      "nome": "H83-1-pode-desligar.png",
+      "data": "2026-11-14T02:53:36"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H82-3-clique.png",
+      "nome": "H82-3-clique.png",
+      "data": "2026-11-14T02:53:14"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H82-2-js.png",
+      "nome": "H82-2-js.png",
+      "data": "2026-11-14T02:53:11"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H82-1-css.png",
+      "nome": "H82-1-css.png",
+      "data": "2026-11-14T02:53:05"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H81-9-barra-de-tarefas.png",
+      "nome": "H81-9-barra-de-tarefas.png",
+      "data": "2026-11-14T02:51:44"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H81-8-menu-terminal.png",
+      "nome": "H81-8-menu-terminal.png",
+      "data": "2026-11-14T02:51:37"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H81-7-menu-titulo.png",
+      "nome": "H81-7-menu-titulo.png",
+      "data": "2026-11-14T02:51:31"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H81-6-menu-area.png",
+      "nome": "H81-6-menu-area.png",
+      "data": "2026-11-14T02:51:28"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H81-5-tema-azul.png",
+      "nome": "H81-5-tema-azul.png",
+      "data": "2026-11-14T02:51:20"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H81-4-tema-mata.png",
+      "nome": "H81-4-tema-mata.png",
+      "data": "2026-11-14T02:51:16"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H81-3-fundo-brasil-com-sol.png",
+      "nome": "H81-3-fundo-brasil-com-sol.png",
+      "data": "2026-11-14T02:51:13"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H81-2-fundo-mata-atlantica.png",
+      "nome": "H81-2-fundo-mata-atlantica.png",
+      "data": "2026-11-14T02:51:10"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H81-1-icones.png",
+      "nome": "H81-1-icones.png",
+      "data": "2026-11-14T02:51:07"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H79-4-renomeado.png",
+      "nome": "H79-4-renomeado.png",
+      "data": "2026-11-14T02:50:37"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H79-3-menu-do-icone.png",
+      "nome": "H79-3-menu-do-icone.png",
+      "data": "2026-11-14T02:50:31"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H79-2-programa-no-terminal.png",
+      "nome": "H79-2-programa-no-terminal.png",
+      "data": "2026-11-14T02:50:27"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H79-1-icone-instalado.png",
+      "nome": "H79-1-icone-instalado.png",
+      "data": "2026-11-14T02:50:25"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H78-3-navegador-maximizado.png",
+      "nome": "H78-3-navegador-maximizado.png",
+      "data": "2026-11-14T02:49:12"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H78-2-terminal-maximizado.png",
+      "nome": "H78-2-terminal-maximizado.png",
+      "data": "2026-11-14T02:49:02"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H78-1-terminal-menor.png",
+      "nome": "H78-1-terminal-menor.png",
+      "data": "2026-11-14T02:48:58"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H77-1-efeitos-leves.png",
+      "nome": "H77-1-efeitos-leves.png",
+      "data": "2026-11-14T02:48:43"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H76-2-tema-claro.png",
+      "nome": "H76-2-tema-claro.png",
+      "data": "2026-11-14T02:48:38"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H76-1-tema-escuro.png",
+      "nome": "H76-1-tema-escuro.png",
+      "data": "2026-11-14T02:48:32"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H75-3-menu.png",
+      "nome": "H75-3-menu.png",
+      "data": "2026-11-14T02:48:29"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H75-2-doca.png",
+      "nome": "H75-2-doca.png",
+      "data": "2026-11-14T02:48:27"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H75-1-minimizada.png",
+      "nome": "H75-1-minimizada.png",
+      "data": "2026-11-14T02:48:24"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H74-2-arrastada.png",
+      "nome": "H74-2-arrastada.png",
+      "data": "2026-11-14T02:48:21"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H74-1-vidro.png",
+      "nome": "H74-1-vidro.png",
+      "data": "2026-11-14T02:48:18"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H72-1-sessao.png",
+      "nome": "H72-1-sessao.png",
+      "data": "2026-11-14T02:48:02"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H71-1-conversa-longa.png",
+      "nome": "H71-1-conversa-longa.png",
+      "data": "2026-11-14T02:47:54"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H70-3-compilar.png",
+      "nome": "H70-3-compilar.png",
+      "data": "2026-11-14T02:47:03"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H70-2-licenca.png",
+      "nome": "H70-2-licenca.png",
+      "data": "2026-11-14T02:44:48"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H70-1-laco.png",
+      "nome": "H70-1-laco.png",
+      "data": "2026-11-14T02:44:45"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H69-1-pergunta.png",
+      "nome": "H69-1-pergunta.png",
+      "data": "2026-11-14T02:44:13"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H67-3-instalado.png",
+      "nome": "H67-3-instalado.png",
+      "data": "2026-11-14T02:41:50"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H67-2-rodou.png",
+      "nome": "H67-2-rodou.png",
+      "data": "2026-11-14T02:41:47"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H67-1-erro.png",
+      "nome": "H67-1-erro.png",
+      "data": "2026-11-14T02:41:44"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H58-chave-mudou.png",
+      "nome": "H58-chave-mudou.png",
+      "data": "2026-11-14T02:37:54"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H58-htop.png",
+      "nome": "H58-htop.png",
+      "data": "2026-11-14T02:37:48"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H58-vim.png",
+      "nome": "H58-vim.png",
+      "data": "2026-11-14T02:37:42"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H55-terminal-vt.png",
+      "nome": "H55-terminal-vt.png",
+      "data": "2026-11-14T02:36:26"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H53-https.png",
+      "nome": "H53-https.png",
+      "data": "2026-11-14T02:36:02"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H49-baixar.png",
+      "nome": "H49-baixar.png",
+      "data": "2026-11-14T02:34:34"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H47-3-aba-rede.png",
+      "nome": "H47-3-aba-rede.png",
+      "data": "2026-11-14T02:32:25"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H47-2-barra-sem-cabo.png",
+      "nome": "H47-2-barra-sem-cabo.png",
+      "data": "2026-11-14T02:32:23"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H47-1-barra-conectado.png",
+      "nome": "H47-1-barra-conectado.png",
+      "data": "2026-11-14T02:32:20"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H45-rede.png",
+      "nome": "H45-rede.png",
+      "data": "2026-11-14T02:32:02"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H44-ping.png",
+      "nome": "H44-ping.png",
+      "data": "2026-11-14T02:31:47"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H41-aba-som.png",
+      "nome": "H41-aba-som.png",
+      "data": "2026-11-14T02:30:52"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H39-3-banana-escondida.png",
+      "nome": "H39-3-banana-escondida.png",
+      "data": "2026-11-14T02:30:06"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H39-2-aba-programas.png",
+      "nome": "H39-2-aba-programas.png",
+      "data": "2026-11-14T02:29:58"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H39-1-instalado.png",
+      "nome": "H39-1-instalado.png",
+      "data": "2026-11-14T02:29:55"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H38-3-sobre.png",
+      "nome": "H38-3-sobre.png",
+      "data": "2026-11-14T02:29:34"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H38-2-aparencia-noite.png",
+      "nome": "H38-2-aparencia-noite.png",
+      "data": "2026-11-14T02:29:32"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H38-1-relogio.png",
+      "nome": "H38-1-relogio.png",
+      "data": "2026-11-14T02:29:15"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H37-config.png",
+      "nome": "H37-config.png",
+      "data": "2026-11-14T02:28:53"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H36-energia.png",
+      "nome": "H36-energia.png",
+      "data": "2026-11-14T02:28:20"
+    },
+    {
+      "arquivo": "docs/v2/capturas/H35-pci.png",
+      "nome": "H35-pci.png",
+      "data": "2026-11-14T02:28:02"
+    }
+  ],
+  "linhas": {
+    "boot": 920,
+    "kernel": 15252,
+    "userland": 60013,
+    "ferramentas": 11711
+  },
+  "imagem": {
+    "bytes_util": 5966336,
+    "bytes_arquivo": 5996544,
+    "meta_bytes": null
+  },
+  "progresso_geral": 94.1
+}

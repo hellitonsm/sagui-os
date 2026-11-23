@@ -16,6 +16,9 @@
 #include "processo.h"
 #include "texto.h"
 #include "som.h"
+#include "hda.h"
+#include "rede.h"
+#include "configuracoes.h"
 
 static const chamada_t tabela[SIS_MAX] = {
     [SIS_EXECUTAR] = sis_executar,       [SIS_ESPERAR] = sis_esperar,
@@ -33,7 +36,6 @@ static const chamada_t tabela[SIS_MAX] = {
     [SIS_DORMIR] = sis_dormir,           [SIS_TEMPO] = sis_tempo,
     [SIS_DATA] = sis_data,               [SIS_INFO_SISTEMA] = sis_info_sistema,
     [SIS_AUMENTAR_MEM] = sis_aumentar_memoria, [SIS_REINICIAR] = sis_reiniciar,
-    [SIS_DESLIGAR] = sis_desligar,
     [SIS_REGISTRAR] = sis_registrar,
     [SIS_MODO_TERMINAL] = sis_modo_terminal,   [SIS_LIMPAR_TELA] = sis_limpar_tela,
     [SIS_CRIAR_JANELA] = sis_criar_janela,     [SIS_FECHAR_JANELA] = sis_fechar_janela,
@@ -43,19 +45,35 @@ static const chamada_t tabela[SIS_MAX] = {
     [SIS_DESMONTAR] = sis_desmontar,
     [SIS_BIP] = sis_bip,
     [SIS_TECLAS_SEGURADAS] = sis_teclas_seguradas,
-    [SIS_HTTP_OBTER] = sis_http_obter,
-    [SIS_REDE_INFO] = sis_rede_info,
-    [SIS_TLS] = sis_tls,
-    [SIS_TECLA_TENTEU] = sis_tecla_tenteu,
-    [SIS_SERVIDOR_ARQUIVOS] = sis_servidor_arquivos,
+    [SIS_LER_TELA]      = sis_ler_tela,
+    [SIS_DESLIGAR] = sis_desligar,
+    [SIS_CONFIG_LER] = sis_config_ler,   [SIS_CONFIG_GRAVAR] = sis_config_gravar,
+    [SIS_AJUSTAR_DATA] = sis_ajustar_data,
+    [SIS_SOM_ABRIR] = sis_som_abrir,     [SIS_SOM_ENVIAR] = sis_som_enviar,
+    [SIS_SOM_FECHAR] = sis_som_fechar,   [SIS_SOM_VOLUME] = sis_som_volume,
+    [SIS_REDE_INFO] = sis_rede_info,     [SIS_REDE_SOCKET] = sis_rede_socket,
+    [SIS_REDE_CONECTAR] = sis_rede_conectar, [SIS_REDE_ENVIAR] = sis_rede_enviar,
+    [SIS_REDE_RECEBER] = sis_rede_receber,   [SIS_REDE_FECHAR] = sis_rede_fechar,
+    [SIS_REDE_ESTADO] = sis_rede_estado,
+    [SIS_ALEATORIO] = sis_aleatorio,
+    [SIS_JANELA_OPCOES] = sis_janela_opcoes,
+    [SIS_JANELA_MODO]   = sis_janela_modo,
+    [SIS_MENU_JANELA]   = sis_menu_janela,
+    [SIS_DISCO_SETORES] = sis_disco_setores,  [SIS_DISCO_RELER] = sis_disco_reler,
+    [SIS_DISCO_LIBERAR] = sis_disco_liberar, [SIS_DISCO_TABELA] = sis_disco_tabela,
+    [SIS_AREA_COPIA]    = sis_area_copia,
 };
 
 bool usuario_ok(const void *p, uint32_t n, bool escrita)
 {
-    uint32_t ini = (uint32_t)p;
+    /* No kernel de 64 bits um ponteiro tem 8 bytes: o teste é feito com o
+     * valor inteiro, antes de reduzir a 32 bits, para que nada acima de 4 GB
+     * passe por um endereço baixo truncado. */
+    uintptr_t ini_l = (uintptr_t)p;
     if (n == 0) return true;
-    if (ini < USUARIO_INICIO || ini >= USUARIO_FIM || n > USUARIO_FIM - ini)
+    if (ini_l < USUARIO_INICIO || ini_l >= USUARIO_FIM || n > USUARIO_FIM - ini_l)
         return false;
+    uint32_t ini = (uint32_t)ini_l;
     for (uint32_t pag = ini & ~0xFFFu; pag < ini + n; pag += 4096) {
         uint32_t flags;
         if (!espaco_traduzir(atual->espaco, pag, &flags)) return false;
@@ -69,7 +87,7 @@ int usuario_texto(const char *origem, char *destino, uint32_t max)
 {
     for (uint32_t i = 0; i < max; i++) {
         /* Confere cada página quando entra nela (o texto pode cruzar páginas). */
-        if ((i == 0 || (((uint32_t)origem + i) & 0xFFF) == 0) && !usuario_ok(origem + i, 1, false))
+        if ((i == 0 || (((uintptr_t)origem + i) & 0xFFF) == 0) && !usuario_ok(origem + i, 1, false))
             return ERRO_ENDERECO;
         destino[i] = origem[i];
         if (!origem[i]) return (int)i;
@@ -90,7 +108,11 @@ static quadro_t *tratar_sistema(quadro_t *q)
         q->eip -= 2;               /* executa o "int 0x80" de novo ao acordar */
         return escalonar(q);
     }
+#ifdef __x86_64__
+    q->rax = (uint32_t)r;   /* o programa de 32 bits só vê EAX; a metade alta fica zerada */
+#else
     q->eax = (uint32_t)r;
+#endif
     if (atual->estado != P_EXECUTANDO)   /* bloqueou com resultado pronto, ou terminou */
         return escalonar(q);
     return q;

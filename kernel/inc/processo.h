@@ -8,7 +8,11 @@
 
 #define MAX_PROCESSOS   64
 #define MAX_ARQUIVOS    16
+#ifdef __x86_64__
+#define PILHA_KERNEL    16384    /* 4 páginas: no modo longo os quadros e registradores têm 8 bytes */
+#else
 #define PILHA_KERNEL    8192     /* 2 páginas por processo */
+#endif
 #define QUANTUM_TIQUES  2        /* 20 ms de CPU antes de passar a vez */
 
 typedef enum { P_LIVRE, P_PRONTO, P_EXECUTANDO, P_BLOQUEADO, P_ZUMBI } estado_t;
@@ -31,8 +35,10 @@ typedef struct processo {
     struct arquivo *arquivos[MAX_ARQUIVOS];
     char        pasta[CAMINHO_MAX];
     uint32_t    dados_inicio, dados_fim;   /* área que cresce com aumentar_memoria */
-    uint32_t    tls_base;                  /* base do TCB usado pelo descritor GS */
     uint32_t    tiques_cpu;
+    /* Registradores de ponto flutuante (x87 e SSE) do processo, no formato do
+     * FXSAVE: salvos e restaurados a cada troca de processo (H80). */
+    uint8_t     fpu[512] __attribute__((aligned(16)));
 } processo_t;
 
 extern processo_t *atual;

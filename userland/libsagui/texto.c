@@ -34,6 +34,15 @@ int memcmp(const void *x, const void *y, size_t n)
     return 0;
 }
 
+/* O gcc pode trocar um laço que conta letras por uma chamada a strlen (o
+ * JavaScript do Cipó tem um assim, H82): ela precisa existir. */
+size_t strlen(const char *s)
+{
+    size_t n = 0;
+    while (s[n]) n++;
+    return n;
+}
+
 size_t tam_texto(const char *s)
 {
     size_t n = 0;
@@ -97,18 +106,6 @@ bool comeca_com(const char *s, const char *p)
 bool eh_espaco(int c)
 {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-}
-
-/* Extensões que o sistema abre na IDE (o editor de código). Fica na libsagui
- * para o shell, o gerenciador de arquivos e a própria IDE usarem a mesma
- * lista: .go, .lua, .c, .h e .mk (receitas do make). */
-bool eh_codigo_fonte(const char *nome)
-{
-    const char *p = acha_ultimo_char(nome, '.');
-    if (!p || p == nome) return false;
-    return compara_texto(p, ".go") == 0 || compara_texto(p, ".lua") == 0 ||
-           compara_texto(p, ".c") == 0 || compara_texto(p, ".h") == 0 ||
-           compara_texto(p, ".mk") == 0;
 }
 
 /* Converte, no lugar, sequências UTF-8 válidas de caracteres do Latin-1

@@ -12,13 +12,12 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu import Maquina, verificar, abrir_terminal  # noqa: E402
+from qemu import Maquina, verificar  # noqa: E402
 
 
 def main():
     with Maquina("h27", "ide") as m:
-        m.esperar_serial("area de trabalho no ar", 120)
-        abrir_terminal(m)   # o Terminal agora abre pelo ícone (D039)
+        m.esperar_serial("sagui:/$", 120)
         time.sleep(1)
         m.comando("banana")
         m.esperar_serial("banana: tela de inicio", 20)

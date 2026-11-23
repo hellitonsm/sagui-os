@@ -1,78 +1,65 @@
-/* rede.h - interface das placas Ethernet e da configuração IP do SaguiOS.
+/* rede.h - a rede do SaguiOS (fase 3 da versão 2.0).
  *
- * A pilha de rede fala com uma única placa, escolhida no boot pela ordem da
- * tabela de drivers (ver rede.c). Os drivers vivem em kernel/dispositivos/:
- *
- *   e1000 - Intel 82540EM/82545EM/82543GC. É a placa "Intel PRO/1000 MT
- *           Desktop" do VirtualBox e a -device e1000 do QEMU.
- *   pcnet - AMD Am79C970A/Am79C973 (PCnet-PCI/PCnet-FAST III). É a placa
- *           padrão do VirtualBox para máquinas de tipo "Outro/Desconhecido"
- *           e a -device pcnet do QEMU.
- *
- * O endereço IP, a máscara, o gateway e o DNS vêm de DHCP; se o servidor não
- * responder, a rede assume 10.0.2.15/24 com gateway 10.0.2.2 e DNS 10.0.2.3,
- * que é o padrão da rede NAT do VirtualBox e também a do QEMU user-net.
- */
+ * Camadas, de baixo para cima:
+ *   placa (e1000.c, ...)   manda e recebe quadros Ethernet
+ *   rede.c                 Ethernet, ARP, IPv4, ICMP, UDP, DHCP e sockets
+ *   tcp.c                  TCP (fase 4)
+ * Os programas usam a rede por chamadas de sistema de sockets; DNS, HTTP,
+ * TLS e SSH são bibliotecas e programas em ring 3. */
 #ifndef SAGUI_REDE_H
 #define SAGUI_REDE_H
 #include "tipos.h"
+#include "abi.h"
 
-#define REDE_NOME_MAX 16
+#define ETH_MAX 1518
 
-typedef struct {
-    bool     presente;              /* achou uma placa conhecida            */
-    char     driver[REDE_NOME_MAX]; /* "e1000", "pcnet"                     */
-    uint16_t id_fabricante, id_modelo; /* identificação PCI da placa        */
+/* Uma placa de rede, vista pela pilha. */
+typedef struct placa {
+    char     nome[32];
     uint8_t  mac[6];
-    bool     link;                  /* o cabo/rede parece ligado            */
-    uint32_t ip, mascara, gateway, dns;
-    bool     dhcp;                  /* endereço negociado por DHCP          */
-    uint32_t dhcp_servidor;
-    uint32_t enviados, recebidos, descartados;
-} rede_info_t;
+    bool     (*enviar)(struct placa *p, const void *quadro, uint32_t tam);
+    int      (*receber)(struct placa *p, void *quadro, uint32_t max);   /* 0 = nada chegou */
+    bool     (*cabo)(struct placa *p);                                  /* cabo ligado? */
+    void    *dados;
+} placa_t;
 
-/* Liga a placa, negocia o endereço (DHCP com reserva estática) e deixa a
- * pilha pronta. Devolve false se nenhuma placa conhecida foi encontrada. */
-bool rede_iniciar(void);
-bool rede_disponivel(void);
-/* Relê o link na placa (no VirtualBox ele só sobe segundos depois do reset). */
-bool rede_link_atual(void);
-const rede_info_t *rede_info(void);
-const uint8_t *rede_mac(void);
+/* Endereços IPv4 guardados na ordem da rede (o primeiro byte é o primeiro número). */
+typedef uint32_t ip4_t;
+#define IP4(a, b, c, d) ((ip4_t)(a) | ((ip4_t)(b) << 8) | ((ip4_t)(c) << 16) | ((ip4_t)(d) << 24))
 
-/* Quadros Ethernet completos, com o cabeçalho de 14 bytes. Receber devolve 0
- * quando não há quadro pronto; o resto é polling (sem IRQ). */
-bool     rede_enviar(const void *quadro, uint16_t bytes);
-uint16_t rede_receber(void *quadro, uint16_t capacidade);
+static inline uint16_t troca16(uint16_t v) { return (uint16_t)((v >> 8) | (v << 8)); }
+static inline uint32_t troca32(uint32_t v)
+{
+    return (v >> 24) | ((v >> 8) & 0xFF00) | ((v << 8) & 0xFF0000) | (v << 24);
+}
 
-/* Cadeado da pilha (D040): os buffers são estáticos e o polling roda com as
- * interrupções ligadas, então duas chamadas de rede ao mesmo tempo (o wget
- * e o servidor de arquivos) pisariam uma na outra. Quem for usar a pilha
- * por muito tempo reserva aqui; quem chega e não consegue recebe
- * ERRO_OCUPADO. O dono é um pid: se o dono morreu segurando (kill no meio
- * de uma fatia), o cadeado é tomado de volta. */
-bool rede_pilha_reservar(void);
-void rede_pilha_liberar(void);
+placa_t *e1000_iniciar(void);
+void     rede_placa_usb(placa_t *p, bool conectou);   /* adaptador USB de rede (H46) */
+void     rede_iniciar(void);
+bool     rede_tem_placa(void);
+void     rede_relatorio(char *s, int max);
+int      rede_estado(void);   /* 0 sem placa, 1 sem cabo, 2 pedindo endereço, 3 conectado */
+uint16_t soma_verificacao(const void *dados, uint32_t tam, uint32_t inicial);
 
-/* Descobre o MAC de quem responde por um IP (ARP, com cache de 8 entradas).
- * "proximo_salto" devolve o MAC do destino se ele está na mesma sub-rede, ou
- * o do gateway caso contrário — é o que a pilha IP precisa. */
-bool rede_resolver(uint32_t ip, uint8_t *mac);
-bool rede_proximo_salto(uint32_t destino, uint8_t *mac);
+/* Interno da pilha (rede.c e tcp.c). */
+bool     ip_enviar(ip4_t destino, uint8_t protocolo, const void *dados, uint32_t tam);
+ip4_t    rede_meu_ip(void);
+void     tcp_receber(ip4_t origem, const uint8_t *segmento, uint32_t tam);
+void     tcp_tique(void);
+int      tcp_abrir(ip4_t ip, uint16_t porta);
+int      tcp_estado(int id);
+int      tcp_enviar(int id, const uint8_t *dados, uint32_t n);
+int      tcp_receber_dados(int id, uint8_t *dados, uint32_t max);
+int      tcp_fechar(int id);
+void     tcp_relatorio(char *s, int max);
+int32_t  sis_rede_estado(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
-/* Os dois drivers (kernel/dispositivos/). */ 
-bool e1000_iniciar(void);
-bool e1000_enviar(const void *quadro, uint16_t bytes);
-uint16_t e1000_receber(void *quadro, uint16_t capacidade);
-const uint8_t *e1000_mac(void);
-bool e1000_link(void);
-uint16_t e1000_ids(uint16_t *fabricante, uint16_t *modelo);
-
-bool pcnet_iniciar(void);
-bool pcnet_enviar(const void *quadro, uint16_t bytes);
-uint16_t pcnet_receber(void *quadro, uint16_t capacidade);
-const uint8_t *pcnet_mac(void);
-bool pcnet_link(void);
-uint16_t pcnet_ids(uint16_t *fabricante, uint16_t *modelo);
+/* Sockets (chamadas de sistema). */
+int32_t sis_rede_info(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int32_t sis_rede_socket(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int32_t sis_rede_conectar(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int32_t sis_rede_enviar(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int32_t sis_rede_receber(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int32_t sis_rede_fechar(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
 #endif

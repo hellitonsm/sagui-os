@@ -335,7 +335,159 @@ const desenho_t arte_icone_sagui3d    = { icone_sagui3d, 32, 32 };
 const desenho_t arte_icone_sobre      = { icone_sobre, 32, 32 };
 const desenho_t arte_icone_pendrive   = { icone_pendrive, 32, 32 };
 
+/* Configurações (H38): uma engrenagem com luz vindo de cima à esquerda. */
+static const char *const icone_configuracoes[] = {
+    "................................",
+    "................................",
+    "..............PPPP..............",
+    "..............LLLL..............",
+    ".......P......LLLL......P.......",
+    "......PP...PPPLLLLPPP...PP......",
+    ".....PPLL.PPLLLLLLLLPP.CCPP.....",
+    "....PPLLLLLLLLLLLLLLCCCCCCPP....",
+    "......LLLLLLLLLLLLLCCCCCCC......",
+    ".......LLLLLLLLLLLCCCCCCC.......",
+    "......PLLLLLLLPPPPCCCCCCCP......",
+    ".....PPLLLLLPPPPPPPPCCCCCPP.....",
+    ".....PLLLLLPP......PPCCCCkP.....",
+    ".....PLLLLLP........PCCCkkP.....",
+    "..PLLLLLLLPP........PPCkkkkkkP..",
+    "..PLLLLLLLPP........PPkkkkkkkP..",
+    "..PLLLLLLLPP........PPkkkkkkkP..",
+    "..PLLLLLLLPP........PPkkkkkkkP..",
+    ".....PLLLCCP........PkkkkkP.....",
+    ".....PLLCCCPP......PPkkkkkP.....",
+    ".....PPCCCCCPPPPPPPPkkkkkPP.....",
+    "......PCCCCCCCPPPPkkkkkkkP......",
+    ".......CCCCCCCCkkkkkkkkkk.......",
+    "......CCCCCCCCkkkkkkkkkkkk......",
+    "....PPCCCCCCCkkkkkkkkkkkkkPP....",
+    ".....PPCC.PPkkkkkkkkPP.kkPP.....",
+    "......PP...PPPkkkkPPP...PP......",
+    ".......P......kkkk......P.......",
+    "..............kkkk..............",
+    "..............PPPP..............",
+    "................................",
+    "................................",
+};
+const desenho_t arte_icone_configuracoes = { icone_configuracoes, 32, 32 };
+
+/* Programa instalado no pendrive (H39): uma caixa com fita verde. */
+static const char *const icone_instalado[] = {
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "....PPPPPPPPPPggggPPPPPPPPPP....",
+    "....PCCCCCCCCPggggPCCCCCCCCP....",
+    "....PCCCCCCCCPggggPCCCCCCCCP....",
+    "....PCCCCCCCCPggggPCCCCCCCCP....",
+    "....PPPPPPPPPPggggPPPPPPPPPP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMPPPPPMPggggPMMMMMMMMP....",
+    "....PMMPcccPMPggggPMMMMMMMMP....",
+    "....PMMPcccPMPggggPMMMMMMMMP....",
+    "....PMMPcccPMPggggPMMMMMMMMP....",
+    "....PMMPPPPPMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PMMMMMMMMPggggPMMMMMMMMP....",
+    "....PPPPPPPPPPggggPPPPPPPPPP....",
+    "................................",
+    "................................",
+    "................................",
+};
+const desenho_t arte_icone_instalado = { icone_instalado, 32, 32 };
+
+/* Botão de energia da barra de cima (H36): o símbolo de liga/desliga. */
+const char *const arte_botao_energia[16] = {
+    "................",
+    ".......BB.......",
+    ".......BB.......",
+    "....B..BB..B....",
+    "...BB..BB..BB...",
+    "..BB...BB...BB..",
+    "..B....BB....B..",
+    ".BB....BB....BB.",
+    ".BB..........BB.",
+    ".BB..........BB.",
+    "..B..........B..",
+    "..BB........BB..",
+    "...BB......BB...",
+    "....BBBBBBBB....",
+    "......BBBB......",
+    "................",
+};
+
+/* Ícone de rede da barra de cima (H47): um monitor com o "sinal" de cabo.
+ * A cor muda conforme o estado (desenhado com cor própria em area_barra). */
+const char *const arte_icone_rede[16] = {
+    "................",
+    ".BBBBBBBBBBBBBB.",
+    ".B............B.",
+    ".B............B.",
+    ".B............B.",
+    ".B............B.",
+    ".B............B.",
+    ".B............B.",
+    ".BBBBBBBBBBBBBB.",
+    "......BBBB......",
+    ".......BB.......",
+    ".......BB.......",
+    ".BBBBBBBBBBBBBB.",
+    "................",
+    "................",
+    "................",
+};
+
 /* Paleta: letra -> cor. Devolve false para transparente. */
+/* Navegador (H62/H75): um globo com os continentes em verde. */
+static const char *const icone_navegador[] = {
+    "................................",
+    "................................",
+    "............PPPPPPPP............",
+    "..........PPPssssssPPP..........",
+    "........PPVssVVssVVssVPP........",
+    ".......PPVVsVVVssVVVsVVPP.......",
+    "......PVVVssVVVssVVVssVVVP......",
+    ".....PVVVVsVVVVssGGGGGVVVVP.....",
+    "....PPVVGGGGGVVssGGGGGVVVVPP....",
+    "....PVVGGGGGGGVssGGGGGsVVVVP....",
+    "...PVVVGGGGGGGVssVVVVVsVVVVVP...",
+    "...PVVVGGGGGGGVssVVVVVsVVVVVP...",
+    "..PPVVVVGGGGGVVssVVVVVsVVVVVPP..",
+    "..PVVVVVVsVVVVVssVVVVVsVVVVVVP..",
+    "..PVVVVVsVVVVVVssVVVVGGGVVVVVP..",
+    "..PssssssssssssssssssGGGsssssP..",
+    "..PsssssssssGGGGGssssGGGsssssP..",
+    "..PVVVVVsVVGGGGGGGVVVGGGVVVVVP..",
+    "..PVVVVVVsVGGGGGGGVVVGGGVVVVVP..",
+    "..PPVVVGGGVGGGGGGGVVVGGGVVVVPP..",
+    "...PVVVGGGVGGGGGGGVVVGGGVVVVP...",
+    "...PVVVGGGVGGGGGGGVVVVsVVVVVP...",
+    "....PVVVVsVVGGGGGVVVVVsVVVVP....",
+    "....PPVVVVsVVVVssVVVVsVVVVPP....",
+    ".....PVVVVsVVVVssVVVVsVVVVP.....",
+    "......PVVVssVVVssVVVssVVVP......",
+    ".......PPVVsVVVssVVVsVVPP.......",
+    "........PPVssVVssVVssVPP........",
+    "..........PPPssssssPPP..........",
+    "............PPPPPPPP............",
+    "................................",
+    "................................",
+};
+const desenho_t arte_icone_navegador = { icone_navegador, 32, 32 };
+
 bool arte_cor(char letra, uint32_t *cor)
 {
     switch (letra) {

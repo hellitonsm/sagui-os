@@ -2,7 +2,8 @@
 qemu.py - controle do QEMU para os testes automáticos do SaguiOS.
 
 Cada teste cria uma Maquina, que:
-  - liga o QEMU sem janela (-display none), sem KVM;
+  - liga o QEMU sem janela (-display none), com KVM quando a máquina deixa
+    (veja acelerador(); D075) e com a emulação pura (TCG) senão;
   - manda a serial COM1 para um arquivo (o log do kernel);
   - abre o monitor do QEMU num socket Unix, usado para enviar teclas, mover o
     mouse, ler a memória e tirar capturas de tela (screendump -> PNG).
@@ -20,10 +21,16 @@ import subprocess
 import time
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-IMAGEM = os.path.join(RAIZ, "build", "saguios.img")
+# SAGUI_IMAGEM: rodar os testes com outra imagem (a H68 usa a dos programas feitos pelo cc).
+IMAGEM = os.environ.get("SAGUI_IMAGEM") or os.path.join(RAIZ, "build", "saguios.img")
 SAIDA = os.path.join(RAIZ, "build", "testes")
-CAPTURAS = os.path.join(RAIZ, "docs", "capturas")
+CAPTURAS = os.environ.get("SAGUI_CAPTURAS") or os.path.join(RAIZ, "docs", "capturas")
 TEMPO_MAX = 180
+# SAGUI_QEMU: qual QEMU usar. A 3.0 tem o kernel de 64 bits (D076), que só
+# roda no qemu-system-x86_64; ele também roda a imagem de 32 bits (make
+# ARQ=32), então é o padrão. "qemu-system-i386" testa a imagem de 32 bits
+# numa CPU sem 64 bits, como era na 2.x.
+QEMU = os.environ.get("SAGUI_QEMU") or "qemu-system-x86_64"
 
 # Como digitar cada caractere num teclado ABNT2 pelo QEMU. O QEMU nomeia as
 # teclas pela posição do teclado americano; o kernel aplica o mapa ABNT2. Por
@@ -113,7 +120,8 @@ def imagem_de_teste(teste, extras=()):
     subprocess.run(["python3", os.path.join(RAIZ, "tools", "mkimagem.py"),
                     "--mbr", os.path.join(b, "boot", "mbr.bin"), "--estagio2", os.path.join(b, "boot", "estagio2.bin"),
                     "--kernel", os.path.join(b, "kernel.bin"), "--kernel-elf", os.path.join(b, "kernel.elf"),
-                    "--ramdisk", os.path.join(b, "ramdisk.sgfs"), "--saida", destino, "--teste", teste, *extras],
+                    "--ramdisk", os.environ.get("SAGUI_RAMDISK") or os.path.join(b, "ramdisk.sgfs"),
+                    "--saida", destino, "--teste", teste, *extras],
                    check=True, stdout=subprocess.DEVNULL)
     return destino
 
@@ -181,12 +189,21 @@ def imagem_console():
     return imagem_de_teste("", ["--vesa", "--console"])
 
 
-def abrir_terminal(m):
-    """Abre o Terminal pelo ícone da área de trabalho (o 2º da coluna da
-    esquerda) e espera o prompt do sagsh. A área de trabalho não abre o
-    Terminal sozinho ao ligar (D039): quem quiser o shell, clica no ícone."""
-    m.clique(20 + 48, 24 + 16 + 1 * 84 + 32, duplo=True)
-    m.esperar_serial("sagui:/$", 30)
+def acelerador():
+    """Escolhe o acelerador do QEMU: "kvm" ou "tcg" (D075).
+
+    Com o KVM, o processador de verdade roda o código do SaguiOS, e o QEMU só
+    imita os dispositivos; é várias vezes mais rápido que o TCG, que traduz
+    instrução por instrução. O KVM só é usado se o /dev/kvm existe e este
+    usuário pode abri-lo para leitura e escrita (no CI, uma regra do udev
+    libera isso). SAGUI_KVM=0 força o TCG, o modo de sempre, para comparar ou
+    para contornar um teste que dependa do ritmo da emulação.
+    """
+    if os.environ.get("SAGUI_KVM", "1") == "0":
+        return "tcg"
+    if os.access("/dev/kvm", os.R_OK | os.W_OK):
+        return "kvm"
+    return "tcg"
 
 
 class FalhaTeste(Exception):
@@ -194,13 +211,14 @@ class FalhaTeste(Exception):
 
 
 class Maquina:
-    def __init__(self, nome, modo="ide", imagem=IMAGEM, memoria="512M", extras=None, formato="raw"):
+    def __init__(self, nome, modo="ide", imagem=IMAGEM, memoria="512M", extras=None, formato="raw", reiniciar=False):
         self.nome = f"{nome}-{modo}"
         self.modo = modo
         self.imagem = imagem
         self.memoria = memoria
         self.extras = extras or []
         self.formato = formato
+        self.reiniciar = reiniciar   # True: o QEMU reinicia em vez de sair (teste do H36)
         os.makedirs(SAIDA, exist_ok=True)
         self.arq_serial = os.path.join(SAIDA, self.nome + ".serial")
         self.sock_monitor = os.path.join(SAIDA, self.nome + ".mon")
@@ -212,10 +230,14 @@ class Maquina:
         for f in (self.arq_serial, self.sock_monitor):
             if os.path.exists(f):
                 os.remove(f)
-        cmd = ["qemu-system-i386", "-m", self.memoria, "-display", "none",
+        cmd = [QEMU, "-m", self.memoria, "-display", "none",
                "-serial", "file:" + self.arq_serial,
                "-monitor", f"unix:{self.sock_monitor},server,nowait",
-               "-no-reboot"]
+               ] + ([] if self.reiniciar else ["-no-reboot"])
+        # Sem o KVM, a linha de comando fica exatamente a de antes (o TCG é o
+        # padrão do QEMU).
+        if acelerador() == "kvm":
+            cmd += ["-accel", "kvm"]
         if self.modo == "ide":
             cmd += ["-drive", f"format={self.formato},file={self.imagem},if=ide,index=0,snapshot=on"]
         elif self.modo == "usb":
@@ -326,7 +348,12 @@ class Maquina:
     def captura(self, nome, guardar=True):
         """Tira uma captura de tela. guardar=True salva em docs/capturas/."""
         ppm = os.path.join(SAIDA, self.nome + "-" + nome + ".ppm")
-        destino = os.path.join(CAPTURAS if guardar else SAIDA, nome + ".png")
+        pasta = CAPTURAS
+        m = re.match(r"H(\d+)", nome)
+        if m and int(m.group(1)) >= 35:      # versão 2.0: capturas em docs/v2/capturas
+            pasta = os.environ.get("SAGUI_CAPTURAS") or os.path.join(RAIZ, "docs", "v2", "capturas")
+            os.makedirs(pasta, exist_ok=True)
+        destino = os.path.join(pasta if guardar else SAIDA, nome + ".png")
         self.monitor(f"screendump {ppm}")
         for _ in range(50):
             if os.path.exists(ppm) and os.path.getsize(ppm) > 0:
@@ -412,7 +439,26 @@ class Maquina:
                 self.tecla(c, espera)
 
 
+def versao_esperada():
+    """Versão que a imagem em build/ deve mostrar: 3.0.0 com o kernel de 64
+    bits, 2.2.0 com o de 32 (D080). O byte 4 do cabeçalho ELF diz a classe:
+    1 = 32 bits, 2 = 64 bits."""
+    with open(os.path.join(RAIZ, "build", "kernel.elf"), "rb") as k:
+        return "3.0.0" if k.read(5)[4] == 2 else "2.2.0"
+
+
 def verificar(condicao, mensagem):
     if not condicao:
         raise FalhaTeste(mensagem)
     print("  ok:", mensagem)
+
+
+def mtype(img, caminho):
+    """Conteúdo de um arquivo do pendrive (partição em 1 MB), lido com mtools."""
+    return subprocess.run(["mtype", "-i", img + "@@1M", f"::{caminho}"], capture_output=True).stdout
+
+
+def janela(serial, titulo):
+    """Posição da área de conteúdo da última janela com esse título (pelo log)."""
+    m = re.findall(rf'criada por \d+: "{re.escape(titulo)}" (\d+)x(\d+) em \((\d+),(\d+)\)', serial)[-1]
+    return dict(l=int(m[0]), a=int(m[1]), x=int(m[2]) + 2, y=int(m[3]) + 24, fx=int(m[2]), fy=int(m[3]))

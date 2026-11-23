@@ -91,10 +91,10 @@ de 32 KB); o disco do `saguios.vdi` é arredondado para múltiplos de 1 MB.
 
 **Motivo:** a primeira imagem tinha 32 KB. BIOS e VirtualBox inventam uma
 geometria (cilindros, cabeças, setores) a partir do tamanho do disco, e um
-disco menor que um cilindro é um caso pouco testado neles. 1 MB evita isso.
-O tamanho e medido pelos **bytes úteis** (MBR + cabeçalho + estágio 2 +
-kernel + ramdisk), que o build grava em `build/tamanho.txt` e o painel
-mostra. A meta de 1,44 MB do PRD foi retirada a pedido do Eli.
+disco menor que um cilindro é um caso pouco testado neles. 1 MB evita isso e
+continua abaixo da meta de 1,44 MB. A meta do PRD é medida pelos **bytes
+úteis** (MBR + cabeçalho + estágio 2 + kernel + ramdisk), que o build grava em
+`build/tamanho.txt` e o painel mostra.
 
 ## D005. `.vdi` gerado pelo `qemu-img`, testado no QEMU (H04)
 
@@ -905,351 +905,1713 @@ e depois ele volta a caçar. Ninguém se machuca.
 - Nenhum código, tutorial ou repositório de jogo foi consultado: as contas
   partiram da geometria descrita acima.
 
-## D031. Rede no VirtualBox: duas placas, DHCP e ARP de verdade (H35)
+## D031. Configurações no pendrive, montado sozinho quando é do SaguiOS (H37)
 
-O pedido foi "suportar o sistema de rede do VirtualBox". O que existia dava
-`wget` na NAT do QEMU, e só nela: o endereço `10.0.2.15` e o MAC do gateway
-`52:55:0a:00:02:02` estavam escritos no código, o único driver era o da Intel
-82540EM, e a inicialização não esperava o fim do reset. Três coisas, então:
-mais de uma placa, endereço negociado e ARP de verdade.
+O SaguiOS roda da RAM e nunca grava no disco interno, então as configurações
+moram no pendrive de dados, em `/usb/.saguios/configuracoes.txt`: texto
+simples, `chave = valor`, reescrito inteiro a cada mudança (são poucas linhas,
+e um desligamento no meio não deixa linha pela metade). O kernel guarda a
+tabela na memória e os programas leem e gravam por duas chamadas de sistema;
+assim o próprio kernel (a área de trabalho, o relógio) também usa os valores.
 
-### Quais placas
+Para as configurações valerem desde o boot, um pendrive que **já tem** a pasta
+`.saguios` é montado sozinho ao ser conectado: ela só existe se o usuário já
+montou esse pendrive e mudou alguma configuração, então montar não surpreende
+ninguém. Os outros pendrives continuam esperando o usuário montar, como na
+1.0. A espiada para saber se a pasta existe é só leitura (desmonta sem gravar).
 
-O VirtualBox oferece seis tipos de placa, e o tipo escolhido depende do sistema
-que se declara ao criar a máquina. Como o SaguiOS não é "Windows" nem "Linux",
-o VirtualBox cai em "Outro/Desconhecido" e escolhe sozinho a **AMD PCnet-FAST
-III** — exatamente a placa que o driver não conhecia. Por isso o driver novo,
-`kernel/dispositivos/pcnet.c`, e a lista de drivers em `kernel/rede/rede.c`:
+Mudanças feitas sem pendrive valem até desligar; se um pendrive for montado
+depois, elas são gravadas junto na próxima mudança.
 
-1. `e1000` — Intel 82540EM (MT Desktop), 82545EM (MT Server) e 82543GC
-   (T Server). É a recomendada, e a mesma `-device e1000` do QEMU.
-2. `pcnet` — AMD Am79C970A/79C973 (PCnet-PCI e PCnet-FAST III), a placa padrão
-   do VirtualBox e a `-device pcnet` do QEMU.
+## D032. Aparência e ícones em colunas (H38)
 
-A "Paravirtualized Network (virtio-net)" ficou de fora: exigiria um driver de
-virtqueue e não traz nada para o que o projeto faz. Está documentado como não
-suportado, com a recomendação de trocar para a Intel.
+A aba Aparência troca o degradê do fundo (Brasil, Mata, Céu, Noite, Terra) e
+mostra ou esconde o sagui do canto. O kernel guarda o fundo pronto num
+buffer; quando as configurações mudam (um contador de "geração" aumenta), a
+tarefa das janelas redesenha o fundo e a tela. O tamanho dos ícones, previsto
+no PRD, ficou de fora: com 8 ou 9 ícones, ícones maiores não cabem em 768
+linhas. Em vez disso, os ícones voltaram ao espaçamento folgado da 1.0 e
+continuam numa segunda coluna quando não cabem mais na primeira.
 
-### O que faltava no e1000 para funcionar fora do QEMU
+Acertar o relógio grava direto no relógio da placa-mãe (CMOS), com o bit SET
+ligado durante a escrita para o chip não avançar no meio, no mesmo formato
+(BCD ou binário, 12 ou 24 horas) que ele já usa. O fuso horário é guardado
+nas configurações para o relógio automático pela internet (fase 4).
 
-- **Esperar o reset terminar** (ler `CTRL.RST` até ele se apagar, com prazo) em
-  vez de contar voltas fixas. O QEMU emulado aceitava o `CTRL.SLU` mesmo com o
-  reset em andamento; o VirtualBox pode não aceitar, e o link nunca subiria.
-- **Gravar RAL/RAH** (com o bit `AV`) depois de ler o MAC: é essa tabela que o
-  controlador usa para decidir quais quadros aceita. O driver antigo só lia.
-- **Ligar UPE/MPE** (promíscuo): ARP, DHCP e broadcast passam sempre, mesmo que
-  a filtragem de endereços de alguma versão do VirtualBox discorde do que foi
-  gravado.
-- **Ler o MAC pela EEPROM** (`EERD`) quando os registradores vêm zerados, e, em
-  último caso, usar um MAC local. Placa muda é pior do que MAC inventado.
+## D033. Som: HD Audio por consulta, misturador no tique (H40 a H42)
 
-### Endereço: DHCP, com a NAT como reserva
+**Driver.** O controlador HD Audio conversa com o codec por duas filas na
+memória (CORB para os comandos, RIRB para as respostas). O driver não usa
+interrupções: manda o comando e espera o ponteiro do RIRB andar. Um detalhe
+achado no QEMU: com o aviso de resposta (bit 0 do RIRBCTL) desligado, o
+controlador do QEMU para de ler a fila depois de cada resposta; com ele ligado
+e as interrupções globais desligadas, o aviso só marca um registrador, que o
+driver limpa a cada resposta. Funciona igual nos dois casos no hardware real.
 
-O endereço fixo amarrou o sistema ao QEMU. O cliente DHCP de
-`kernel/rede/dhcp.c` faz o roteiro DORA (descobrir, ofertar, pedir, confirmar)
-em UDP sobre Ethernet, sem IP próprio (0.0.0.0 → broadcast), com três
-tentativas de 600 ms. Isso é o que faz a rede funcionar também em
-**Bridge** e **Host-only** do VirtualBox, onde o endereço não é `10.0.2.x`.
-Se ninguém responder, fica valendo `10.0.2.15/24`, gateway `10.0.2.2` e DNS
-`10.0.2.3` — que é o padrão da NAT do VirtualBox e da user-net do QEMU — e o
-`wget` continua funcionando numa rede isolada.
+O caminho do som é descoberto pelo grafo do codec, sem tabela de modelos: para
+cada pino que a configuração do fabricante diz ser linha, alto-falante ou fone
+e estar ligado a algo, uma busca em profundidade pelas listas de conexão acha
+um DAC. No caminho, os seletores recebem a conexão certa, os amplificadores
+ficam sem mudo no passo de 0 dB (alto sem distorcer), o pino liga a saída (e o
+reforço de fone) e, se tiver, o amplificador externo (EAPD), que muitos
+notebooks precisam para o alto-falante tocar.
 
-O MAC do próximo salto agora vem de **ARP** (`kernel/rede/rede.c`, com cache de
-8 entradas e validade de 300 s), então o gateway pode ser qualquer roteador com
-qualquer MAC — o antigo `52:55:0a:00:02:02` do slirp não existe numa rede
-bridge.
+**Misturador.** Um anel de 64 KB que o DMA lê sem parar, em 48 kHz, 16 bits,
+estéreo. A cada tique (10 ms), o kernel escreve o pedaço que falta para ficar
+60 ms à frente da posição de leitura: soma as fontes dos programas e a fonte de
+notas, aplica o volume e corta em 16 bits. Cada programa tem um anel próprio de
+~340 ms e manda quadros sem esperar (a chamada devolve quantos cabem), então
+nenhum programa trava por causa do som.
 
-### A pilha, separada em camadas pequenas
+**O bip pela placa.** As listas de notas do B3 (comando `bip`, Sagui Pega
+Banana, Sagui 3D) viram ondas quadradas suaves na placa quando ela existe; sem
+placa, continuam no alto-falante do PC. Os jogos ganharam a placa de som sem
+mudar uma linha.
 
-- `kernel/inc/rede.h` + `kernel/rede/rede.c`: escolhe a placa, guarda a
-  configuração IP, faz ARP e conta os quadros.
-- `kernel/inc/pacotes.h` + `kernel/rede/pacotes.c`: somas de verificação,
-  campos de 16/32 bits, "manda um IPv4", "espera um IPv4" e prazos em
-  milissegundos que também terminam se o relógio parar de andar.
-- `kernel/rede/dhcp.c`: o cliente DHCP.
-- `kernel/rede/http.c`: DNS por UDP, TCP básico e HTTP/1.0, agora usando a
-  configuração de `rede_info()` em vez de constantes.
-- `kernel/inc/abi.h` (`SIS_REDE_INFO`) e o programa `rede`: placa, MAC, link,
-  IP, máscara, gateway, DNS e contadores, para conferir dentro da máquina
-  virtual sem adivinhar.
+**Testes.** O QEMU grava a saída da placa num `.wav`; o teste mede a frequência
+(cruzamentos do zero) e a mistura (algoritmo de Goertzel para cada frequência).
+O canto do sagui (`/sons/sagui.wav`) é sintetizado por `tools/mksom.py`.
 
-Tudo continua em *polling*, sem IRQ, com anéis e buffers estáticos abaixo de
-4 GiB (o modelo de DMA dos dois controladores) e uma placa por vez — a pilha é
-serializada pela chamada de sistema, como já era.
+## D034. Rede: tudo por consulta, e a pendência do G470 (H43 a H47)
 
-### Como isso foi conferido
+A placa Intel PRO/1000 (a das máquinas virtuais) trabalha com dois anéis de
+descritores na memória; o driver não usa interrupções: a tarefa da rede acorda
+a cada tique (10 ms), tira o que chegou e cuida dos relógios (DHCP, ARP, TCP).
+Com 10 ms de folga, o atraso extra é pequeno e o código fica muito mais simples
+e previsível. A pilha guarda os endereços IPv4 "na ordem da rede" (o primeiro
+número no byte mais baixo), o que evita converter em cada comparação.
 
-O VirtualBox não roda dentro da máquina de desenvolvimento, mas as duas placas
-que ele usa são as mesmas que o QEMU emula. `tests/h35_rede.py` liga o sistema
-com `-device e1000` e com `-device pcnet`, confere o DHCP (`10.0.2.15`), o
-comando `rede`, o ARP até o gateway e um `wget` completo (TCP + HTTP) servido
-por um HTTP local, além do caso sem placa nenhuma. Foi assim que apareceram os
-dois erros 20 e 21 de `docs/erros.md`, que o teste da versão antiga não pegava.
-O passo a passo para o VirtualBox está em `docs/virtualbox.md`, e
-`make rodar-pcnet` abre o QEMU com a placa padrão do VirtualBox.
+O DNS fica fora do kernel (na `libsagui`), como manda o PRD: é só uma pergunta
+UDP para o servidor que o DHCP informou. Os nomes "comprimidos" das respostas
+são pulados sem montar o texto, porque só o endereço interessa.
 
-## D032. Esperar o link subir (correção da H35 no VirtualBox)
+**H46 (rede no G470) ficou pendente.** Depende da foto do comando `pci` no
+notebook: se o chip de rede tiver manual público, ganha driver próprio; se não,
+o plano B é um adaptador USB-Ethernet da classe CDC (especificação pública). O
+adaptador USB que o QEMU simula é de velocidade plena (USB 1.1) e o driver EHCI
+do SaguiOS só fala com dispositivos de alta velocidade, então esse caminho não
+dá para testar no QEMU como o PRD supunha: ele será testado com o adaptador de
+verdade.
 
-O primeiro teste de verdade no VirtualBox (com a placa padrão dele) mostrou
-`Link: sem sinal` e nenhum quadro trocado, com o mesmo `.vdi` funcionando no
-QEMU. A causa está no modelo emulado: tanto o e1000 (`DevE1000.cpp`) quanto a
-PCnet (`DevPCNet.cpp`) do VirtualBox deixam o link **fora do ar por
-`LinkUpDelay` ms depois do reset — 5000 por padrão** — e, enquanto o link está
-fora, todo quadro recebido é descartado e a transmissão não acontece. O QEMU
-levanta o link na hora, então pedir DHCP logo depois de inicializar a placa
-funcionava lá e falhava aqui, sem mensagem nenhuma.
+## D035. Números aleatórios sem RDRAND (H50)
 
-O que mudou:
+A criptografia depende de números que ninguém consiga prever, e o processador
+do G470 (Sandy Bridge, 2011) não tem a instrução RDRAND. A fonte de incerteza é
+o próprio hardware: o kernel lê o contador de ciclos da CPU (RDTSC) em toda
+interrupção (relógio, teclado, touchpad, USB) e, no boot, em 32 tiques
+seguidos do relógio; o instante exato em ciclos varia por motivos físicos
+(osciladores independentes, atrasos de barramento, uma pessoa digitando). A
+data do relógio da placa e, se existir, o RDRAND também entram.
 
-- `esperar_link()` nos dois drivers (até 6 s, dormindo 5 ms por vez com
-  `relogio_dormir_ms`), com três mensagens possíveis no serial: `link ligado`,
-  `link ligado depois de N ms de espera` e
-  `[aviso] Rede: link sem sinal depois de N ms`.
-- A PCnet passou a olhar o **bit 15** de `BCR4` (`LNKST`), que só aparece com o
-  link de pé. O bit 6 sozinho não serve: o QEMU o deixa ligado mesmo com o
-  `set_link off`.
-- `rede_link_atual()` (kernel) relê o estado na hora do comando `rede`, então o
-  relatório mostra o link de agora, não o do boot.
-- Se o link só subir depois do prazo, o boot avisa e o sistema segue com o
-  endereço fixo da NAT (10.0.2.15) — não trava e não fica esperando para sempre.
+Os valores são misturados num poço de 16 palavras com as mesmas operações do
+ChaCha (somar, girar, ou-exclusivo). Para entregar números, o poço vira a
+chave de um ChaCha20 escrito no kernel; o primeiro bloco de cada pedido
+substitui a chave ("apagar a chave depois de usar"), então nem quem lesse a
+memória depois refaria os números já entregues. É o mesmo princípio dos
+geradores dos sistemas grandes, em tamanho de projeto de estudo: não há
+estimativa formal de entropia nem bloqueio até "juntar o suficiente". No
+boot, antes das primeiras chaves, já entraram dezenas de medições.
 
-`tests/h36_link_atrasado.py` reproduz o caso no QEMU com `set_link net0 off` e
-`set_link net0 on` 3 s depois (as duas placas: espera, DHCP, `rede`, `wget`) e
-8 s depois (aviso, endereço fixo, `rede` mostrando o link relido). O passo a
-passo do VirtualBox está em `docs/virtualbox.md`.
+## D036. Criptografia e TLS com subagentes, e como entram no SaguiOS (H50 a H54)
+
+As partes mais exigentes da fase 4 (a biblioteca de criptografia e o cliente
+TLS 1.3 com a validação de certificados) foram escritas por subagentes no
+Claude Fable 5.2, com as mesmas regras de autoria do projeto: só as RFCs e as
+normas do NIST, nenhum código de biblioteca, comentários em português. Cada
+um registrou como pensou cada parte em `userland/cripto/LEIA-ME.md` e
+`userland/tls/LEIA-ME.md`, e cada um tem o próprio teste (vetores oficiais;
+servidores `openssl` locais; Wikipédia e example.com de verdade).
+
+Os dois foram escritos sem depender do sistema: recebem um "ambiente" de
+funções (mandar, receber sem esperar, esperar, relógio, números aleatórios,
+data). Assim são testados no Linux da VPS e, no SaguiOS, a ponte
+(`userland/libsagui/tls_ponte.c`) liga essas funções ao socket TCP, ao gerador
+do kernel e ao relógio da placa convertido para UTC pelo fuso. A biblioteca
+entra na `libsagui`; o ligador só copia para cada programa o que ele usa.
+
+Um ajuste feito na integração: a âncora de confiança passou a ser o par
+**nome + chave** de uma raiz, e não os bytes exatos do certificado. Servidores
+mandam autoridades "assinadas em cruz" por raízes mais antigas (o example.com,
+via Cloudflare, manda o SSL.com 2022 assinado pela antiga AAA, que já saiu da
+lista da Mozilla); a mesma autoridade, com a mesma chave, está na nossa lista.
+
+## D037. SSH: biblioteca separada, servidores conhecidos e o que fica para o Eli conferir (H56 a H58)
+
+Como o TLS, o cliente SSH 2 (`userland/ssh`) foi escrito por um subagente no
+Claude Fable 5.2 só a partir das RFCs (4251 a 4254, 4344, 6668, 8709, 8731,
+8332, 4648), sem depender do sistema: recebe um "ambiente" de funções e é
+testado no Linux da VPS contra o `sshd` do OpenSSH (77 conferências em
+`tests/h56_h58_ssh.py`: as quatro combinações de cifra e chave do servidor,
+corrupção de pacotes, trocas de chave no meio da sessão, 2,7 MB de saída
+conferidos por SHA-256, servidor que cai). No SaguiOS entra na `libsagui`, e
+dois programas usam: `ssh` e `ssh-chave`.
+
+Escolhas:
+- **Cifras:** `aes128-ctr`/`aes256-ctr` com `hmac-sha2-256` (o PRD aceitava
+  esta ou `aes256-gcm`; a CTR com HMAC é a que todo servidor ainda aceita).
+  Chave do servidor `ssh-ed25519` ou `rsa-sha2-256`.
+- **Servidores conhecidos** em `<pasta>/conhecidos` (linhas
+  `nome tipo base64`, como o `known_hosts` sem os nomes embaralhados). Na
+  primeira conexão, mostra a impressão digital e pergunta; se a chave mudar,
+  recusa com aviso forte e diz qual linha apagar.
+- `<pasta>` é `/usb/.saguios/ssh` se houver pendrive configurado; sem ele,
+  `/tmp/ssh` (e o programa avisa que a chave some ao desligar).
+- **Teclas:** o Terminal manda ESC + letra; o `ssh` traduz para o xterm e
+  acompanha o pedido de "modo de aplicação" das setas (ESC [ ? 1 h). Outras
+  sequências (respostas do próprio Terminal, como a posição do cursor que o
+  vim pergunta) passam como estão.
+- O Terminal ganhou `ESC [ n b` (repetir a última letra), que o ncurses usa
+  para desenhar barras: sem ela, o htop saía com colunas tortas.
+
+O que os testes automáticos não cobrem, e vai no roteiro:
+- **Login por senha aceito.** O `sshd` de teste roda sem ser root e não
+  consegue conferir senhas; o teste só cobre a senha recusada. A primeira
+  prova é o Eli entrar num servidor dele.
+- **Redimensionar.** A janela do Terminal do SaguiOS tem tamanho fixo
+  (94 x 28); a mudança de tamanho (`window-change`) está pronta e testada na
+  biblioteca (de 43 x 132 para 30 x 100), e passa a ser usada quando o
+  Terminal puder mudar de tamanho.
+
+## D038. Sagui Navegador: o que ele entende, e como é testado (H59 a H63)
+
+O navegador é um programa só (`userland/navegador`), em cinco partes:
+descompactação (DEFLATE/zlib/gzip), imagens (PNG e JPEG), leitor de HTML,
+layout e a janela. Nada de JavaScript, de CSS externo nem de fontes: a ideia
+é ler páginas de texto (Wikipédia, documentação, README) bem, e não imitar um
+navegador completo.
+
+**HTML.** Leitura tolerante a erros com as regras mais comuns dos
+navegadores (parágrafos que fecham sozinhos, `li`/`dt`/`dd`/`tr`/`td`, tags
+de fechamento sem par ignoradas, texto cru em `script`/`style`/`textarea`).
+Entidades com nome (as do Latin-1 e as tipográficas mais usadas) e
+numéricas. Texto em UTF-8, Latin-1 ou Windows-1252 vira Latin-1 (a fonte do
+SaguiOS); o que não existe vira o parecido (aspas curvas viram retas,
+travessão vira hífen) ou `?`.
+
+**Layout.** Blocos (p, div, h1-h6, listas, citações, pre, hr, tabelas),
+texto corrido com quebra por palavra, imagens na linha, tabelas com largura
+de coluna pela largura mínima e preferida das células, e caixas que
+**flutuam à direita** (as "infobox" e as figuras "thumb" da Wikipédia, e
+`float: right`/`align=right`). h1 sai em letra dobrada; h2 tem um traço
+embaixo; links em azul sublinhado.
+
+**CSS suportado** (no atributo `style` e em `<style>` com seletores simples
+`tag`, `.classe`, `#id`, `tag.classe` e listas com vírgula; o resto é
+ignorado): `display: none`, `visibility: hidden`, `color`,
+`background`/`background-color` (só a cor), `text-align: center/right`,
+`font-weight: bold`, `text-decoration: underline/line-through`. Atributos
+antigos: `bgcolor`, `color` (em `font`), `align`, `hidden`, `width`/`height`
+de imagens, `border` de tabelas. Uma folha própria esconde o que só funciona
+com JavaScript ou com o CSS do site (menus da Wikipédia, botões de
+"mover para a barra lateral" etc.).
+
+**Formulários.** Só GET, só campos de texto/busca, ocultos e o botão de
+enviar (é o que a busca da Wikipédia precisa). O texto vai em UTF-8.
+
+**Teste.** O mesmo código de layout e desenho é compilado também no
+computador de desenvolvimento (com um `sagui.h` simulado) e desenha a página
+inteira; a janela no QEMU tem de mostrar exatamente os mesmos pixels. Assim
+a "captura de referência" não é uma foto aprovada uma vez, e sim o próprio
+programa rodando fora do SaguiOS: se o layout mudar, os dois mudam juntos, e
+o que o teste confere é que o SaguiOS desenha o que o layout manda (imagens
+que chegaram pela rede, rolagem, recorte). As imagens e o HTML também têm
+testes próprios (H59 a H61), contra o Pillow e árvores conferidas à mão.
+
+## D039. O compilador C do SaguiOS: frente, representação intermediária e fundo (H64 a H66)
+
+O `cc` (`userland/compilador`, umas 6000 linhas) foi escrito de cabeça, a
+partir do rascunho público do padrão C11, do manual da Intel (codificação
+das instruções), da especificação ELF e da System V ABI do i386. Nenhum
+código de compilador, montador, ligador ou tutorial foi consultado. O
+raciocínio de cada parte está em `userland/compilador/LEIA-ME.md`; a
+linguagem, em `docs/c-do-sagui.md`. Aqui ficam as decisões que mexem com o
+resto do sistema.
+
+**Duas metades, uma fronteira.** A frente (C) entrega uma representação
+intermediária própria (`ri.h`): funções como listas de instruções de três
+operandos sobre temporários de 32 ou 64 bits, mais os dados globais. O
+fundo (x86, montador, ligador) só conhece isso. Uma linguagem em português
+precisa só de uma frente nova. `cc --ri` mostra a lista.
+
+**Simples antes de rápido.** Sem alocação de registradores: cada temporário
+tem uma casa na pilha, com dois atalhos (resultado usado logo em seguida
+fica em EAX; comparação + salto vira `cmp`/`jcc`). O código sai de 3 a 5
+vezes mais lento que o do GCC e com tamanho parecido. Bastou: o shell, o
+Terminal, o Editor, a Calculadora e a Banana recompilados pelo `cc`
+passaram nos testes da versão 1.0.
+
+**Erros para quem vai se corrigir sozinho.** Um erro por compilação, com
+`arquivo:linha:coluna`, a linha, um `^` e uma dica; nomes da biblioteca
+padrão do C ganham a dica do equivalente na libsagui (`printf` ->
+`imprimir`). Não há avisos; por isso o que o GCC só avisa e costuma ser
+erro de verdade (ponteiro recebendo inteiro, função não declarada) aqui é
+recusado.
+
+**Como o programa encontra a libsagui.** O build passou a gerar
+`build/userland/libsagui.o`: todos os objetos da libsagui juntos num objeto
+ELF relocável (`ld -r`), que vai para a imagem em `/sistema/lib/libsagui.o`
+(200 KB). O ligador do `cc` lê esse arquivo, segue as relocações a partir
+de `_inicio` e leva para o programa só as seções alcançadas. Os cabeçalhos
+em `/sistema/inc` são cópias exatas de `userland/inc/*.h` e de
+`kernel/inc/abi.h`: o compilador entende o que eles usam do GCC
+(`__attribute__`, ignorado; `__builtin_va_list`). Assim não existe uma
+segunda descrição da biblioteca para ficar desatualizada.
+
+**Inteiros de 64 bits com ajuda.** `long long` é aceito (a Calculadora
+usa). Soma, subtração e comparação são geradas direto; multiplicação,
+divisão e deslocamento chamam `userland/libsagui/longo64.c`, novo, com a
+divisão longa bit a bit (o SaguiOS não usa a libgcc).
+
+**Pilha.** O carregador dá 64 KB de pilha a cada programa, pouco para um
+analisador recursivo. O `cc` pede 1 MB com `aloca` e troca o ESP enquanto
+compila (dez linhas de assembly em `cc.c`); o kernel não mudou.
+
+**O mesmo núcleo dentro e fora.** O compilador fala com o mundo por uma
+tabela de funções (`CcAmbiente`), como o TLS e o SSH. Os testes compilam o
+núcleo para o Linux e conferem que o `cc` rodando dentro do SaguiOS produz
+executáveis byte a byte iguais. Para rodar os 50 programas de teste em
+milissegundos antes do QEMU, há uma libsagui de teste em que só as chamadas
+de sistema são trocadas pelas do Linux (o ELF de 32 bits em 0x40000000
+também carrega lá).
+
+**Tamanho.** O `cc` tem 98 KB (compilado com `-Os`) e a biblioteca 200 KB;
+a imagem foi de 78% para 99,3% da meta de 1,44 MB (`prd.md`, seção 1). A
+meta não é obrigatória, mas a próxima fase vai passar dela; fica registrado.
+
+**Fora da primeira versão:** ponto flutuante, vetores de tamanho variável,
+campos de bits, assembly dentro do C, avisos, mais de um erro por vez. A
+lista completa está no manual.
+
+## D040. Visual moderno: vidro só nas barras, desfoque por recorte e efeitos automáticos (H74 a H77)
+
+(D039 fica para o compilador, feito em paralelo.)
+
+- **Onde há vidro:** nas barras de título, na barra de cima, na doca, no menu
+  e nos balões. O conteúdo das janelas continua opaco (é desenhado pelos
+  programas, e vidro atrás de texto atrapalha a leitura).
+- **Desfoque:** média de caixa de 13 x 13 em duas passadas com somas
+  corridas (`kernel/gui/vidro.c`). O custo não depende do raio e cada pixel
+  custa poucas somas e três divisões.
+- **Só onde a tela mudou:** o gerenciador já recompunha só o retângulo sujo.
+  O vidro precisa do que está atrás e em volta dele. Por isso, quando o
+  retângulo sujo encosta num vidro, ele cresce para cobrir o vidro inteiro
+  mais o raio do desfoque (`expandir_vidro`). Assim a borda do desfoque nunca
+  lê pixels de um quadro velho.
+- **Sombra:** um degradê de 12 pixels, quadrático, deslocado 4 pixels para
+  baixo. A área suja de uma janela passou a incluir a sombra.
+- **Cantos:** uma tabela de 8 linhas diz quantos pixels pular em cada ponta
+  (raio 8). Os botões de fechar e minimizar ficaram redondos.
+- **Doca:** na parte de baixo, no meio, com os programas fixos (Arquivos,
+  Terminal, Navegador, Editor, Configurações), uma linha e depois os
+  programas abertos. Um ponto amarelo marca os que estão abertos, e o nome
+  aparece num balão. Clicar traz a janela do programa (restaurando se estiver
+  minimizada) ou abre o programa.
+- **Menu do sagui:** a cabecinha na barra de cima abre a lista de programas,
+  mais "Desligar...". O ícone de som mostra o volume e abre Configurações >
+  Som.
+- **Animações:** abrir, fechar, minimizar e restaurar desenham um contorno
+  que vai de um retângulo a outro em 10 tiques (100 ms). A janela que está
+  aparecendo só é desenhada quando o contorno chega. Um contorno custa quase
+  nada, ao contrário de redimensionar os pixels da janela a cada quadro.
+- **Tema claro e escuro:** valem para o que o sistema desenha (barras,
+  doca, menu, molduras). Os programas usam as cores do kit (`gui.h`), que já
+  são claras; fazer cada programa trocar de cor precisaria de uma chamada
+  nova, que fica para depois.
+- **Efeitos automáticos (H77):** na partida, o gerenciador mede quanto custa
+  recompor a tela inteira com vidro (média de 4 quadros). Acima de 40 ms, o
+  computador é lento e fica com os efeitos leves: sem desfoque, sem sombra e
+  sem animação, com as barras na cor sólida. Em Configurações > Aparência
+  dá para escolher automático, completos ou leves. No QEMU (sem aceleração),
+  o quadro inteiro custou 17 ms.
+
+**Redimensionar e maximizar (H78, pedido do Eli).** O conteúdo das janelas é
+desenhado pelo programa num tamanho fixo. Por isso o programa precisa
+**pedir** para ser redimensionável (`jan_redimensionavel`). O kernel troca a
+memória da janela por uma do tamanho da tela (até os 4 MB que cada janela tem
+no espaço do programa), no mesmo endereço, e passa a mandar `EV_REDIMENSIONAR`
+com o tamanho novo. Enquanto a borda é arrastada, só um contorno com as
+medidas acompanha o mouse: o programa recebe o tamanho uma vez, ao soltar.
+Assim um programa lento não deixa o arrasto travado. Maximizar ocupa a tela
+entre a barra de cima e a doca e guarda o tamanho de antes; arrastar uma
+janela maximizada a devolve ao tamanho anterior. Os programas que não pedem
+(Calculadora, jogos) continuam fixos e sem o botão. O Terminal avisa o
+programa de dentro com a resposta do xterm `ESC [ 8 ; linhas ; colunas t`, só
+se ele pediu, pelo modo próprio `ESC [ ? 7727 h` (o `ssh` pede e repassa ao
+servidor com `window-change`). Um modo próprio evita que o sagsh receba essa
+sequência no meio da linha de comando.
+
+## D041. O núcleo é do zero; aplicativos podem usar código livre de terceiros, às claras
+
+**Contexto (14/11/2026).** O SaguiOS ficou público e recebeu pull requests da
+comunidade (#1, #3, #4, #6, #7), feitos com ajuda de IA. A revisão do maior
+deles (o navegador Cipó, #6) achou alguns trechos adaptados de projetos
+conhecidos, que a IA reproduziu "de memória" (libwebp, font-rs, V8, xz e
+tabelas do FFmpeg e do FAAD2). Todos têm licenças livres compatíveis com a
+GPL 3: o problema não era legal, e sim a regra do projeto ("nada de terceiros")
+e a falta dos créditos. O Eli não vai ter tempo de evoluir o sistema sozinho e
+quer a comunidade participando; ele deixou esta decisão com o Claude.
+
+**Decisão.**
+- **O núcleo continua 100% do zero:** kernel, drivers, sistema de arquivos,
+  rede, TLS e criptografia, SSH, janelas, `libsagui`, shell, compilador e os
+  programas básicos. É a identidade do projeto, e a história do "sistema
+  escrito do zero" continua verdadeira.
+- **Nos aplicativos, do zero é o padrão**, mas código livre de terceiros pode
+  entrar como exceção: licença compatível com a GPL 3, pasta própria em
+  `terceiros/` com a licença original e um `ORIGEM.md`, crédito em
+  `CREDITOS.md` e no README ("O que não foi escrito aqui").
+- Código reproduzido de memória por uma IA conta como código de terceiros.
+
+**Por quê.** É o que todos os sistemas usados de verdade fazem (as
+distribuições Linux juntam milhares de projetos, cada um com a sua licença;
+Windows e macOS têm listas de "avisos de terceiros"). Proteger o núcleo mantém
+o que torna o SaguiOS único; abrir os aplicativos, às claras, deixa a
+comunidade trazer coisas boas sem medo de uma regra rígida demais. Com IA,
+escrever do zero ficou barato, então o padrão continua sendo escrever aqui:
+código de fora fica para o que não faz sentido reescrever.
+
+**Consequências.** `AGENTS.md`, `CONTRIBUTING.md` e o modelo de pull request
+foram atualizados. Do Cipó (#6), os trechos de terceiros podem entrar, desde
+que separados em `terceiros/` e creditados, depois de conferida a licença
+exata de cada um.
+
+## D042. Ponto flutuante nos programas, pelo SSE2 (H80)
+
+A regra "sem ponto flutuante" da versão 1 era uma simplificação: para os
+programas usarem float e double, o kernel precisa guardar os registradores
+de ponto flutuante de cada processo. Agora guarda: a cada troca de processo,
+FXSAVE do que sai e FXRSTOR do que entra (512 bytes, alinhados em 16), e
+cada processo novo começa com a FPU zerada. Salvar sempre, e não só quando o
+programa usou, é mais simples e custa pouco. O kernel continua compilado sem
+ponto flutuante (-mgeneral-regs-only), para nunca estragar esses registradores.
+
+Os programas são compilados com `-msse2 -mfpmath=sse`: as contas vão pelo
+SSE2, que arredonda cada operação para double exato (IEEE 754). A FPU x87, a
+outra opção, calcula com 80 bits por dentro e só arredonda ao guardar na
+memória, então a mesma conta dá resultados levemente diferentes conforme o
+compilador guarda ou não os valores; o teste da H80 pegou isso, e o
+JavaScript do Cipó exige double exato. O G470, o VirtualBox e o QEMU têm SSE2.
+
+## D043. O Cipó: o navegador da 2.0 com o motor do pull request #6 (H82)
+
+**Contexto.** O pull request #6, de Robson de Lima Barbosa, trouxe o "Cipó":
+um navegador muito mais completo que o da 2.0 (CSS moderno, JavaScript,
+fontes, Canvas, SVG, WebGL, vídeo), mas escrito sobre a versão 1.0 — com
+outra pilha de rede, outro TLS, som pela AC97, mudanças nas chamadas de
+sistema e tudo dentro da `libsagui`. A revisão achou também trechos
+reproduzidos de memória de projetos conhecidos (D041). O nome Cipó veio do
+#3 (M4R4G0N).
+
+**Decisão: o motor entra, por cima da 2.0.**
+- **Onde mora:** o motor é aplicativo, então fica em `userland/navegador/`
+  (`motor/`, `fontes/`, `js/`, `graficos/`) e não na `libsagui`, que é
+  núcleo e é ligada em todos os programas. As declarações que o #6 punha no
+  `sagui.h` estão em `userland/navegador/cipo.h`. O programa continua sendo
+  `/bin/navegador`; `/bin/cipo` é uma cópia com o nome novo. O tocador de
+  vídeo do #6 mora em `userland/video/` e vira `/bin/video`.
+- **O que entrou do #6:** o motor de páginas (HTML em árvore, cascata CSS com
+  seletores compostos, `var()`, `@media`, `!important`; bloco, inline,
+  float, flex, grid, tabela, `position`, `transform`, `z-index`, gradientes,
+  bordas arredondadas), a quebra de linha do Unicode (UAX #14), as fontes
+  TrueType, CFF, WOFF e WOFF2 (com Brotli, RFC 7932) e as DejaVu do sistema
+  em `/fontes`, o motor de JavaScript com DOM (classes, async, geradores,
+  Proxy, BigInt, typed arrays, eventos, timers, fetch/XHR, cookies,
+  iframes), o Canvas 2D, o SVG, o WebGL e o GLSL em software, as imagens GIF
+  e WebP, os cookies do HTTP e o tocador de MP4 (H.264 e AAC).
+- **O que é da 2.0 por baixo:** a rede, o HTTP e o TLS 1.3 (`http_pedir`;
+  a libsagui ganhou só `http_pedir_completo`, que mostra os cabeçalhos de
+  cada resposta, para o Set-Cookie e o fetch), a janela redimensionável, a
+  barra, o histórico e os favoritos do navegador da 2.0, o PNG, o JPEG
+  (também progressivo) e o DEFLATE da 2.0, e o som HD Audio (`som_abrir` e
+  `som_enviar`; o tocador converte o áudio para 48 kHz).
+- **Como o JavaScript conversa com o motor:** como no #6, os scripts rodam
+  sobre o HTML e devolvem o HTML do DOM depois do "load"; o motor lê esse
+  HTML. Cliques, teclas, timers e rolagem rodam no JavaScript, e se o DOM
+  mudou a página é relida no mesmo ponto da rolagem ("página viva").
+
+**O que ficou de fora do #6, e por quê.** O TLS, a rede, a AC97 e o
+`desligar` do #6 (a 2.0 já tem os seus, escritos aqui, e são núcleo); as
+mudanças na ABI e na GUI do kernel; a compactação LZMA do ramdisk e o filtro
+BCJ (`kernel/lib/lzma.c`, derivado do xz: é kernel, e a 2.0 não tem teto de
+tamanho — a imagem foi de 1,7 MB para cerca de 5 MB, com 1,3 MB de fontes);
+`entrega/`, o `tools/video/yt_base.py`, o gerador `tools/video/h264gen/` e
+as regras especiais para YouTube, Bing e reCAPTCHA. O leitor de HTML da 2.0
+(`html.c`) continua no repositório e na H61, mas a janela agora usa o motor;
+o `pagina.c` (layout da 2.0) saiu.
+
+**Os trechos de terceiros.** Cada um foi separado do código do Cipó numa
+pasta de `terceiros/`, com a licença original conferida e um `ORIGEM.md`:
+`font-rs` (o rasterizador por área acumulada; Apache 2.0), `libwebp-vp8` (o
+WebP com perdas e as suas tabelas; BSD + patentes WebM), `v8-numeros` (o
+`toString` em outras bases; BSD), `ffmpeg-h264-tabelas` (CABAC e CAVLC; LGPL
+2.1 ou posterior) e `faad2-aac-huffman` (os livros de Huffman do AAC; GPL 2
+**ou posterior**, conferido no COPYING e no copyright do Debian, com o
+preâmbulo do FAAD2 e a frase de crédito que ele exige). Todas são
+compatíveis com a GPL 3, então nada precisou ser reescrito. Dados: as fontes
+DejaVu (licença Bitstream Vera), as tabelas do Unicode (Unicode License v3)
+e o dicionário da RFC 7932 (BSD do IETF Trust), em `CREDITOS.md`. Uma
+função de datas do #6 que seguia um algoritmo conhecido (dias desde 1970)
+foi trocada por um laço simples escrito aqui.
+
+**Mudanças no código do #6.** Além de mudar de lugar: o PNG/JPEG passam pelos
+decodificadores da 2.0 e as imagens chegam com alfa (PNG transparente sobre
+o fundo da página); o WOFF usa o DEFLATE da 2.0; dois erros do layout
+corrigidos (linha vazia dentro de `pre` e `<br><br>` contava a altura em
+dobro; um float no começo do texto não era contornado pela primeira linha);
+`motor_ancora` e `motor_imagens_total` para os links `#âncora` e o registro.
+
+**Ponto flutuante e pilha.** O motor usa double pelo SSE2 (D042). Nos
+testes da H82 o `baixar https://...` (H53) passou a cair com "proteção
+geral" num `movdqa` da curva 25519: o `inicio.asm` deixava a pilha 8 bytes
+fora do alinhamento de 16 que o gcc supõe na entrada de `principal`, e com
+SSE2 o gcc guarda valores de 16 bytes na pilha com instruções que exigem o
+alinhamento; um quadro maior no HTTP mudou o caminho e o erro apareceu. O
+`inicio.asm` agora desce mais 8 bytes antes de empilhar os argumentos (vale
+para todos os programas). Com isso apareceu o mesmo erro do outro lado no
+`cc`, que troca para uma pilha própria de 1 MB com o topo vindo do `aloca`
+(alinhado só em 8): o topo agora é alinhado em 16. Os objetos do Cipó e do
+tocador são compilados também com `-mstackrealign`, por segurança. Outros
+testes mudaram por causa da imagem maior e da pasta `/fontes` na raiz: a H23
+conta 11 itens na raiz, e a H34 cria a FAT32 depois do fim da imagem (antes
+começava em 2 MB, e a imagem passou de 5 MB).
+
+**Testes.** A H62 continua comparando a janela, pixel a pixel, com o mesmo
+código compilado no computador — agora o motor do Cipó com as fontes DejaVu
+(as cores procuradas na captura mudaram: links `#0B57D0`, borda dos campos
+`#767676`). A H82 (`tests/h82_cipo.py`) confere uma página de CSS moderno
+(flex, grid, gradiente, float, tabela, transform, CSS externo, `@font-face`,
+SVG, GIF, WebP e PNG transparente) pixel a pixel, o GIF contra o Pillow, o
+WebP perto do Pillow, 120 páginas estragadas no motor com verificação de
+memória, e uma página de JavaScript (as verificações do teste do #6, mais
+`toString` em outras bases, cookies, fetch com POST, Canvas 2D, WebGL, timer
+e clique). `tests/h82_video.py` só testa a decodificação de vídeo e o som
+quando a máquina dos testes tem ffmpeg para gerar o MP4. A H63 (internet)
+mudou num ponto: o artigo da Wikipédia agora aparece como nos outros
+navegadores, com a busca do topo escondida atrás de uma lupa (o campo surge
+por JavaScript), então a busca é feita na página Especial:Pesquisar, que
+tem o campo à vista. A Wikipédia responde 429 ("respeite a política de
+robôs") quando muitos pedidos chegam seguidos com o User-Agent
+"SaguiOS/2.0" (um artigo pede dezenas de imagens); um User-Agent com
+contato, como a política pede, fica para depois.
+
+**Pendências.** O vídeo baixa o MP4 inteiro antes de tocar (o HTTP da 2.0
+entrega o corpo de uma vez); o `<video>` dentro da página só abre o tocador
+quando o endereço é o próprio MP4; WebGL, GLSL, iframes e fontes WOFF2 entram
+compilados mas só têm o teste básico (o WebGL limpando a tela); um float
+dentro de um bloco com borda pinta o fundo uns pixels abaixo do texto dele.
+
+## D044. Resolução nativa no G470: aproveitar o modo da BIOS, não refazer (H84)
+
+**O problema.** O VESA da BIOS do G470 oferece no máximo 1024x768; o painel
+tem 1366x768. A placa (Intel HD Graphics 3000, Sandy Bridge, 8086:0116) estica
+a imagem com o "panel fitter", e o texto fica borrado.
+
+**Decisão.** Um driver pequeno (`kernel/dispositivos/video_nativo.c`), escrito
+só a partir dos manuais públicos da Intel (PRM da Sandy Bridge, volume 1
+parte 1 e volume 3 partes 1 a 3), que **não refaz o modo**: relógios (PLLs),
+tempos, FDI, transcodificador e a porta LVDS ficam como a BIOS deixou. Num
+notebook a BIOS já manda o sinal na resolução nativa para o painel; o driver
+só (1) lê o tamanho nativo nos tempos do pipe ligado (HTOTAL/VTOTAL), (2)
+muda o tamanho de origem do pipe (PIPESRC) para ele, (3) desliga o panel
+fitter (PF_CTL, PF_WIN_POS, PF_WIN_SZ) e (4) muda o passo do plano primário
+(DSPSTRIDE, 1366 x 4 arredondado para múltiplo de 64 = 5504 bytes), com a
+imagem começando no mesmo lugar do framebuffer VESA (DSPSURF/DSPLINOFF não
+mudam; a escrita no DSPSURF só "arma" a mudança). Os ~4 MB da imagem nova
+precisam estar mapeados na GTT pela BIOS (que mapeia toda a memória roubada,
+de no mínimo 32 MB): o driver confere entrada por entrada e, se faltar
+alguma, desiste em vez de preencher a GTT. Preencher a GTT exigiria escolher
+memória para a placa e cuidar de cache; não vale o risco para 4 MB que a BIOS
+já deu.
+
+**Segurança.** Desligado por padrão: só age com `video.nativo = sim` no
+pendrive de dados (sem o pendrive, volta o VESA). Só age se tudo conferir:
+placa 8086 em 00:02.0 com ID 0106, 0116 ou 0126; BARs abaixo de 4 GB; um
+único pipe ligado; porta LVDS e energia do painel ligadas; tempos com cara de
+painel (640 a 1920 por 480 a 1200); origem do pipe igual ao modo VESA; plano
+ligado, linear, 32 bits BGRX, com o passo do VESA e mostrando o endereço do
+VESA. Depois de escrever, relê: pipe ainda ligado, PIPESRC e DSPSTRIDE
+aceitos, panel fitter desligado e o contador de quadros andando; se algo
+falhar, devolve os valores da BIOS. Tudo o que é lido e escrito vai para o
+diário (`registro VIDEO`).
+
+**O que não é certeza.** O manual não deixa claro se o PIPESRC pode mudar com
+o pipe ligado na Sandy Bridge; desligar o pipe exigiria refazer a sequência
+inteira (FDI, transcodificador do PCH), que é justamente o que se quis
+evitar. Se o G470 não aceitar, o diário mostra e o driver desfaz.
+
+**Interface.** O vídeo ganhou a troca de resolução com o sistema já ligado
+(`video_reservar` antes de mexer na placa, `video_adotar` depois), e o
+terminal do kernel e o mouse se ajustam. A interface gráfica já lia
+`video_largura()`/`video_altura()`; com 1366 a janela maximizada cabe nos
+4 MB de memória por janela (1362 x ~680 pixels x 4 < 4 MB).
+
+**Como foi testado sem o G470.** O QEMU não tem a placa Intel. O teste
+`h84_video_nativo.py` prova que nada muda sem a configuração e com ela numa
+placa que não é Intel (o diário diz o motivo), e, com `video.nativo =
+teste-qemu`, troca a placa VGA do QEMU para 1366x768 pela interface "Bochs
+VBE" (documentada pelo Bochs) com o sistema já ligado: é o mesmo caminho do
+lado do SaguiOS, e prova a interface em 1366x768. O estágio 2 também ganhou
+uma opção de build só para testes (`--vesa-largo`) que prefere um modo VESA
+largo de 768 linhas (o QEMU oferece 1280x768).
+
+## D045. O visual do Robson (#1) como opção, junto do vidro da 2.0 (H81)
+
+O pull request #1 (Robson de Lima Barbosa) foi escrito sobre a 1.0, antes do
+vidro, da doca e do redimensionar da 2.0. Juntar como estava apagaria a 2.0;
+por isso as ideias e o código dele foram trazidos para o código atual, com
+ele como autor do commit:
+
+- **Ícones**: `tools/mkarte.py` (dele) descreve cada ícone com formas e gera
+  ARGB no build. Ganhou um segundo tamanho (40x40, para a doca) e os ícones
+  que só existem na 2.0 (Configurações, Cipó, programa instalado). O padrão
+  para um ícone novo está no começo do arquivo.
+- **Letras suavizadas** em todo o sistema (kernel e libsagui): um pixel
+  apagado com dois vizinhos acesos em "L" recebe 1/3 da cor da letra.
+  Os botões dos programas ganharam o degradê com cantos cortados dele.
+- **Fundos**: "Com sol" (desenhado por código, dele) e "M. Atlântica" (a
+  imagem feita por IA que ele trouxe, `rootfs/arte/mata-atlantica.sgi`, no
+  formato de `tools/mkfundo.py`). O padrão continua o degradê "Brasil" pedido
+  na H20; a imagem é uma escolha. Se o arquivo faltar, o "Com sol" entra no
+  lugar.
+- **Temas**: além de escuro e claro (H76), "Mata", com a cara do #1 (barra
+  verde quase opaca, filete amarelo, botões redondos vermelho, amarelo e
+  verde, título forte), e "Azul", com as cores do #7. Os dois somam campos ao
+  `tema_t` em vez de outro caminho de desenho: o vidro, as sombras e os
+  efeitos leves continuam valendo para todos.
+- **Menus do botão direito**: um único menu de contexto serve a ícones, à
+  área vazia, à barra de título e aos programas. A chamada `SIS_MENU_JANELA`
+  (77) e o evento `EV_MENU` (7) são as do #1, com números novos (os dele
+  colidiam com a 2.0). Terminal, Editor e Arquivos têm menus próprios; no
+  Terminal, "Colar" é o primeiro item, para não perder o costume do botão
+  direito que colava.
+- **Barra de tarefas** como opção à doca (`aparencia.barra = tarefas`).
+- **Mouse a 200 pacotes por segundo** e o relógio CMOS lido uma vez por
+  segundo, com as interrupções desligadas por menos tempo.
+
+Ficou de fora o maximizar do #1: a 2.0 já tinha o seu (H78), com a memória
+das janelas certa para 1366x768.
+
+## D046. Espaço dos discos: uma pergunta a mais no info_sistema, e a FAT contada (H83)
+
+O comando `df` (apelido `espaco`) precisa de total, usado e livre de cada
+lugar onde se grava. Em vez de uma chamada de sistema nova, entrou mais um
+tipo no `info_sistema`, que já serve memória, processos e versão:
+`INFO_DISCOS_ESPACO` (7) devolve um `info_espaco_t` para "/" e outro para
+"/usb", se houver pendrive montado.
+
+- **"/"** não é um disco: é a árvore de arquivos na memória (o ramdisk mais
+  o que foi gravado depois, na RAM). O "usado" é a soma dos tamanhos dos
+  arquivos da árvore; o "livre" é a memória livre, porque é lá que um
+  arquivo novo vai parar; o total é a soma dos dois.
+- **"/usb"** vem da FAT32. O setor FSInfo guarda uma contagem de clusters
+  livres, mas a especificação da Microsoft diz que ela é só uma dica: outro
+  sistema pode ter gravado no pendrive sem atualizá-la. Então o kernel conta
+  os clusters livres na FAT de verdade, uma vez por montagem, na primeira
+  vez que alguém pergunta (contar ao montar atrasaria toda montagem de
+  pendrive grande, mesmo sem ninguém querer saber); depois, alocar e liberar
+  clusters já mantêm a conta em dia. A FAT é lida em blocos de 64 setores.
+  Se a conta difere do FSInfo, uma linha no log diz quanto era e quanto é.
+
+## D047. MP3 do zero, pela norma (H86)
+
+O Tocador precisa tocar MP3, e o decodificador (`userland/tocador/mp3.c`) foi
+escrito aqui, a partir da descrição da norma ISO/IEC 11172-3 (MPEG-1 áudio,
+Layer III) e da ISO/IEC 13818-3 (as taxas de 16, 22,05 e 24 kHz do MPEG-2),
+sem consultar nem reproduzir nenhum decodificador existente. É um aplicativo,
+e a D041 permitiria código livre de terceiros, mas um MP3 cabe em pouco mais de mil linhas
+e dá para explicar etapa por etapa; não havia motivo para a exceção.
+
+- **O que vem da norma como dado** (`mp3_tabelas.h`): os códigos de Huffman,
+  as faixas de fator de escala, a pré-ênfase, os coeficientes da janela de
+  síntese e as contagens de fatores do MPEG-2. São números dos anexos, iguais
+  em qualquer decodificador; estão em `CREDITOS.md`. O resto (as janelas e os
+  cossenos da IMDCT, a matriz do banco de síntese, n^(4/3), as potências de
+  2) é calculado pelas fórmulas ao abrir o primeiro arquivo, com cosseno e
+  raízes próprios (não há libc).
+- **Simples antes de rápido.** As árvores de Huffman são percorridas bit a
+  bit, a IMDCT é a soma direta da fórmula e o banco de síntese é a receita da
+  figura da norma, só aproveitando que o cosseno se repete (32 das 64 linhas
+  da matriz). Em float pelo SSE2 (D042). No QEMU, 3 s de música estéreo
+  decodificam em cerca de 0,3 s; se o G470 precisar, dá para acelerar depois.
+- **Como se sabe que está certo.** `tests/h86_mp3.py` compila o mesmo `mp3.c`
+  no PC de build e compara o som com o da libmpg123, em arquivos feitos na
+  hora pela libmp3lame (as duas só como ferramentas de teste, como o QEMU): a
+  diferença máxima é de 1 unidade em 16 bits (SNR perto de 97 dB). O estéreo
+  de intensidade, que a libmp3lame não gera, é conferido com quadros montados
+  à mão pelo teste.
+- **Ficou de fora:** o "MPEG-2.5" (8, 11,025 e 12 kHz), que não é da ISO; o
+  "formato livre" (taxa de bits fora da tabela); a conferência do CRC (os
+  quadros com CRC tocam, o CRC é pulado); e o corte do silêncio do começo e
+  do fim (a informação "gapless" do quadro LAME). Os blocos mistos estão
+  escritos pela norma, mas nenhum codificador à mão os gera: não foram
+  testados.
 
 
-## D033. Um interpretador Lua proprio, nao o Lua oficial
 
-O pedido de "suporte a Lua" poderia significar portar o Lua 5.4. Isso traria
-junto a libc, a alocacao com `malloc`, a FPU (o PRD proibe ponto flutuante no
-anel 3) e a coleta de lixo — tres coisas que o projeto evita de proposito. O
-caminho escolhido foi o mesmo do `gosagui`: escrever no projeto um
-interpretador pequeno, em C freestanding, que roda no anel 3 e nao depende de
-nada de fora.
+## D048. H.264 High no tocador de vídeo, pela norma (H88)
 
-O que define este interpretador:
+**Contexto.** O `/bin/video` (do pull request #6, D043) decodificava H.264
+Baseline e Main. Os vídeos que o Eli testou (`sample-5s-360p.mp4`, o de 720p
+e o de 1080p) são do perfil **High** (profile_idc 100, nível 4.0, CABAC,
+quadros B), que é o que quase todo MP4 de hoje usa, e o tocador respondia
+"H.264 recusado (-2)".
 
-- **Numeros inteiros de 32 bits.** `+ - * / // % ^` operam sobre `int`; `/` e
-  `//` fazem divisao inteira. Um literal com `.` ou expoente e recusado com
-  mensagem explicita, em vez de virar um numero errado em silencio.
-- **Sem coleta de lixo.** Os valores vivem ate o processo terminar; o kernel
-  ja libera o espaco de endereco inteiro. Para os scripts pequenos do sistema
-  isso e simples e previsivel; o limite esta documentado em `docs/lua.md`.
-- **Arvore sintatica, nao bytecode.** O parser descendente recursivo monta uma
-  arvore e a execucao a percorre. E menos rapido que bytecode, mas cabe em
-  poucas centenas de linhas e deixa o codigo legivel.
-- **Tabelas com ordem de insercao.** O hash guarda as entradas num vetor e
-  encadeia os baldes por indice. `pairs` percorre na ordem em que as chaves
-  foram criadas, o que torna os testes deterministicos sem depender do layout
-  do hash.
-- **Ambientes encadeados.** Cada bloco/funcao tem um ambiente com pai; a
-  funcao guarda o ambiente em que nasceu, entao fechamentos funcionam sem
-  `upvalue` explicito.
-- **Erros encerram o processo com codigo 1.** Sem `pcall`, a mensagem
-  `lua: linha N: ...` vai para a saida de erro e o processo termina. O shell
-  continua; e o mesmo contrato dos outros programas.
-- **Bibliotecas ligadas por numero.** `print`, `string.*`, `table.*`,
-  `math.*`, `os.*`, `io.*` e a tabela `sagui` sao funcoes internas
-  identificadas por um inteiro. Nao ha carregamento dinamico nem `require`.
-- **Pilha limitada a 40 chamadas Lua.** A pilha de usuario tem 64 KB; o limite
-  e conferido antes de cada chamada e vira erro, em vez de estourar a pilha.
+**Decisão: o High entra, escrito aqui a partir da norma.** O que o High
+acrescenta ao Main foi escrito em `userland/video/h264.c` lendo a
+Recomendação ITU-T H.264 (que a ITU publica de graça), sem consultar nem
+reproduzir nenhum decodificador existente; cada parte nova tem no comentário
+o item da norma de onde saiu:
 
-A integracao com o sistema fica na tabela `sagui` (`registrar`, `limpar_tela`,
-`dormir`, `tempo`, `executar`, `bip`), e o shell ganhou o comando `lua` com
-ajuda propria. Os scripts de exemplo vao em `/lua`, e `tests/h38_lua_nativo.py`
-roda tudo dentro do QEMU, incluindo arquivos, `dofile` e os dois caminhos de
-erro.
+- o `transform_size_8x8_flag` de cada macrobloco e as condições para ele
+  existir (7.3.5), no CABAC (contextos 399 a 401, 9.3.3.1.1.10) e no CAVLC;
+- a **predição intra 8x8** (8.3.2), com o filtro das amostras vizinhas;
+- a **transformada inversa 8x8** (8.5.13) e a desquantização com
+  LevelScale8x8 (8.5.9);
+- as **matrizes de escala** do SPS e do PPS (7.3.2.1.1.1, tabela 7-2, regras
+  A e B), que valem também para os blocos 4x4; sem matriz, a conta é
+  exatamente a de antes;
+- os coeficientes dos blocos 8x8 no CABAC (ctxBlockCat 5, tabela 9-43) e no
+  CAVLC (quatro blocos 4x4 entrelaçados);
+- o filtro de desbloqueio, que não alisa as bordas que caem no meio de um
+  bloco 8x8 (8.7);
+- o `second_chroma_qp_index_offset` (o Cr pode ter QP diferente do Cb).
 
-## D034. Tocador em notas e quadros, nao MP3/MP4 (pacote H41)
+Só progressivo, 4:2:0 e 8 bits. O que não entra é recusado com o motivo no
+diário ("video entrelacado", "mais de 8 bits por amostra", "croma que nao e
+4:2:0", "modo sem perdas"...): `h264_motivo`.
 
-**Decisao:** `/bin/tocador` toca `.mus` (texto "freq duracao") pelo
-alto-falante do PC via `tocar()` e `.vid` (retangulos/texto por quadro
-`---`) na janela. `.mp3`/`.mp4`/`.avi` sao recusados com aviso.
+**Os dados da norma** que isso pede estão em `userland/video/h264_alto_tab.h`,
+com o número da tabela de cada um: os contextos do CABAC para blocos 8x8
+(9-43), o normAdjust8x8 (equação 8-316) e as listas de escala padrão (7-3 e
+7-4). O ziguezague 8x8 é calculado. Os valores iniciais dos contextos novos do
+CABAC já estavam nas tabelas de `terceiros/ffmpeg-h264-tabelas` (D043), que
+continuam lá, separadas.
 
-**Motivo:** o hardware so tem bip quadrado sem codec, DAC, PCM ou FPU
-(B3). Qualquer MP3/MP4 real exigiria decoder, saida de audio e um novo
-driver; fingir que tocou seria enganoso. O formato textual e
-editavel na IDE e testavel no QEMU (`tests/h41_tocador.py`).
+**Como se sabe que está certo, e o que não se sabe.** Não há decodificador de
+referência no PC de build (nem ffmpeg, nem libavcodec), então a imagem **não
+foi comparada amostra por amostra** com a de outro decodificador. O que
+`tests/h88_video_alto.py` confere:
 
-## D035. Loja com fonte local e link configuravel, sem loja on-line (H42)
+- peças isoladas, por contas que não dependem de vídeo (`video_pc
+  --conferir`): as 64 funções de base da transformada 8x8 são ortogonais; o
+  normAdjust8x8 compensa o tamanho de cada uma (até 5%); a desquantização nova
+  com matriz plana é igual à antiga; as listas de escala seguem as regras A e
+  B; a predição intra 8x8 filtra as vizinhas e continua rampas;
+- nos três vídeos: saem os 171 quadros, nenhuma fatia dá erro, e as 513
+  fatias CABAC terminam exatamente no fim dos seus dados (um símbolo lido
+  errado, por exemplo um contexto trocado na tabela 9-43, desalinharia o
+  resto da fatia). Os vídeos usam de fato o High: no de 1080p, 8.749 MBs
+  intra 8x8 (os 9 modos) e 188.891 MBs inter com a transformada 8x8;
+- as imagens foram olhadas (quadros 0, 60, 100, 149 e 170): limpas, sem
+  blocos, inclusive no último quadro, 170 quadros depois do único quadro I
+  (um erro de reconstrução se acumularia até lá); a medida de "blocos à
+  mostra" do teste fica entre 1,0 e 1,3;
+- no SaguiOS (QEMU), `video /usb/v.mp4` decodifica os 171 quadros do vídeo de
+  360p sem erro, e a captura `H88-1-video` bate com o quadro decodificado no
+  PC (diferença média de 0,8 em 255).
 
-**Decisao:** `/bin/loja` lista `/go` e `/lua` como apps instalaveis.
-Go instala compilando com `gosagui` para `/tmp` e empacotando em
-`/store/nome.loj` (formato de programa da loja: cabecalho de texto +
-`---ELF---` + ELF); Lua instala copiando o script para
-`/store/nome.lua` (roda com `lua /store/nome.lua`).
-Apps instalados ficam so em `/store`, separados de `/bin` (sistema).
-`loja informar` mostra o cabecalho; **Abrir** extrai o ELF e executa.
-O link on-line fica em `/config/loja.conf` (`link=<url>`), editavel
-pela janela ou por `loja configurar <url>`; `loja atualizar` faz
-`http_obter()` e lista as linhas `nome url`.
+**Não testado:** matrizes de escala num vídeo de verdade (os três não as
+usam; só a leitura e as regras foram conferidas), o High com CAVLC (os três
+são CABAC; e o CAVLC do tocador continua sem quadros B) e a regressão do
+Baseline e do Main num vídeo (o `h82_video.py` precisa do ffmpeg, que este PC
+não tem; a desquantização foi conferida por conta). Os vídeos do Eli não
+estão no repositório: sem eles o teste só roda as conferências, e avisa.
 
-**Motivo:** a pedido, sem servidora ainda. A fonte local reaproveita
-o que ja existe (`gosagui`, `lua`, `/go`, `/lua`); a parte on-line e
-configuracao + busca HTTP, sem tentar instalar por rede antes de haver
-um indice real.
+**Velocidade.** O decodificador é simples (uma amostra por vez, sem SIMD).
+Compilado em 32 bits no PC de build (EPYC 9354P): 360p a cerca de 150
+quadros/s, 720p a 37 e 1080p a 18; no QEMU emulado (sem KVM), 360p entre 15 e
+20 quadros/s. O G470 (Sandy Bridge, bem mais lento que esse PC) deve tocar
+360p com folga, e 720p e 1080p abaixo dos 30 quadros/s do vídeo (o tocador
+decodifica todos os quadros e pula os atrasados na tela): não foi medido lá. Mais da
+metade do tempo é a compensação de movimento; fica para uma história de
+desempenho. Junto veio uma economia barata: o MB com um vetor só é previsto de
+uma vez (16x16) em vez de em quatro blocos 8x8, com a mesma imagem.
 
-## D036. dietlibc no lugar do musl: analise, sem porte inteiro (analise)
+## D049. Todo o userland realinha a pilha para o SSE2 (H63, pull request #10)
 
-**Decisao:** nao trazer nem musl nem dietlibc inteiros. Manter a
-libsagui e, se for preciso compilar com nomes POSIX, adaptar so uma
-camada fina (headers `malloc/printf/open/...` sobre
-`aloca/imprimir/abrir/...`), como ja esbocado em `userland/musl/`.
-Entre os dois, preferir o dietlibc ao musl inteiro se a troca for
-pedida: mesma API POSIX, menos codigo e menor tentativa de puxar
-threads/FPU/mmap.
+O D042 fez os programas usarem SSE2, e o D043 já tinha corrigido a pilha
+inicial e as pilhas trocadas do Cipó e do tocador. Faltava o outro lado: a
+`libsagui`, onde ficam o TLS e o x25519, continuava compilada sem
+`-mstackrealign`. Na segunda conexão HTTPS, feita com a pilha trocada à mão
+pelo motor, o `x25519` recebia uma pilha alinhada só em 8 bytes e o `movdqa`
+que guarda um vetor de 16 bytes dava proteção geral.
 
-**Motivo:** os dois esperam syscalls Linux (`fork`, `mmap`, futex...)
-que o SaguiOS nao tem; a ABI aqui e `int 0x80` via `abi.h`. Trazer a
-biblioteca inteira seria carregar threads/rede/DNS sem uso e sem FPU.
-A analise completa esta em `docs/dietlibc.md`.
+Agora o `UCFLAGS` leva `-mstackrealign` para todo o userland. Cada função
+alinha a própria pilha ao entrar, então qualquer pilha trocada à mão (motor,
+JavaScript, compilador ou um programa futuro) é segura, e o Cipó e o tocador
+não precisam mais do flag separado. O kernel continua sem SSE e sem esse custo.
 
-## D037. Shim C/POSIX inspirada no mlibc (implementacao parcial)
+## D050. Sagui Code: um núcleo do agente e duas interfaces (H89)
 
-**Decisao:** manter `userland/mlibc/` como uma shim propria em C, ligada
-estaticamente sobre a `libsagui`; nao importar nem afirmar que foi portado o
-mlibc upstream do Managarm. O escopo atual cobre memoria, strings/ctype,
-stdio sem buffer, descritores POSIX e relogios; erros de syscall sao traduzidos
-para `-1`/`errno`. `_inicio`/`principal()` e o build Make/GCC permanecem.
+O Sagui Code nasceu no Terminal, com o laço do agente misturado com a leitura
+do teclado e as cores. Para ganhar uma janela sem duplicar a lógica, o laço
+foi separado em `userland/saguicode/agente.c`: a conversa, as ferramentas, o
+resumo do contexto, a conta do gasto e o formato das conversas guardadas.
+O núcleo não escreve na tela; ele chama funções de uma estrutura
+(`agente_ui_t`): pedaço de texto, "pensando", ferramenta começou/acabou,
+aviso, pedido de licença e fim do pedido. O `saguicode` (Terminal) e o
+`saguicode-janela` são só interfaces sobre ele; o Terminal escreve
+exatamente o que escrevia antes.
 
-**Motivo:** o upstream exige toolchain/sysroot, Meson/C++, ABI headers e
-sysdeps de VM/threads/TLS que o kernel nao oferece. A shim e codigo do proprio
-projeto e preserva o build freestanding; funcionalidades sem suporte no kernel
-(como `%f`, `O_NONBLOCK`, futex e VM map) falham explicitamente ou ficam fora
-do subset. O teste H43 cobre a API realmente implementada. A lista de APIs e
-limites esta em `docs/mlibc.md`; a analise de porte upstream continua como
-referencia em `https://docs.managarm.org/mlibc-book/porting/intro.html`.
+O laço anda um passo por vez (`agente_passo`: uma chamada ao modelo e as
+ferramentas pedidas). A janela trata os eventos entre um passo e outro, então
+não congela, e o botão Parar faz o pedido terminar antes do próximo passo. A
+chamada HTTP em si continua esperando a resposta (o texto vai aparecendo);
+uma tarefa separada para ela seria mais complexa do que vale agora.
 
-## D038. Desligar pela ACPI própria e menu SaguiOS na barra (H28)
+As sessões da janela ficam no pendrive de dados, em
+`/usb/.saguios/saguicode/sessoes/NNNN.json`, no mesmo formato do `/salvar` do
+Terminal, com dois campos a mais: `titulo` (o primeiro, para a lista ler só o
+começo do arquivo) e `gasto_micro` (o gasto da conversa). A sessão é guardada
+ao fim de cada pedido. Sem pendrive, as sessões ficam na memória enquanto a
+janela estiver aberta, e a janela avisa. O gasto total de todas as conversas
+fica nas configurações (`saguicode.gasto_total`, em milionésimos de dólar).
+A chave continua só em `chaves.txt`.
 
-**Decisão:** o nome "SaguiOS" da barra superior virou botão de menu, com
-"Desligar" e "Reiniciar" (Esc ou clique fora fecha; com o menu aberto o
-primeiro clique só fecha, não passa para as janelas). O slogan "um sistema
-operacional escrito do zero por IA" saiu da barra e ficou só na janela
-"Sobre o SaguiOS", onde já estava; no lugar dele, um alternador com uma faixa
-por janela aberta — a em foco fica verde, um clique traz a janela para cima.
-Desligar é a chamada nova `SIS_DESLIGAR` (64), implementada em
-`kernel/nucleo/energia.c` sem biblioteca de ACPI: achar a RSDP na EBDA (o
-ponteiro em 0x40E é lido por uma janela de mapeamento, pois a página 0 fica
-desligada de propósito) ou na varredura de 0xE0000 a 0xFFFFF, conferir as
-somas de verificação, seguir até a FADT pela RSDT, achar o pacote `\_S5` no
-DSDT e escrever `SLP_EN | SLP_TYP` nas portas PM1a_CNT e PM1b_CNT da FADT.
-Sem ACPI (ou sem `\_S5`), escrever o valor que o QEMU espera na porta 0x604 e
-o do VirtualBox na 0x4004; se a energia não cortar, parar a CPU e avisar na
-tela que o desligamento tem de ser no botão do gabinete.
+## D051. Layout do teclado escolhido pelas configurações (H90)
 
-**Motivo:** desligar de verdade é um pedido ao firmware, e o PRD proíbe
-código de outros sistemas, então só os 4 campos que o estado S5 precisa foram
-implementados (RSDP → RSDT → FADT + `\_S5`), com as somas conferidas — nem
-precisou de interpretador de AML. Um menu pendurado no nome do sistema é onde
-quem vem de outros sistemas espera achar "desligar" (o reiniciar continua
-sendo o pulso de reset do controlador do teclado). E o espaço do slogan é mais
-útil alternando janelas do que repetindo uma informação que pertence ao
-"Sobre".
+O teclado ganhou o layout espanhol (ES, teclado ISO de 105 teclas), além do
+ABNT2, trazido do fork SaguiOS-Extended de Alejandro Anuncibay e reescrito
+sobre o driver atual. No fork a troca era uma chamada de sistema nova; aqui
+ela é a configuração `teclado.layout` (`abnt2`, o padrão, ou `es`), para não
+mudar a ABI das chamadas de sistema e para a escolha ficar guardada no
+pendrive como as outras.
 
-## D039. Área de trabalho nasce limpa: o Terminal abre pelo ícone (H24, H28)
+O driver confere `config_geracao()` a cada tecla apertada (dentro da
+interrupção; `config_obter` só percorre uma tabela na memória) e relê a
+chave quando ela mudou, como o misturador faz com o volume. O comando
+`teclado [es | abnt2]` e a aba "Teclado" das Configurações só gravam a
+configuração. Os códigos de varredura são os mesmos nos dois layouts (o
+código diz a posição física da tecla); muda só a tabela de caracteres, o
+AltGr e a tecla Del do teclado numérico (ponto no ES). O euro do AltGr+E não
+existe no Latin-1 e ficou de fora. O ~ do AltGr+4 é tecla morta, como no
+ABNT2: ~ + espaço dá o próprio ~.
 
-**Decisão:** ao ligar no modo gráfico, o kernel sobe a área de trabalho e
-mais nada; o Terminal (e o `sagsh` dentro dele) deixa de ser aberto
-automaticamente no boot e passa a abrir pelo duplo clique no ícone, como
-qualquer outro programa. O caminho do `--console` (terminal de tela cheia,
-usado pelos testes das fases 2 a 4) continua subindo o `sagsh` direto.
+## D052. Compactação na libsagui: DEFLATE próprio, gzip, tar e zip (H93)
 
-**Motivo:** a área de trabalho agora tem o alternador de janelas na barra
-(D038), então navegar entre programas não depende de uma janela de Terminal
-já aberta; e uma tela inicial limpa é o esperado em quem vem de outros
-sistemas. Os testes que usavam o Terminal do boot (H23 a H28, B3, B4, H34,
-H39) passam a abri-lo pelo ícone; os que só queriam o sinal de boot
-esperam o log "area de trabalho no ar".
+O SaguiOS ganhou `gzip`/`gunzip`, `tar` e `zip`/`unzip` (apelidos
+`compactar`, `descompactar`, `empacotar`, `zipar` e `deszipar`), ideia trazida
+do fork do Alejandro Anuncibay. Os programas básicos e a libsagui são núcleo
+(D041), então tudo foi escrito aqui:
 
-## D040. Arquivos pela rede: servidor no kernel, um por vez (H48)
+- **Um DEFLATE só, na libsagui** (`compactar.c`, `compactar.h`). O
+  descompactador é o do navegador (H59), que saiu de
+  `userland/navegador/descompactar.c` e agora serve também ao PNG, às fontes
+  do Cipó e aos programas novos, conferindo mais coisas (NLEN dos blocos
+  guardados, códigos de Huffman com códigos demais, o Adler-32 do zlib) e
+  podendo alocar a saída, com um limite de 256 MB contra "bombas".
+- **O compactador é nosso, da RFC 1951.** O do fork foi lido, mas não
+  aproveitado: ele traz marcas do zlib (a tabela de níveis com os limites
+  "bom" e "preguiçoso", o corte de repetições de 3 bytes a mais de 4096 de
+  distância, a constante 5552 do Adler-32). O nosso procura repetições com
+  uma tabela de hash de 3 bytes e cadeias de posições (a ideia da seção 4 da
+  RFC), olha 4 a 1024 candidatos conforme o nível, espera um byte do nível 4
+  em diante, monta códigos de Huffman (1952) com o limite de 15 bits
+  garantido por um conserto da soma de Kraft, e cada bloco de até 16384
+  símbolos sai guardado, com códigos fixos ou próprios, o que custar menos
+  bits. No texto e em binários fica igual ou um pouco menor que o zlib
+  nível 6; dados aleatórios crescem só os cabeçalhos dos blocos guardados.
+- **Tudo na memória.** Os programas leem o arquivo inteiro, compactam e
+  gravam. É simples, e os arquivos do SaguiOS cabem na memória; um pacote
+  de várias centenas de MB pediria compactar em fluxo, que fica para depois.
+- **Nomes.** No SaguiOS os nomes são Latin-1; dentro do .tar e do .zip vão
+  em UTF-8 (no zip, com o bit 11 ligado só quando há acento), como os outros
+  sistemas esperam. Na volta, o que não existe em Latin-1 vira "_"; um zip
+  sem o bit 11 é lido como página de código 437.
+- **Extrair é perigoso, e os programas se protegem**: nomes absolutos ou
+  com ".." são recusados (`caminho_seguro`), ligações simbólicas do tar são
+  ignoradas, e nada que já existe é substituído sem pedir (`-f` no gunzip,
+  a letra `o` no tar, `-o` no unzip). Os testes conferem com pacotes
+  maliciosos feitos pelo Python.
+- **Como se sabe que está certo.** `tests/h93_compactar_pc.py` compila o
+  `compactar.c` no computador e confere ida e volta com o zlib e o gzip do
+  Python nos dois sentidos; `tests/h93_compactar.py` usa os programas dentro
+  do SaguiOS e confere tudo no computador com o `tarfile` e o `zipfile`.
 
-**Decisão:** o pedido de "um programa no Windows que conecta ao sistema de
-arquivos" virou um servidor TCP dentro do kernel (`kernel/rede/servidor.c`,
-protocolo `SAGUI/1`, porta 2500) acionado pela chamada
-`SIS_SERVIDOR_ARQUIVOS` (65): cada chamada espera uma conexão por até o
-prazo de milissegundos pedido e atende quem ligar até o fim. O programa
-userland `servidor` liga as fatias (na frente, sai com `q`; com `&`, para
-com `kill`), e o cliente do Windows é `tools/windows/sagui-fs.ps1`, que
-chega pelo encaminhamento de porta `sagui-arquivos` da NAT (aplicado pelos
-scripts que criam a VM, host `127.0.0.1:2500` → convidado `2500`, só para o
-próprio computador). O protocolo é texto em Latin-1, uma linha por comando
-(LIST/INFO/GET/PUT/RM/MKDIR/RMDIR/REN/SAIR), com os limites de propósito:
-linha de 512 bytes, LIST de 128 entradas e PUT de 8 MiB.
+## D053. Os jogos do fork de Alejandro: menu "Jogos" e uma pasta por jogo (H92)
 
-**Motivo:** a pilha de rede é um estado serializado (pacotes.c/tcp), então
-"um por vez" é a forma honesta de expor arquivos sem reescrever a pilha em
-uma de interrupções: a chamada de sistema segura um cadeado
-(`rede_pilha_reservar`, dono por PID e recuperação se o dono morreu) e o
-`wget` concorrente recebe `ERRO_OCUPADO` em vez de corromper o estado. O
-VFS também não tem cadeado (as outras chamadas rodam com as interrupções
-desligadas do começo ao fim), e o servidor é o único que o toca com elas
-ligadas — cada acesso entra numa seção curta `cli`/`sti`, e o `GET`/`PUT`
-seguram o nó para um `rm` no meio não liberar a memória. Rodar o servidor
-no kernel evita copiar os bytes para o userland; rodar o *loop* no
-userland deixa as fatias curtas e o processo mataível. Do lado do host, a
-porta só no `127.0.0.1` é de propósito: nada do convidado fica exposto na
-rede em volta. E `/usb` montado não passa pelo servidor porque o
-pendrive pertence ao processo que o montou — a árvore em RAM é o que a
-rede vê.
+O fork SaguiOS-Extended de Alejandro Anuncibay (GPL 2 "ou posterior",
+compatível com a GPL 3) partiu da versão 1.0 e tem uma libsagui bem maior que
+a nossa. Os jogos dele foram reescritos sobre o `main` atual, com o nosso
+`gui.h` (só um ajudante novo: `g_imagem`, que desenha uma imagem ARGB com
+transparência), nomes e textos em português e, a pedido do Eli, com o tema de
+banana do sistema: Caça-Bananas (a mina é uma banana-bomba, a bandeira tem a
+cara do sagui), Paciência Banana (feltro verde, banana no verso e nos ases, o
+sagui nas figuras, os quatro naipes de sempre), o emulador de CHIP-8 com o
+montador `chip8asm` e o visor de atividades JClic. Nenhum nome de jogo ou
+produto existente.
 
-## D041. A janela de arquivos repete o protocolo, de propósito (H49)
+**Menu.** O menu do sagui troca Banana e Sagui 3D por um item "Jogos", que
+abre o lançador `/bin/jogos`: os ícones (os mesmos da doca, gerados por
+`tools/mkarte.py` e ligados ao programa) e o nome de cada jogo que existe em
+`/bin`. Os ícones da área de trabalho continuam.
 
-**Decisão:** a GUI do cliente de arquivos é um arquivo único,
-`tools/windows/sagui-gui.ps1` (PowerShell 5.1 + WinForms), que repete as
-funções do protocolo `SAGUI/1` em vez de carregar o `sagui-fs.ps1` como
-biblioteca. Cada ação abre e fecha a própria conexão TCP (o servidor atende
-um comando por conexão), e o botão "Conectar" só testa o caminho com um
-`LIST /`. A CLI continua intacta para scripts e testes.
+**Pastas.** Cada jogo com mais de um arquivo fica em `userland/jogos/<nome>/`
+e vira `/bin/<nome>` (o Makefile lê as pastas). As regras de cada jogo ficam
+num arquivo sem tela (`regras.c`, `nucleo.c`, `montador.c`, `motor.c`...),
+que compila também no computador de desenvolvimento com `-DTESTE_HOSPEDEIRO`:
+os testes `tests/jogos/teste_*.c` conferem as regras sem o QEMU.
 
-**Motivo:** o projeto entrega as ferramentas do Windows como "copiar e
-rodar", sem instalar nada e sem depender de caminho relativo entre scripts;
-um arquivo só é mais fácil de mandar para outra máquina e de explicar. Como
-o protocolo é pequeno (oito comandos de texto), repetir as funções custa
-pouco e deixa a janela independente da CLI. Abrir uma conexão por operação
-é a consequência natural do servidor de uma conexão por vez (D040): manter
-uma conexão aberta só para "estar conectado" seguraria a rede e impediria o
-`wget` do convidado. O `-Autoteste` e o `-AutotesteJanela` existem para
-provar a janela sem depender de cliques: o primeiro exercita o protocolo, o
-segundo constrói a janela, conecta, navega e volta com o servidor ligado.
+**Sem binários e sem conteúdo de fora.** As ROMs de CHIP-8 de exemplo
+(`sagui.asm`, `rebate.asm`) foram escritas aqui e são montadas no build pelo
+mesmo montador, compilado para o computador (`tools/chip8asm.c`). O projeto
+JClic de exemplo ("O sagui e a banana") também foi escrito aqui, em XML, e o
+build o põe num ZIP (`tools/mkzip.py`). Nenhuma ROM nem atividade baixada da
+internet entra na imagem: as licenças delas são desconhecidas. A fonte 4x5 do
+CHIP-8 são os valores da referência técnica (os programas dependem deles); a
+8x10 foi desenhada no fork.
 
-**O botão "Ligar servidor" (mesma história):** o caminho de ligar a VM,
-esperar a área de trabalho e abrir o Terminal com `servidor` também ficou na
-janela, em vez de virar outro script. Ele usa o `VBoxManage` para consultar
-o estado e tirar a captura de tela, e a COM API do VirtualBox
-(`VirtualBox.Session`) para mover o mouse e teclar dentro do convidado —
-a técnica que a H48 já tinha validado à mão. Ficou na própria janela porque
-é a continuação natural do botão "Conectar": quem abre a janela quer ver os
-arquivos, não decorar que precisa ligar a VM e digitar um comando antes.
-A prontidão da área de trabalho é reconhecida pela captura (barra escura no
-topo e dois de três pontos claros no centro), não por tempo fixo, e o botão
-só age na máquina local — a VM é escolhida com `-Vm`. O `-AutotesteLigar`
-cobre o caminho inteiro, inclusive com a VM desligada.
+**JClic.** O XML, o ZIP e as regras são nossos (nada do JClic nem do
+JClic.js); o DEFLATE e as imagens PNG/JPEG são os do Cipó. Jogam-se a tela de
+informação, os quebra-cabeças duplo, de troca e de buraco, a associação
+simples e a complexa, a memória, explorar, identificar, o caça-palavras e a
+cruzadinha. Ficaram de fora as atividades de texto, as formas não
+retangulares (`@Holes`), o som das células, os saltos entre atividades e as
+imagens GIF.
 
-## D042. O grep tem motor de expressões próprio, sem alocar (H50)
+## D054. Licenças dentro da imagem, histórico de versões e números MAIOR.MENOR.CORREÇÃO (H94)
 
-**Decisão:** o `grep` não usa a `libc` (não existe no SaguiOS): o motor de
-expressões é o `userland/libsagui/expressao.c`, com o parser de BRE e ERE, um
-NFA de Thompson e uma Pike VM que guarda o início do casamento para devolver
-sempre o trecho mais à esquerda e mais longo, como o grep do Linux. O motor
-cabe em buffers fixos (`expressao.h`): nenhuma alocação e nenhuma recursão
-funda. Os arquivos são lidos inteiros com a alocação da libsagui (limite de
-32 MiB) e convertidos de UTF-8 para Latin-1 na entrada, como o `cat` faz
-(D027).
+A janela "Sobre o SaguiOS" foi refeita e ganhou dois botões: "Créditos e
+licenças" e "Histórico". As escolhas:
 
-**Motivo:** o grep precisa das mesmas garantias do resto do userland —
-`-ffreestanding`, sem `malloc`, com pilha de 64 KiB. Um motor próprio e
-fechado também deixa o comportamento previsível no convidado: `-F` usa um
-casador literal separado (com `-i`, `-w` e `-x`), e `-w`/`-x` viram
-condições do NFA, não uma segunda passada sobre a linha.
+- **As licenças vão dentro da imagem.** Quem recebe só a imagem (um pendrive,
+  o .vdi) também recebe os avisos de copyright e os textos das licenças, como
+  a GPL 3, a LGPL, as BSD e a Apache pedem para quem distribui. O build
+  (`tools/mklicencas.py`) monta `/sistema/licencas` copiando os textos **dos
+  lugares onde já estão** no repositório (`LICENSE`, `CONTRIBUIDORES.md`,
+  `CREDITOS.md`, as pastas de `terceiros/`, a licença das fontes DejaVu e a
+  do Unicode), em vez de guardar uma segunda cópia no git, que poderia ficar
+  diferente da original.
+- **Terceiros entram sozinhos, e sem licença o build para.** Cada pasta de
+  `terceiros/` vira um arquivo (o `ORIGEM.md` mais os `LICENSE*`,
+  `COPYING*`, `PATENTS*` e `NOTICE*`), e o nome que aparece na lista sai do
+  título do `ORIGEM.md` e da coluna "Licença" do `CREDITOS.md`. Uma pasta sem
+  arquivo de licença faz o `make` falhar, e o teste `h94_sobre.py` confere
+  que cada licença de `terceiros/` chegou a `/sistema/licencas`. Dados e
+  fontes, que não ficam em `terceiros/`, são uma lista curta no próprio
+  `mklicencas.py`; para o dicionário da RFC 7932, os certificados raiz (MPL
+  2.0), o fundo da Mata Atlântica e as tabelas das normas, que não têm um
+  arquivo de licença no repositório, o aviso é escrito ali.
+- **Os certificados raiz levam o aviso da MPL 2.0**, com o endereço do texto
+  (https://mozilla.org/MPL/2.0/), que é a forma que a própria MPL prevê
+  ("If a copy of the MPL was not distributed with this file..."); o texto
+  completo da MPL não está no repositório.
+- **Latin-1.** Os textos saem em UTF-8 com extensão .txt, e o `mksgfs.py`
+  converte para Latin-1, como os outros textos do sistema. Antes, as letras
+  tipográficas que não existem no Latin-1 (travessão, aspas curvas) viram as
+  simples, para não aparecerem como "?".
+- **Um programa, três janelas.** `sobre-o-sistema creditos` e
+  `sobre-o-sistema historico` são o mesmo programa com um argumento, cada
+  janela num processo próprio, para a janela Sobre continuar atualizando. A
+  área de texto da libsagui não quebra linhas, então o programa quebra as
+  linhas largas num espaço antes de mostrar.
+- **32 ou 64 bits pela ABI, sem quebrar os programas antigos.** O
+  `info_versao_t` ganhou um campo `bits` **no fim**. O kernel só o preenche
+  quando o programa pede o tamanho novo (o terceiro argumento de
+  `info_sistema`); um programa compilado antes pede 48 bytes e recebe só os
+  campos que conhece, sem memória escrita além da variável dele. O valor é
+  `sizeof(void *) * 8` do próprio kernel: num kernel de 64 bits ele vira 64
+  sem ninguém lembrar de trocar uma constante.
+- **O histórico de versões fica em `VERSOES.md`**, na raiz e dentro da
+  imagem (`/sistema/ajuda/versoes.md`). Mudanças novas entram na seção "Em
+  desenvolvimento"; quando sai uma versão, aquilo vira a seção dela.
+- **Versões MAIOR.MENOR.CORREÇÃO a partir da 3.0.** Até a 2.1 as versões eram
+  "fases" grandes, entregues de uma vez. Com contribuições chegando o tempo
+  todo, os números passam a dizer o tamanho da mudança: só correções mudam o
+  último número, coisas novas o do meio, mudanças na base (que podem fazer
+  programas antigos pararem) o primeiro. Os números não têm limite (3.10,
+  3.0.12), e as versões saem de tempos em tempos, juntando muitas mudanças.
+  A versão em preparação já usa três números: 2.2.0.
 
-**O que fica de fora, de propósito:** `-P` (PCRE), referências anteriores
-(`\1` a `\9`) e `-z` (linhas terminadas em NUL). Os dois primeiros não têm
-lugar num motor sem alocação; o terceiro muda a leitura de arquivo inteiro.
-Essas opções são recusadas com mensagem clara, e o `grep --help` lista o que
-existe. As cores (`--color=always`) usam SGR e por isso o terminal do kernel
-e a janela Terminal passaram a entender `ESC [ ... m`, guardando a cor por
-célula; `--color` sem valor vira `auto`, que neste sistema sem `isatty` é
-tratado como `never`.
+## D055. Ícones desenhados só em código, no estilo do pull request #26
 
+O pull request #26 (Robson de Lima Barbosa) trouxe um visual novo para os
+ícones: um quadrado de cantos redondos com degradê vertical, um brilho no alto,
+sombra e um símbolo claro no meio. Os pixels vinham de uma folha de imagens
+recortada; o estilo ficou, mas a folha saiu. O motivo: o sistema não pode
+depender de um gerador de imagens para ganhar um ícone novo, e o recorte
+deixava alguns ícones fora do centro.
+
+- `tools/mkarte.py` tem `estilo_app(t, cor_de_cima, cor_de_baixo)`, que pinta
+  o fundo medido nos ícones do #26 (caixa de 45 pixels, raio 10,5, sempre no
+  mesmo lugar), e ganhou curvas de Bézier, arcos e rotação para os símbolos.
+- Todos os ícones foram redesenhados assim, com as cores dos do #26. Novos
+  desenhos: a calculadora (corpo, visor e teclas), o Sagui 3D (um corredor de
+  mata em primeira pessoa com uma banana na trilha, em vez de um cubo), a
+  banana-bomba do Caça-Bananas (no vermelho), as cartas da Paciência, o
+  monitor de fósforo verde com um foguete de pixels do CHIP-8 (na caixa
+  preta), a peça de quebra-cabeça do JClic e o controle dos Jogos (no roxo).
+- Saíram `arte/icones-folha.png`, `arte/icone-saguicode.png`,
+  `tools/png_icones.py` e `tools/icones_imagem.py`. O padrão para um ícone
+  novo está no começo do `mkarte.py` e no `AGENTS.md`.
+
+## D056. Menu Iniciar com todos os programas, busca e categorias (issue #25, parte 2)
+
+**Contexto.** O menu do sagui listava 12 programas numa coluna. Programas que
+existem em `/bin` e abrem janela (Chuva de letras, Triângulos 3D, Componentes
+e cada jogo do H92) não apareciam em lugar nenhum da interface.
+
+**Decisão.**
+- O menu continua no kernel (`kernel/gui/janelas.c`), no mesmo botão do
+  sagui: caixa de busca, uma fileira de categorias e uma grade de 5 x 4
+  ícones de 40 pixels, com o nome em até duas linhas. No rodapé, Sobre e
+  Desligar. As formas são as do `suave.h` (#36).
+- O catálogo (`catalogo[]`) dá a cada programa nome, caminho, categoria,
+  ícone e palavras extras para a busca ("navegador" acha o Cipó). Categorias:
+  Todos, Internet, Escritório, Mídia, Jogos, Sistema, Programação e
+  Instalados; Instalados só aparece quando há programas no pendrive, que
+  entram pelo `area_icone_nome`.
+- Jogos: o lançador `/bin/jogos` (H92) e cada jogo dele, como pediu a
+  revisão da issue #25.
+- Enquanto o menu está aberto, o teclado vai para a busca. A busca ignora
+  maiúsculas e acentos e compara Latin-1 (o kernel compila com
+  `-fexec-charset=ISO-8859-1` e o teclado entrega Latin-1). Setas escolhem,
+  Enter abre, Esc fecha; a tecla Windows abre e fecha.
+- O Sagui Code (terminal) roda com `terminal -e /bin/saguicode`. O Vídeo fica
+  fora, porque precisa de um arquivo.
+- O vidro do menu é quase opaco (250 de 256): com a grade grande, o texto
+  das janelas de trás atrapalhava a leitura.
+- `tools/mkarte.py`: ícones novos no estilo do D055 (Chuva de letras,
+  Triângulos 3D, Componentes, Desligar e a lupa da busca) e o tamanho de
+  20 pixels, usado no rodapé e na busca.
+
+**Compatibilidade.** Os testes que clicavam no menu antigo (`h74_h77`, `h78`,
+`h81`, `h89_saguicode_janela`, `h92_jogos`) agora clicam na grade: a célula
+k fica em `(44 + (k % 5) * 108 + 54, 134 + (k // 5) * 92 + 30)`.
+
+## D057. Laço de seleção na área de trabalho (issue #25, parte 3)
+
+**Contexto.** A ideia é a do commit 0b3c462 (ramo `area-lixeira`, do Robson,
+sobre o código da 1.0), refeita para o código atual.
+
+**Decisão.**
+- Arrastar no vazio da área de trabalho desenha um retângulo translúcido
+  (`suave_ret` com 64 de 256 e `suave_contorno`, do `suave.h`). Ao soltar, os
+  ícones que ele toca ficam marcados. Com Shift, somam aos já marcados.
+- Um clique num ícone marca só ele (Shift soma). Um clique no vazio desmarca
+  tudo.
+- O laço e o destaque dos marcados são desenhados logo depois do fundo, por
+  baixo das janelas: o laço é da área de trabalho.
+- A seleção fica no `area_trabalho.c` (`area_selecionar`,
+  `area_limpar_selecao`, `area_icone_selecionado`, `area_qtd_selecionados`).
+  Ela vale para os ícones do sistema e para os programas instalados.
+
+## D058. Arquivos: laço, vários marcados, "Novo" no menu e nome editado na linha (issue #25, parte 4)
+
+**Pedido.** Queria a seleção translúcida também no Arquivos, as opções de
+criar no menu do botão direito (pasta, arquivo de texto e outros) e o nome
+escrito na própria linha do item, sem janela de diálogo. Isso vale para criar
+e para renomear.
+
+**Na lista da `libsagui`.** Tudo é opcional, e quem não liga continua igual
+(Tocador, Componentes).
+- `lista_t.marc` (um byte por item) liga a seleção de vários itens:
+  - clique marca um, Ctrl+clique alterna, Shift+clique marca a faixa e
+    Ctrl+A marca todos;
+  - arrastar a partir do vazio desenha o laço translúcido. O vazio é abaixo
+    dos itens ou depois do fim do nome. O laço marca as linhas cujo nome ele
+    toca;
+  - um clique sem arrastar no fim da linha seleciona a linha, e o duplo clique
+    abre, como antes. Os testes antigos clicam no meio da linha.
+- `lista_editar(j, l, i, marcar)` abre a edição do nome na própria linha. O
+  texto fica numa caixa branca de contorno verde, e os primeiros `marcar`
+  caracteres ficam marcados: digitar troca a parte marcada.
+  - Enter termina e devolve `LISTA_EDITOU`;
+  - Esc desiste e devolve `LISTA_DESISTIU`;
+  - um clique fora também termina;
+  - "/" não entra no nome.
+
+**No Arquivos.**
+- O menu do botão direito no vazio tem Nova pasta, Novo arquivo de texto,
+  Nova página HTML, Atualizar e Voltar.
+- Num item, o menu tem Abrir (com o nome do programa), Abrir no Editor,
+  Renomear, Apagar e os "Novo".
+- Com vários marcados, o menu oferece "Apagar os N itens...".
+- Criar dá um nome livre ("Nova pasta", "Nova pasta (2)"...) e já abre a
+  edição na linha. Nos arquivos, só o nome fica marcado, sem a extensão: quem
+  digita "notas" tem "notas.txt".
+- A página HTML nasce com um esqueleto mínimo.
+- F2 e o menu Renomear usam a mesma edição.
+- O renomear recusa:
+  - nome vazio (fica o nome antigo);
+  - nome que começa com ponto, porque esses ficam escondidos;
+  - nome que já existe na pasta.
+- Apagar vale para todos os marcados, com uma
+  pergunta só.
+
+**Mudança de comportamento.** O botão "Nova pasta" não abre mais a janela que
+pedia o nome. O `h23_arquivos` passou a esperar a edição na linha.
+
+## D059. Visualizador de imagens (issue #25, parte 5)
+
+**Contexto.** As imagens abriam no Cipó, que é um navegador: sem zoom, sem
+passar para a próxima da pasta e sem os papéis de parede (.sgi).
+
+**Decisão.**
+- `/bin/visualizador` usa os decodificadores do Cipó pelo Makefile, sem
+  copiar código: `imagens.c` (PNG, JPEG, GIF e WebP), com o DEFLATE da
+  libsagui. Ele também lê BMP de 24 e 32 bits e o `.sgi` dos papéis de
+  parede (SGI1, paleta e RLE, o mesmo formato que o kernel lê para o fundo).
+- Ao reduzir, cada pixel da tela é a média dos pixels que ele cobre,
+  guardada até mudar o zoom ou a janela. Ao ampliar, pixel mais próximo.
+- As setas passam para a imagem anterior ou a próxima da pasta, em ordem
+  alfabética, porque a FAT do pendrive lista na ordem em que os arquivos
+  foram gravados. +/- mudam o zoom, 0 ajusta e 1 mostra em tamanho real.
+- O Arquivos manda .png, .jpg, .gif, .webp, .bmp e .sgi para o
+  Visualizador. O .svg continua no Cipó.
+
+## D060. Captura de tela com a tecla Print Screen (issue #25, parte 5)
+
+**Decisão.**
+- A tecla Print Screen (E0 37) virou `TECLA_IMPRIMIR` (0x118). O
+  gerenciador de janelas a trata antes da janela em foco e abre o
+  `/bin/captura`.
+- O `/bin/captura` lê a tela por uma chamada nova, `SIS_LER_TELA` (79). Ela
+  copia o buffer de trás (a tela montada, sem o cursor do mouse) para o
+  programa, se o espaço couber; com 0 bytes, só diz o tamanho. Qualquer
+  programa pode ler a tela, como no X11 sem extensões: o SaguiOS não tem
+  usuários separados, então não há de quem esconder.
+- O PNG é RGB de 8 bits, filtro "nenhum", com o IDAT comprimido pelo
+  `deflar` da libsagui num fluxo zlib (RFC 1950). Com pendrive montado vai
+  para `/usb/Capturas`; sem, para `/capturas`, que fica na memória e some ao
+  desligar. Um aviso mostra onde salvou.
+- `captura arquivo.png` no terminal salva onde se pede.
+
+## D061. Lixeira no Arquivos (issue #25, parte 5)
+
+**Decisão.**
+- "Apagar" no Arquivos move para a lixeira do mesmo disco: `/.lixeira` ou
+  `/usb/.lixeira`. Renomear entre a memória e o pendrive não existe (o
+  `sis_renomear` recusa com ERRO_ACESSO), então cada disco tem a sua.
+- O `.origens` de cada lixeira guarda, por linha, "nome na
+  lixeira<TAB>caminho original". Restaurar lê a última linha do nome e
+  recria a pasta de origem, se ela tiver sido apagada. Sem registro, o item
+  volta para a raiz do disco. Com nome repetido, entra como "nome~2".
+- Nomes que começam com ponto não aparecem no Arquivos (a lixeira e o
+  .origens).
+- A área de trabalho tem o ícone da Lixeira, sempre o último da fila. O
+  desenho troca para "cheia" quando há algo em `/.lixeira` ou
+  `/usb/.lixeira` (o kernel confere a cada 2 s, junto com os programas
+  instalados). O duplo clique abre o Arquivos na lixeira. Renomear e
+  esconder usam a chave "lixeira" nas configurações, porque o programa
+  (`/bin/arquivos`) é o mesmo do ícone do Arquivos.
+- O botão Lixeira também fica no pé da lateral do Arquivos. Dentro da lixeira, os botões viram
+  Restaurar, Apagar de vez e Esvaziar, e o menu do botão direito também.
+- Shift+Delete apaga de vez. Apagar de vez e Esvaziar apagam pastas com tudo
+  dentro. O `rm` do terminal continua apagando de vez, como no Unix.
+
+## D062. Discos internos (IDE/ATA) e o que muda na ABI (issue #45)
+
+**Contexto.** Até aqui o kernel só enxergava pendrives USB. O disco de onde o
+sistema ligou só era lido pela BIOS, no boot. Para instalar o SaguiOS num HD
+(#45), o kernel precisa enxergar os discos internos. Esse disco também guarda
+os dados de quem testa (o Windows, outro Linux), e a regra prd2 vale: nada
+grava nele sem que a pessoa escolha e confirme. Por isso o driver entra
+primeiro só lendo; a gravação veio depois, junto com a trava no kernel (D063).
+
+**Decisão.**
+- Driver ATA em PIO nas portas clássicas (0x1F0/0x170, controle em
+  0x3F6/0x376), mestre e escravo, sem interrupções (nIEN), LBA28 e LBA48 e
+  até 3 tentativas com reset do canal. O modo AHCI fica para depois.
+  Referência: ATA/ATAPI-6 (T13/1410D rev. 3a), com as seções citadas em
+  `ata.c`.
+- O driver grava (WRITE SECTOR(S) e FLUSH CACHE depois), mas gravar num
+  disco interno só acontece pelos setores crus, travados atrás da
+  confirmação de quem usa (D063).
+- Toda espera do driver tem limite de tempo, medido pelo contador do PIT
+  (`cronometro_ms`, que anda com as interrupções desligadas): 5 s por
+  comando e 1 s no IDENTIFY. Antes de escrever no Device register, o driver
+  espera BSY e DRQ em zero (7.7.3).
+- Os discos internos se chamam `hd0`, `hd1`... e ficam na mesma lista dos
+  pendrives (`disco_registrar_interno`). O kernel lê o setor 0 de cada um
+  para mostrar o formato e o rótulo.
+- **Nenhum disco interno é montado**, nem sozinho, nem com `montar hdX`
+  (ERRO_ACESSO), e o Arquivos e a área de trabalho não oferecem o disco.
+- O autoteste `usb_setores`, que grava setores, só usa pendrive, nunca disco
+  interno.
+
+**ABI (acréscimos, nada muda de lugar).**
+- `info_disco_t` ganha o campo `interno` no fim (1 = disco interno).
+  `SIS_LISTAR_DISCOS` passa a receber, no terceiro argumento, o tamanho da
+  estrutura do programa (a libsagui manda `sizeof`). Programas antigos
+  mandavam 0: o kernel escreve só os campos até `interno` (`offsetof`) e não
+  passa do fim da estrutura deles, como no campo `bits` da H94.
+
+**Teste.** `h105_disco_ata`: três discos IDE (o do sistema, um com a FAT32 do
+SaguiOS e um com a FAT32 de outro sistema) e um pendrive. Os discos são
+achados e lidos, nada monta, `montar` recusa, o pendrive continua montando e
+as imagens dos HDs saem byte a byte iguais.
+
+## D063. Setores crus travados no kernel atrás de uma confirmação (issue #45)
+
+**Contexto.** Um instalador precisa ler e gravar setores direto no disco: a
+tabela de partições, a cópia do sistema, a formatação. É também o jeito mais
+fácil de destruir os dados de quem testa. A regra prd2 diz que só se grava
+num disco que a pessoa escolheu e confirmou digitando o nome, nunca por
+padrão, e essa confirmação não pode depender do programa.
+
+**Decisão.**
+- Três chamadas novas: `SIS_DISCO_SETORES` (80) lê ou grava de 1 a 128
+  setores; `SIS_DISCO_RELER` (81) reconhece de novo o formato do disco
+  depois que o programa gravou uma tabela; `SIS_DISCO_LIBERAR` (82) pede a
+  confirmação.
+- `SIS_DISCO_LIBERAR (nome, resumo)` abre uma caixa desenhada pelo kernel,
+  por cima de tudo. Enquanto ela está aberta, teclado e mouse vão só para
+  ela (nem os atalhos passam). A caixa mostra o que o kernel sabe do disco
+  (nome, se é interno ou pendrive, modelo, tamanho e o que tem nele hoje) e,
+  separado, sob "O programa diz que vai:", o resumo que o programa mandou
+  (até 4 linhas). A pessoa digita o nome do disco e aperta Enter; nome
+  errado não libera, Esc cancela.
+- A liberação vale só para aquele disco, só para o processo que pediu e só
+  até ele terminar (`discos_processo_terminou`). O processo do kernel (pid 0)
+  nunca é liberado.
+- Sem a liberação: gravar dá ERRO_ACESSO em qualquer disco; ler um disco
+  interno também, exceto o que o instalador copia do disco de onde o sistema
+  ligou (setores 0 e 1 e a partição 0xDA). Ler um pendrive continua livre.
+  Gravar num disco montado dá ERRO_OCUPADO.
+- O disco de onde o sistema ligou (a origem) é achado pelo identificador do
+  MBR (bytes 0x1B8-0x1BB), que o estágio 2 copia para `info_boot.disco_id`.
+  Com dois discos de mesmo identificador e com a partição do sistema,
+  nenhum é a origem.
+- `SIS_DISCO_RELER` usa `usuario_texto`, como o `sis_montar`.
+
+**ABI (acréscimos).** As chamadas 80, 81 e 82; `pedido_setores_t`; o erro
+`ERRO_ES` (-18); o campo `origem` no fim de `info_disco_t` (os programas
+antigos continuam recebendo só o que cabe, D062); `info_boot_t.disco_id`
+(`BI_DISCO_ID`, byte 152 do bootinfo).
+
+**Teste.** `h109_trava_discos`, com `/testes/setores`: as recusas sem
+confirmação, a caixa (o que mostra, nome errado, Esc, nome certo), a
+liberação que acaba com o processo e, no fim, o disco conferido byte a byte:
+só o setor gravado depois da confirmação mudou.
+
+## D064. O instalador, por enquanto só apagando o disco inteiro (issue #45)
+
+**Contexto.** Com o driver ATA (D062) e a trava dos setores crus (D063), dá
+para levar o SaguiOS do pendrive para um disco. Editar partições e instalar
+num espaço livre mexe com os dados de outros sistemas e precisa de uma
+leitura da tabela muito mais cuidadosa (partições lógicas, GPT, tabelas
+malformadas). Por isso o instalador entra primeiro só com o caso mais
+simples e fácil de conferir: apagar o disco inteiro.
+
+**Decisão.**
+- `/bin/instalar` é um assistente em quatro passos: boas-vindas, disco,
+  resumo e instalação. Não tem opções de linha de comando.
+- Nada do disco escolhido é lido ou gravado antes do botão **Instalar**, no
+  resumo. É nele que o instalador chama `SIS_DISCO_LIBERAR` com o resumo, e
+  o kernel mostra a caixa em que a pessoa digita o nome do disco. O botão
+  Instalar não responde ao Enter. Nome errado ou Esc voltam ao resumo.
+- O resumo diz tudo o que muda: as partições e os dados somem, e o código de
+  boot, a tabela de partições e o identificador do disco são trocados (um
+  Windows ou Linux que ligava pelo disco deixa de ligar).
+- O que fica no disco: o primeiro MB e os 33 setores do fim (a cópia da
+  GPT) zerados; a partição do sistema (0xDA, ativa) a partir de 1 MB, com o
+  estágio 2, o kernel e o ramdisk copiados da origem; a FAT32 `SAGUIOS`
+  logo depois, alinhada em 1 MB, com `.saguios/configuracoes.txt`
+  (`sistema.instalado = sim`); o cabeçalho de boot no setor 1, com os LBA
+  novos; e por último o MBR, com um identificador novo. Cada setor gravado
+  é lido de volta e conferido.
+- O kernel monta um disco interno só se for a FAT32 de rótulo `SAGUIOS`
+  com `.saguios/configuracoes.txt`, ou se o processo que pede está liberado
+  para esse disco (o instalador, para gravar as configurações). Montado, o
+  disco aparece como "Disco", sem "Remover com segurança".
+- A FAT32 é formatada pelo próprio instalador, pela especificação da
+  Microsoft ("FAT32 File System Specification", 2000).
+
+**Teste.** `h110_instalar`: Cancelar, Enter no resumo, nome errado e Esc não
+mudam um byte do disco; a instalação deixa o MBR, o primeiro MB, o fim do
+disco, o sistema (cópia exata da origem) e a FAT32 (fsck.vfat) como
+descrito; ligando pelo disco, a partição dos arquivos monta sozinha e
+guarda um arquivo depois de reiniciar.
+
+## D065. O instalador e as unidades na coluna da direita da área de trabalho
+
+**Contexto.** Com o instalador (D064), quem liga pelo pendrive precisa achá-lo
+sem abrir o terminal. Nos sistemas Linux, o instalador e as unidades
+(pendrives, discos) ficam no canto de cima à direita da área de trabalho.
+
+**Decisão.**
+- A área de trabalho tem uma coluna à direita: primeiro "Instalar o SaguiOS"
+  (só quando o sistema não ligou pelo disco instalado), depois as unidades
+  (os pendrives e o Disco do SaguiOS montado), até 4.
+- O botão direito no instalador tem só "Abrir"; numa unidade, "Abrir" e
+  "Remover com segurança" (o Disco não tem "Remover").
+- O menu Iniciar ganha "Instalar o SaguiOS" (Sistema). Ligado pelo disco
+  instalado (`sistema.instalado = sim` nas configurações), ele some do menu
+  e da área de trabalho.
+
+**Teste.** `h111_area_unidades` (a coluna, os menus do botão direito e os
+duplos cliques), `h34` (o ícone do pendrive conferido pelo pixel na posição
+nova) e `h110` (o menu abre o instalador; instalado, ele some).
+
+## D066. A tabela de partições lida e conferida pelo kernel
+
+**Contexto.** Na revisão do #53 (B3 a B5), o instalador lia o setor 0 sozinho
+e confiava demais nele. Bastava a assinatura 0x55AA para os bytes 446 a 509
+virarem partições, mesmo num disco com FAT32 ou NTFS gravado no disco
+inteiro. Entradas que passavam do fim eram cortadas, entradas sem tamanho
+sumiam, as lógicas da estendida ficavam invisíveis e um GPT sem a entrada
+0xEE aparecia como "sem partições". Com isso, o instalador poderia gravar
+por cima de uma partição de outra pessoa.
+
+**Decisão.**
+- A leitura fica no kernel (`kernel/fs/tabela.c`), numa chamada nova,
+  `SIS_DISCO_TABELA` (83). Ela não precisa de liberação: lê só o setor 0, os
+  setores 1 e o último (procurando "EFI PART"), os EBRs e o primeiro setor
+  de cada partição (o formato).
+- O estado é um de: vazio, MBR, GPT, VBR (o setor 0 é um volume, sem
+  tabela), desconhecido (sem 0x55AA) ou erro de leitura. O VBR é
+  reconhecido pelo BPB e pela assinatura do formato, não pelo salto 0xEB,
+  porque o código de boot de um MBR (o do GRUB, por exemplo) também começa
+  com ele.
+- GPT é reconhecida pela entrada 0xEE e também pelo cabeçalho no setor 1 ou
+  no último setor.
+- As lógicas são lidas seguindo a cadeia de EBRs, que tem de andar sempre
+  para a frente e ficar dentro da estendida.
+- As entradas voltam como estão no disco, sem cortar e sem descartar, junto
+  com o maior fim visto em todas elas.
+- A tabela só é "conferida" se nada for estranho. Contam como estranho:
+  status diferente de 0x00 e 0x80, entrada sem tamanho, entrada começando
+  antes do setor 2, entrada passando do fim do disco, primárias ou lógicas
+  sobrepostas, lógica fora do seu lugar na estendida, mais de uma
+  estendida, cadeia de EBRs em laço ou longa demais. O primeiro problema
+  vai junto, em texto. Com uma tabela não conferida, o instalador não
+  oferece o espaço livre (parte 6).
+- A caixa de confirmação do kernel ganha uma linha com essa leitura
+  ("Tabela MBR: 4 partições (2 lógicas)", ou o problema), e o resumo do
+  instalador conta as partições que vai apagar.
+
+**Teste.** `h112_tabela` liga pelo pendrive com 15 discos, 3 por máquina:
+ext, partição em 63, estendida com duas lógicas, partição além do fim,
+sobrepostas, GPT com e sem 0xEE, FAT32 e NTFS no disco inteiro, setor 0
+zerado, sem assinatura, status inválido, entrada no setor 1, lógica fora da
+estendida e cadeia em laço. Para cada um, confere o estado, o problema, o
+maior fim e cada partição com os números exatos. Confere também a linha na
+caixa do kernel, e que todos os discos ficam byte a byte iguais. `h110`
+confere a contagem no resumo.
+
+## D070. O Tocador lê a música em pedaços e limpa o som ao trocar (issue #27)
+
+**Contexto.** No G470, abrir um WAV do pendrive travava a tela por alguns
+segundos, e trocar de música repetia um pedaço da anterior ("loop") até a
+nova começar. O Tocador lia o arquivo inteiro num `ler()` só. Uma chamada de
+sistema roda com as interrupções desligadas (a porta 0x80 é de interrupção,
+D007) e o kernel não é interrompido no meio dela. Então, durante a leitura
+de vários MB do pendrive, o relógio parava. Sem o relógio, a tela e o mouse
+não andavam e o misturador não enchia o anel da placa. O DMA do HD Audio
+seguia tocando o anel de 64 KB (~340 ms) em volta, com o som velho. Além
+disso, ao trocar de música, a fila da fonte (~340 ms) ainda tinha o fim da
+anterior.
+
+**Decisão.**
+- O Tocador abre o arquivo, reserva o espaço do tamanho dele e lê **um
+  pedaço de 32 KB por volta do laço**, entre os eventos da janela. A música
+  começa assim que o cabeçalho chega: o WAV toca até onde já chegou e espera
+  o resto, e o MP3 é decodificado quadro a quadro do que já está na memória.
+  Pular na barra só vai até onde o arquivo já chegou. Enquanto falta ler, o
+  laço não dorme.
+- O decodificador de MP3 ganha `mp3_abrir_fluxo` e `mp3_chegou`. Com o
+  arquivo incompleto, um quadro que passa do que chegou não é aceito nem
+  pulado: o decodificador devolve 0 e quem chama sabe, por `mp3_completo`,
+  que não é o fim. A duração sem quadro Xing é estimada pelo tamanho do
+  primeiro quadro e contada direito quando o arquivo termina de chegar. A
+  saída é igual, amostra por amostra, à da leitura inteira (conferido no PC
+  com pedaços de 1 KB, 4 KB e 32 KB e com uma etiqueta ID3v2 grande).
+- Quando a pessoa troca de música (botões, lista) ou aperta Parar, o Tocador
+  **fecha a fonte de som e abre outra**: o misturador zera a fila de uma
+  fonte nova, e o fim da música velha não toca. No fim natural de uma
+  música, a fila fica, porque é o finzinho dela. Não precisou de chamada nova.
+- No kernel, duas mudanças pequenas:
+  - o misturador **apaga a parte do anel que a placa já leu** (do ponto em
+    que parou da última vez até a posição atual). Se ele ficar sem rodar por
+    qualquer chamada longa, a placa toca o pouco que estava à frente e
+    depois silêncio, em vez de repetir o anel. O trecho à frente da posição
+    nunca é apagado;
+  - o `fat_ler` junta **clusters vizinhos no disco** num pedido só, de até
+    64 KB. Antes, cada cluster era um comando SCSI. Num pendrive formatado no
+    Windows, com clusters de 4 KB, 32 KB eram 8 comandos, e agora são 1. A
+    cadeia continua sendo seguida na FAT, então um arquivo picado só junta o
+    que está mesmo em seguida.
+- O que ficou de fora: deixar as interrupções ligadas durante a leitura USB.
+  O kernel não é preemptível dentro de uma chamada de sistema, e ligar as
+  interrupções ali deixaria o escalonador trocar de processo no meio do
+  FAT32. Não é uma mudança pequena. Com pedaços de 32 KB, cada chamada
+  segura as interrupções por poucos milissegundos.
+
+**Teste.** `h120_tocador_fluxo` usa um pendrive de 300 MB (clusters de 4 KB)
+com um WAV de 7 MB (440 Hz), outro de 5 MB (660 Hz) e um MP3. Confere que a
+música começa antes de o arquivo terminar de ser lido e que o botão de
+volume responde durante a leitura. No som gravado pelo QEMU, confere que o
+440 Hz dura só o tempo em que tocou até o clique em ">>" (com folga de
+0,35 s) e não volta depois do 660 Hz. Confere também que o 660 Hz para no
+">>" seguinte e que o MP3 toca depois.
+
+## D071. O tocador de vídeo segue o som, descarta quadros e ganha controles (issues #28 e #29)
+
+**Contexto.** No G470, o MP4 de 1080p de teste ficava em câmera lenta e o
+som "parava". Medido no QEMU (sem KVM), com os vídeos de 5,7 s do Eli:
+
+| vídeo | decodificar um quadro | fim do vídeo (antes) | som (antes) |
+|---|---|---|---|
+| 360p | 80 ms | 17,3 s | contínuo, 5,2 s |
+| 720p | 433 ms | 78,4 s | 5,9 s com 2 buracos |
+| 1080p | 607 ms | 109,3 s | 8,2 s com 5 buracos |
+
+O tocador decodificava e mostrava **todos** os quadros, um atrás do outro:
+quando decodificar demora mais que 33 ms (30 quadros por segundo), a imagem
+anda devagar. O som era posto na fila do misturador à parte, no tempo certo;
+acabava nos seus 5,8 s e o resto do vídeo seguia mudo; essa era a "parada"
+do som. E, como a fila do misturador guarda só ~340 ms, um quadro que levava
+mais que isso deixava a fila secar (os buracos). No PC de build, o mesmo
+decodificador leva ~8 ms por quadro em 360p, ~30 em 720p e ~55 em 1080p; o
+G470 (2011, um núcleo) deve ficar umas 2 a 3 vezes mais lento que isso.
+
+**Decisão.**
+- **O relógio é o do som.** Anda com o relógio do sistema, mas, sempre que a
+  fila do misturador está cheia, vai para o que está tocando de fato (o
+  entregue menos a fila: 341 ms da fonte mais 60 ms que o misturador
+  escreve à frente) e nunca passa do som já entregue (se o som secar, a
+  imagem espera). No QEMU com a máquina ocupada o relógio do sistema chega a
+  atrasar segundos em relação à placa de som; no G470 os dois devem andar
+  juntos.
+- **O som vem primeiro.** A fila é enchida antes de cada quadro e também no
+  meio dele: o decodificador H.264 ganhou `h264_ao_progresso`, chamado a
+  cada linha de macroblocos (e do desbloqueio), e o tocador enche a fila ali.
+- **Descarte quando atrasa.** Uma amostra cujas fatias têm todas
+  `nal_ref_idc = 0` não é referência de ninguém (H.264, 7.4.1): atrasada, é
+  pulada inteira, sem decodificar (`h264_descartavel`). Nos vídeos de teste
+  (x264, quadros B em pirâmide) são 85 dos 171 quadros. Os de referência (I,
+  P e os B de referência) não podem ser pulados, porque os seguintes são
+  previstos a partir deles; atrasados, são decodificados mas não vão para a
+  tela (no máximo um a cada 100 ms, para a imagem não congelar), poupando a
+  escala e a conversão de cor.
+- **Conversão de cor com SSE2** (`userland/video/cor.c`): escala por vizinho
+  mais próximo para qualquer tamanho de janela (com as colunas de origem
+  calculadas uma vez por tamanho, e cópia da linha anterior quando a linha
+  de origem se repete) e BT.601 de 8 em 8 pontos com `pmulhw` e `packuswb`.
+  No PC: 360p de 1,13 ms para 0,60 ms por quadro, 1080p reduzido à metade de
+  2,98 ms para 1,13 ms, a mesma imagem (diferença máxima de 1 nível em 255).
+  No QEMU o SSE é emulado e o ganho aparece menos.
+- **Controles** (barra embaixo, no estilo do Tocador de músicas): Tocar /
+  Pausar, tempo "0:02 / 0:05", barra de progresso que pula ao clicar, volume
+  do sistema (`som_volume`) e Tela cheia. Teclas: Espaço, setas (5 s para os
+  lados, volume para cima e para baixo), F ou F11, Esc. A janela é
+  redimensionável (o botão de maximizar da moldura funciona) e a imagem
+  mantém a proporção. Pausar fecha a fonte de som (o que estava na fila some
+  na hora) e voltar abre outra no ponto exato.
+- **Pular** volta ao IDR mais próximo antes do ponto (ou segue de onde está,
+  se o ponto estiver à frente e não houver IDR no caminho) e decodifica até
+  lá; os quadros do caminho estão "atrasados", então os B sem referência são
+  pulados e nada é desenhado. O som recomeça no ponto exato (um quadro AAC
+  antes, jogando fora a saída, por causa da sobreposição da MDCT). Os vídeos
+  de teste só têm um IDR, no começo: pular para o fim de um 1080p no G470
+  custa decodificar os quadros de referência até lá.
+- **Tela cheia é uma chamada nova**, `SIS_JANELA_MODO` (84), acrescentada no
+  fim da tabela: `(id, modo)` com `JAN_MODO_NORMAL`, `_MAXIMIZADA` ou
+  `_TELA_CHEIA`, só para janela redimensionável. Em tela cheia, a moldura
+  fica fora da tela (x = -2, y = -24), então o conteúdo começa em (0, 0) e
+  as contas de clique continuam as mesmas; a composição não desenha a
+  moldura e, com a janela na frente, desenha o conteúdo de novo por cima da
+  barra de cima e da doca, que não pegam mais os cliques. Esc é do programa
+  (o tocador sai da tela cheia); Super+Baixo também volta.
+- `video --todos` decodifica e tenta mostrar todos os quadros, como antes
+  (o H88 usa, para conferir o decodificador quadro a quadro).
+
+**O que não muda.** O decodificador H.264 em si (compensação de movimento,
+CABAC, desbloqueio) não foi reescrito: os quadros de referência continuam
+custando o mesmo. Em 1080p, só eles já passam do tempo real no QEMU e devem
+passar no G470; ali o som sai inteiro e no tempo certo, mas a imagem anda a
+poucos quadros por segundo e atrasa. Acelerar a compensação de movimento com
+SSE2 é o próximo passo, se for preciso.
+
+**Teste.** `h121_video_sincronia` toca o 1080p no QEMU e confere pelo .wav
+que o som sai contínuo e com a duração certa, que o relógio quase não teve
+de esperar pelo som, que os B sem referência foram descartados e todos os
+de referência decodificados sem erro, e que o fim chega bem antes do que
+levaria decodificando todos. `h122_video_controles` (360p) confere o tempo
+na barra (lido na captura pela fonte do sistema), a pausa (o tempo para e o
+som some do .wav), o pulo pelo clique na barra, o volume pelas setas, a
+tela cheia pela tecla F e pelo duplo clique (a janela vira 1024x768 e cobre
+a barra de cima e a doca), o Esc e o botão de maximizar. Os dois usam os
+vídeos do Eli em `testes_eli/` e avisam sem eles.
+
+## D073. Textos em várias línguas: traduzir() e tabelas de texto (H124)
+
+O SaguiOS fala português, e o código também. A ideia de mostrar o sistema em
+espanhol e em inglês veio do fork SaguiOS-Extended de Alejandro Anuncibay
+(issue #14). Esta é a primeira parte: a infraestrutura, o shell e as
+Configurações.
+
+- **A língua é uma configuração**, `sistema.idioma` (`pt`, o padrão, `es` ou
+  `en`), como o layout do teclado (D051): nenhuma chamada de sistema nova. Ela
+  é escolhida na aba "Idioma e teclado" das Configurações (a antiga aba
+  "Teclado"; o argumento `teclado` e o nome no log continuam os mesmos, e
+  `idioma` também abre a aba) ou com `config sistema.idioma es`.
+- **O texto em português é a chave.** Os programas continuam escritos com as
+  frases em português e passam cada uma por `traduzir()`, da libsagui
+  (`idioma.c`). Sem tradução, sai o próprio português; uma tradução que falta
+  nunca quebra nada. Assim o código continua legível e não há números de
+  mensagem para manter em dia.
+- **As traduções são arquivos de texto**, `rootfs/sistema/idiomas/es.txt` e
+  `en.txt` (vão para `/sistema/idiomas`), uma por linha:
+  `texto em português = tradução`. O separador é o primeiro " = "; um " = "
+  do próprio texto vira "\=". Linhas com # são comentários. Quem quiser
+  traduzir mexe só nesses arquivos. Eles são UTF-8 e viram Latin-1 na
+  leitura (D027), a mesma conversão dos outros textos de fora.
+- **Marcas de formato conferidas.** Se a tradução de um texto com %s ou %d não
+  tiver as mesmas marcas, na mesma ordem, ela é ignorada e o problema vai
+  para o log: uma tradução errada não pode fazer o programa ler um argumento
+  que não existe. O teste h124 confere o mesmo no build.
+- **Lida uma vez por programa**, no primeiro `traduzir()`. Trocar a língua vale
+  para os programas abertos depois; quem quer perceber antes chama
+  `idioma_recarregar()`, que relê a configuração e só relê o arquivo se a
+  língua mudou. O shell faz isso a cada comando (uma leitura de
+  configuração), e as Configurações ao trocar a língua, redesenhando-se na
+  língua nova.
+- **A ajuda do shell**: em português, cada comando aparece com os dois nomes
+  (`ls/listar`); em espanhol e inglês, só o nome Unix, com a descrição
+  traduzida, porque o apelido em português não ajuda quem não lê
+  português. `ajuda ls` mostra o apelido numa linha à parte. Nenhum apelido
+  novo foi inventado: os comandos continuam os mesmos em todas as línguas.
+  As descrições curtas traduzidas cabem na coluna de 17 letras (o teste
+  confere). Os nomes dos erros (`nome_erro`) também passam por `traduzir()` no
+  shell.
+- **A busca é linear**, comparando o texto inteiro: a tabela tem algumas
+  centenas de linhas e a ajuda faz menos de duzentas buscas, nada que se
+  perceba. Se as tabelas crescerem muito, dá para trocar por uma tabela de
+  espalhamento sem mudar quem chama `traduzir()`.
+
+**O que fica para a segunda parte:** o kernel (área de trabalho, menu
+Iniciar, barra de cima, nomes dos ícones, caixas de confirmação do kernel),
+que não tem a libsagui e precisaria da tabela lida no próprio kernel; os
+outros programas (Arquivos, Editor, Terminal, jogos, Cipó, instalador, os
+utilitários de `/bin` e as mensagens deles); e as caixas de diálogo comuns
+da `gui.c` (os botões "OK" e "Cancelar").
+
+**Teste.** `h124_idiomas` confere no build que as duas tabelas estão bem
+formadas e têm todos os comandos da ajuda; no shell, troca para `es` e `en`
+com `config` e confere a `ajuda`, `ajuda ls`, a mensagem de comando
+desconhecido, um erro e um shell novo; nas Configurações, troca a língua
+pelos botões e confere o título da janela reaberta.
+
+## D074. Segurança: SECURITY.md, análise estática no CI e build sem avisos (issue #17)
+
+**Contexto.** A issue #17 sugeriu o selo OpenSSF Best Practices. O nível
+"passing" pede, entre outras coisas, um jeito publicado e privado de relatar
+vulnerabilidades, uma ferramenta de análise estática além dos avisos do
+compilador, e que os avisos do compilador sejam tratados. O `make` mostrava
+21 avisos (inicializadores incompletos de `lista_t`, indentação enganosa,
+funções e parâmetros sem uso), todos em `userland/`.
+
+**Decisão.**
+- **`SECURITY.md`** na raiz: relatos só pelo "Private vulnerability
+  reporting" do GitHub (nenhum e-mail), o que conta como vulnerabilidade no
+  SaguiOS (memória do kernel, disco gravado sem a confirmação digitada,
+  vazamento da chave da IA, TLS/SSH aceitando o que não deviam), resposta em
+  até 14 dias, correção das falhas médias e graves em até 60 dias, correção
+  só na última versão, e o pedido de não publicar antes da correção. Resumo
+  em inglês no fim. Links no README e no CONTRIBUTING.
+- **Análise estática com o analisador do GCC** (`-fanalyzer`), em
+  `tools/analise_estatica.py`: o script pede ao Makefile os comandos de
+  compilação (`make -Bn`) e roda cada um de novo com `-fanalyzer`, então
+  cada arquivo é analisado com as opções reais do build. `terceiros/` fica
+  de fora. O cppcheck foi considerado, mas o `-fanalyzer` não precisa de
+  nada além do GCC que o build já usa e entende as mesmas opções.
+- **Job novo no CI**, "Análise estática (gcc -fanalyzer)", separado do job
+  obrigatório (que continua com o mesmo nome), com `contents: read`, sem
+  segredos e só com as ações oficiais já usadas. Por enquanto é
+  informativo: publica o resumo na página da execução e o relatório como
+  artefato, e só falha se o gcc não conseguir analisar um arquivo. Para
+  torná-lo obrigatório: zerar (ou justificar) os achados, rodar com
+  `--estrito` e marcá-lo como verificação obrigatória na proteção da `main`.
+  Um limite de tempo por arquivo (30 min) impede que um arquivo enorme
+  segure o job; o mais lento hoje é `userland/navegador/js/js.c` (uns 9 min
+  sozinho numa máquina de 8 núcleos; a análise inteira leva uns 10 min).
+- **Build sem nenhum aviso**: os inicializadores de `lista_t` passam a dar
+  nome aos campos; as linhas com dois ou mais `if` passam a ter um `if` por
+  linha; as funções sem uso (`udiv` no JavaScript, `maiuscula` e `ler_peso`
+  no motor) saem; os parâmetros sem uso ficam marcados com `(void)`. Nas 12
+  indentações enganosas (`svg.c`, `webgl.c`, `js_nativo.h`, `motor.c`) o
+  código fazia o que parecia: eram `if (a) x; if (b) y;` independentes
+  numa linha só, inclusive o `ult = off;` do gradiente SVG, que deve
+  acontecer sempre (a posição de cada parada não pode voltar, SVG 1.1,
+  seção 13.2.4). Nenhum defeito ali. O CONTRIBUTING pede que continue assim.
+- **Respostas do selo** em `docs/openssf.md`, critério por critério.
+
+**Achados da primeira análise.** 15 avisos, nenhum no kernel. Nenhum é um
+defeito alcançável hoje:
+- `compilador/base.c` (8, `va-list-exhausted`): o analisador não lê o
+  texto do formato e acha que um `%s` pode pedir um argumento que não veio;
+  as chamadas com zero argumentos têm formatos sem `%`.
+- `navegador/fontes/fonte.c:174` (valor não inicializado): `s[0..6]` são
+  todos preenchidos pelo laço anterior, ou a função já saiu.
+- `navegador/js/js.c:103` (ponteiro nulo): um pedaço da lista de livres está
+  sempre dentro de um bloco do coletor, então `bloco_de` não devolve NULL.
+- `navegador/graficos/webgl.c:184` (ponteiro nulo): `c->fb` só guarda um
+  framebuffer válido; mesmo assim, a chamada do `checkFramebufferStatus`
+  ganhou a mesma guarda que a outra chamada já tinha.
+- `video/h264.c:538` (ponteiro nulo): com `max_ref >= 1` sempre há um
+  quadro de referência a tirar; ganhou uma guarda, porque o valor vem do
+  arquivo de vídeo e a invariante fica longe dali.
+- `programas/sagsh.c:590` (valor não inicializado): `separar` preenche
+  `op` de todo token que devolve.
+- `programas/configuracoes.c:524` (tamanho do buffer): o nome do processador
+  tem 49 bytes e é escrito como 12 palavras de 4 bytes; só os 48 primeiros
+  são usados, o último é o zero.
+- `programas/falha.c:21` (ponteiro nulo): de propósito; é o programa que
+  provoca falhas para testar o kernel.
+
+Com as duas guardas, a análise fica com 13 achados, todos acima e todos
+explicados; o próximo passo para o job virar obrigatório é calá-los no
+próprio código (por exemplo, inicializando `s[]` e `tok[]`) ou aceitar a
+lista conhecida.
+
+**Teste.** O build limpo (`rm -rf build && make`) sem nenhum aviso;
+`python3 tools/analise_estatica.py` com os achados acima; os testes que
+tocam no que mudou (`h16`, `h20`, `h22`, `h61`, `h82`, `h82_video`, `h87`,
+`h89`, `h94_sobre`).
+
+## D075. O CI em pedaços paralelos e com KVM
+
+**Contexto.** O CI rodava num job só: compilava e passava os ~120 testes um
+atrás do outro, no QEMU sem aceleração (TCG), em uns 45 minutos. O nome
+desse job, "Compilar e testar no Ubuntu 24.04", é o check obrigatório da
+proteção da `main`, então não pode sumir nem ficar verde antes da hora.
+
+**Decisão.**
+- `tests/rodar_todos.py --pedaco N/TOTAL` roda só o N-ésimo de TOTAL
+  pedaços. A divisão usa uma tabela com o tempo de cada teste (o maior de três
+  rodadas recentes): o teste mais demorado que sobrou vai para o pedaço mais
+  vazio, com empate desfeito pelo nome, então toda máquina chega à mesma
+  divisão sem conversar com as outras. Teste fora da tabela conta 40 s. Sem o
+  argumento, roda tudo, como antes; `--listar` só mostra a lista.
+- O workflow tem uma matriz `testes` com 6 pedaços (uns 15 minutos de TCG
+  cada; o maior teste, `h84_video_nativo`, leva 9). Cada pedaço instala as
+  dependências e compila com `make -j$(nproc)` (cerca de um minuto; serial
+  levaria quase três). Compilar em cada pedaço é mais simples que passar o
+  `build/` por artefato: os testes também chamam o `make`, que teria de
+  aceitar as datas dos arquivos baixados.
+- O job final mantém o nome "Compilar e testar no Ubuntu 24.04", depende da
+  matriz (`needs`) e roda com `if: !cancelled()`, para ficar **vermelho**, e
+  não "pulado", quando um pedaço falha. O primeiro passo dele confere
+  `needs.testes.result == success`. A proteção do branch não muda.
+- A entrega da `main` sai da imagem testada no pedaço 1, passada ao job
+  final por um artefato de um dia; o VDI é feito com
+  `make -o build/saguios.img vdi`, que usa a imagem baixada sem recompilar.
+- `tests/qemu.py` usa `-accel kvm` quando `/dev/kvm` abre para leitura e
+  escrita e `SAGUI_KVM` não é `0`; senão a linha de comando fica a de sempre
+  (TCG). No CI, uma regra do udev (a que a documentação do GitHub sugere para
+  emuladores) libera o `/dev/kvm` para o usuário do runner, e a variável
+  `SAGUI_KVM` no topo do workflow liga ou desliga isso. O `rodar_todos.py`
+  escreve qual acelerador está em uso.
+- Os logs de falha continuam iguais, um artefato por pedaço
+  (`...-pedacoN`).
+
+**Por que o KVM pode ser desligado.** Com o KVM, o processador real roda o
+SaguiOS e o ritmo muda muito: um teste que dependa sem querer do ritmo do
+TCG pode falhar. Se isso acontecer, `SAGUI_KVM: "0"` volta ao comportamento
+antigo sem mexer em mais nada, e o teste pode ser corrigido com calma.
+
+**Teste.** `rodar_todos.py --listar` com os 6 pedaços dá os 120 testes, sem
+repetição; o pedaço 1 rodou inteiro na máquina de desenvolvimento (TCG). O
+KVM e o job final só podem ser conferidos no próprio GitHub Actions.
+
+## D076. Kernel de 64 bits no mesmo lugar e com o mesmo mapa de memória (H127, 3.0)
+
+O kernel da 3.0 roda no modo longo (x86-64), mas continua sendo um binário
+plano carregado em 1 MB e continua usando o mapa de memória da 2.x (D010):
+0 a 896 MB com endereço virtual igual ao físico para o kernel, 896 MB a 1 GB
+para as janelas de dispositivos e 1 a 3 GB para o programa de cada processo.
+Um kernel na "metade alta" (endereços acima de 0xFFFF8000_00000000) seria o
+mais comum em sistemas de 64 bits, mas aqui não traria nada na fase 1: os
+programas são de 32 bits e não enxergam acima de 4 GB, e manter tudo abaixo
+de 4 GB faz com que todo endereço do kernel caiba em 32 bits. Assim o resto
+do kernel (drivers, sistema de arquivos, janelas) muda pouco: os campos que
+guardam endereços físicos em `uint32_t` continuam certos, e os controladores
+que só aceitam endereços de 32 bits (EHCI, os anéis do e1000 e do HD Audio)
+continuam recebendo memória baixa sem nenhuma regra nova. Onde um ponteiro
+vira número (ou o contrário), o código passa por `uintptr_t`
+(`(uint32_t)(uintptr_t)p`), o que deixa a conversão explícita e o
+compilador sem avisos. O modelo de código do GCC é o `small` (tudo abaixo de
+2 GB), com `-mno-red-zone` (a CPU empilha o quadro da interrupção logo
+abaixo do RSP, onde a "zona vermelha" da ABI ficaria).
+
+Quem entra no modo longo é o estágio 2, e só quando o kernel é ELF64: o
+`mkimagem.py` lê a classe do ELF e liga o bit `OPC_LONGO` (8) das opções do
+cabeçalho de boot. O mesmo estágio 2 serve às duas imagens (`make` e
+`make ARQ=32`) e aos kernels de mentira dos testes. Antes da troca de vídeo,
+ainda com o texto da BIOS, ele confere o CPUID (bit 21 do EFLAGS, função
+0x80000001, bit LM do EDX); sem 64 bits, a tela diz isso e como obter a
+imagem de 32 bits. Com 64 bits: tabelas provisórias em 0x20000 (PML4, PDPT e
+4 diretórios com páginas de 2 MB, identidade nos primeiros 4 GB), PAE, CR3,
+EFER.LME, CR0.PG e salto longo para um segmento com L=1, na ordem do manual
+da Intel (vol. 3A, 10.8.5) e da AMD (APM vol. 2, 14.6). O kernel recebe a
+assinatura e a boot_info em RDI e RSI (System V AMD64) e troca as tabelas
+pelas dele no `paginacao_iniciar`.
+
+## D077. GDT, TSS, IDT e o quadro de interrupção de 64 bits (H128)
+
+GDT: nula, código do kernel de 64 bits (0x08), dados do kernel (0x10),
+código do usuário de 32 bits (0x1B, o mesmo seletor da 2.x), dados do
+usuário (0x23), código do usuário de 64 bits (0x2B, para a fase 2) e a TSS de
+64 bits (descritor de 16 bytes em 0x30). A sequência 0x18/0x20/0x28 é a que
+o SYSRET exige do MSR STAR, já pensando na fase 2. A TSS só guarda pilhas:
+RSP0 (trocada pelo escalonador a cada processo, como o ESP0 da 2.x) e duas
+pilhas IST, uma para a falta dupla e outra para o NMI, para que um estouro
+da pilha do kernel mostre a tela de erro em vez de virar falta tripla.
+
+As portas da IDT passam a ter 16 bytes. O trecho comum de `vetores.asm`
+salva os 15 registradores e os 4 seletores de dados (que os programas de 32
+bits usam de verdade) num `quadro_t` de 208 bytes, e o resto do desenho não
+muda (D007): o C devolve o quadro a retomar, e trocar de processo continua
+sendo só devolver outro quadro. No `quadro_t` de 64 bits cada registrador
+tem dois nomes no mesmo lugar (`rax`/`eax`, `rip`/`eip`...), com `union`:
+as chamadas de sistema dos programas de 32 bits continuam lendo `q->eax`,
+`q->ebx`... e a tela de erro continua com o formato "EIP=xxxxxxxx" da 2.x
+(os testes conferem esse formato). No modo longo a CPU empilha SS e RSP
+sempre, mesmo sem troca de anel, então uma tarefa do kernel nova recebe no
+quadro a própria pilha (com `fim_tarefa` como endereço de retorno) e o
+argumento em RDI.
+
+## D078. Paginação de 4 níveis com o primeiro GB compartilhado (H129)
+
+Cada espaço de endereço tem a própria PML4 e a própria PDPT; a entrada 0 da
+PDPT (o primeiro GB, do kernel) aponta para um diretório único criado no
+boot, com as 512 tabelas de 4 KB já prontas (identidade até 896 MB e
+vazias na faixa das janelas). Como na 2.x, mapear uma janela do kernel vale
+na hora para todos os processos. A entrada do diretório do kernel na PDPT
+não tem o bit U/S: nada do primeiro GB chega ao anel 3, qualquer que seja a
+entrada lá embaixo. As páginas continuam de 4 KB (a página 0 tem que faltar
+para que o ponteiro nulo gere falta), e a escrita combinada da memória de
+vídeo continua pelo PAT (tipo 1 = WC, escolhido pelo bit PWT). O
+`espaco_traduzir` devolve a permissão efetiva, o E de todos os níveis, como
+a 2.x fazia com diretório e tabela. A memória física gerida continua abaixo
+de 896 MB (D008), então as alocações para DMA continuam abaixo de 4 GB.
+
+## D079. Programas de 32 bits no modo de compatibilidade (H130, H131)
+
+Os programas da 2.x não mudam: continuam ELF32, com `int 0x80`, os mesmos
+números e os mesmos ponteiros de 32 bits. O que os faz rodar no kernel de
+64 bits é só o CS do quadro inicial: o seletor 0x1B aponta para um segmento
+de código com L=0 e D=1, e o `iretq` para ele deixa a CPU no modo de
+compatibilidade (Intel SDM vol. 3A, 5.2.1). A porta 0x80 da IDT leva de
+volta ao kernel de 64 bits, que lê EAX, EBX, ECX, EDX, ESI e EDI do quadro
+como antes e devolve o resultado em RAX com a metade alta zerada. Os
+ponteiros que chegam de um programa têm 32 bits; viram ponteiros do kernel
+por extensão com zeros e passam pela mesma validação (`usuario_ok`), que
+agora confere o valor inteiro de 64 bits. Onde o kernel lê estruturas do
+programa que contêm ponteiros, como o vetor `argv` do `executar`, cada
+elemento é lido como `uint32_t`. A FPU de cada processo continua salva com
+FXSAVE (o formato de 32 bits, o certo para esses programas); a pilha do
+kernel de cada processo dobrou para 16 KB, porque quadros e registradores
+agora têm 8 bytes.
+
+## D080. Duas imagens até a 3.0 ser aprovada (H134)
+
+`make` gera a imagem de 64 bits em `build/`; `make ARQ=32` gera a da 2.x
+em `build32/`, com a mesma árvore de código (o que muda com a arquitetura
+fica em `kernel/arch/i386` e `kernel/arch/x86_64`, e alguns `#ifdef
+__x86_64__` pequenos no resto). Os testes usam `qemu-system-x86_64`
+(variável `SAGUI_QEMU` em `tests/qemu.py`), que roda as duas imagens; a
+H127 também confere a mensagem de erro numa CPU sem 64 bits
+(`-cpu qemu32`).

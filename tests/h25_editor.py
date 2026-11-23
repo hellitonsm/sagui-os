@@ -12,7 +12,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu import Maquina, verificar, abrir_terminal  # noqa: E402
+from qemu import Maquina, verificar  # noqa: E402
 
 TEXTO = "Olá, SaguiOS! Ação e coração."
 
@@ -28,8 +28,7 @@ def fechar_pelo_x(m, j):
 
 def main():
     with Maquina("h25", "ide") as m:
-        m.esperar_serial("area de trabalho no ar", 120)
-        abrir_terminal(m)   # o Terminal agora abre pelo ícone (D039)
+        m.esperar_serial("sagui:/$", 120)
         time.sleep(1)
         m.comando("editor")
         m.esperar_serial("editor: pronto", 20)
@@ -45,7 +44,8 @@ def main():
         m.esperar_serial("editor: salvo /tmp/nota.txt", 10)
         n = int(re.findall(r"editor: salvo /tmp/nota.txt \((\d+) bytes\)", m.serial())[-1])
         verificar(n == len(TEXTO.encode("latin-1")), f"Ctrl+S sem nome pede o caminho e salva /tmp/nota.txt ({n} bytes)")
-        verificar("editor: titulo Editor - nota.txt\n" in m.serial().replace("\r", ""), "o título mostra o nome do arquivo, sem *")
+        m.esperar_serial("editor: titulo Editor - nota.txt\r", 10)
+        verificar(True, "o título mostra o nome do arquivo, sem *")
         fechar_pelo_x(m, janela(m.serial(), "Editor - sem nome"))
         m.esperar_serial("editor: fechado", 10)
         verificar(True, "sem alterações, o Editor fecha direto")

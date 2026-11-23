@@ -20,13 +20,14 @@ def main():
             m.esperar_serial("area de trabalho no ar", 120)
             m.esperar_serial("[GUI] relogio:", 20)
             png = m.captura("H20-area-de-trabalho", guardar=(modo == "ide"))
-            topo, meio, base = cor_do_pixel(png, 1000, 40), cor_do_pixel(png, 1000, 384), cor_do_pixel(png, 1000, 760)   # x=1000: área livre à direita dos ícones
+            topo, meio, base = cor_do_pixel(png, 1000, 40), cor_do_pixel(png, 1000, 384), cor_do_pixel(png, 1000, 760)   # à direita do Terminal, que abre no boot
             verificar(topo[1] > topo[0] and topo[1] > topo[2], f"[{modo}] topo verde {topo}")
             verificar(meio[0] > 180 and meio[1] > 150 and meio[2] < 90, f"[{modo}] meio amarelo {meio}")
             verificar(base[2] > base[0] and base[2] > base[1], f"[{modo}] base azul {base}")
-            verificar(cor_do_pixel(png, 300, 2) == (0x18, 0x20, 0x2A), f"[{modo}] barra superior escura")
-            verificar(cor_do_pixel(png, 836, 595) == (245, 245, 240), f"[{modo}] tufo branco do sagui no canto")
-            verificar(cor_do_pixel(png, 47, 65) == (255, 213, 46), f"[{modo}] ícone da pasta (Arquivos)")
+            verificar(sum(cor_do_pixel(png, 300, 2)) < 200, f"[{modo}] barra superior escura (vidro escuro, H74)")
+            verificar(cor_do_pixel(png, 975, 600) == (245, 245, 240), f"[{modo}] tufo branco do sagui no canto (o da direita, longe da sombra do Terminal)")
+            pasta = cor_do_pixel(png, 68, 72)   # centro do ícone da pasta (64x64, desenhado em x=36, y=40): amarelo
+            verificar(pasta[0] > 200 and pasta[1] > 140 and pasta[2] < 130, f"[{modo}] ícone da pasta (Arquivos) {pasta}")
             hora = re.findall(r"\[GUI\] relogio: (\S+) (\d\d/\d\d/\d{4})\s+(\d\d):(\d\d)", m.serial())[-1]
             agora = datetime.datetime.now(datetime.timezone.utc)
             verificar(hora[1] == agora.strftime("%d/%m/%Y"), f"[{modo}] relógio da barra com a data do CMOS: {' '.join(hora)}")

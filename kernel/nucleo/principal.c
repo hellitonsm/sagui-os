@@ -5,6 +5,8 @@
  * interrupções e relógio, memória física e alocador, teclado, sistema de
  * arquivos e, por fim, o terminal. Tudo cabe em poucas linhas na tela: no
  * G470 o mapa de memória grande empurrava a saudação para fora (erro 1). */
+#include "hda.h"
+#include "rede.h"
 #include "bootinfo.h"
 #include "console.h"
 #include "texto.h"
@@ -22,9 +24,16 @@
 #include "i8042.h"
 #include "gui.h"
 #include "usb.h"
-#include "rede.h"
+#include "ata.h"
+#include "video.h"
 
-#define SAGUI_VERSAO "1.0"
+/* A 3.0 é o kernel de 64 bits; o de 32 bits (make ARQ=32) continua sendo a
+ * série 2.2, para PCs sem 64 bits (D080). Os dois saem do mesmo código. */
+#ifdef __x86_64__
+#define SAGUI_VERSAO "3.0.0"
+#else
+#define SAGUI_VERSAO "2.2.0"
+#endif
 
 info_boot_t info_boot;
 const char *sagui_versao = SAGUI_VERSAO;
@@ -90,7 +99,7 @@ static void registrar_mapa(void)
 /* Confere o cabeçalho do SGFS (o leitor completo vem na H08). */
 static void conferir_ramdisk(void)
 {
-    const uint8_t *rd = (const uint8_t *)info_boot.ramdisk_inicio;
+    const uint8_t *rd = (const uint8_t *)(uintptr_t)info_boot.ramdisk_inicio;
     if (info_boot.ramdisk_bytes < 32 || memcmp(rd, "SGFS", 4) != 0) {
         kprintf("Ramdisk: NAO encontrado em %p\n", rd);
         return;
@@ -134,6 +143,10 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
     serial_iniciar();
     console_iniciar();
     klog("\n[SAGUI] kernel iniciado\n");
+#ifdef __x86_64__
+    /* 3.0 (H127): o estágio 2 já entrou no modo longo antes de chegar aqui. */
+    klog("[SAGUI] modo longo (64 bits)\n");
+#endif
 
     if (magico != BOOT_MAGICO || bi->assinatura != BOOTINFO_ASSIN)
         parar_com_erro("nao fui carregado pelo estagio 2 do SaguiOS");
@@ -145,7 +158,7 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
     info_boot.teste[63] = 0;
     if (info_boot.mapa_qtd > MAPA_MAX)
         info_boot.mapa_qtd = MAPA_MAX;
-    memcpy(mapa_memoria, (const void *)info_boot.mapa_end, info_boot.mapa_qtd * sizeof(regiao_e820_t));
+    memcpy(mapa_memoria, (const void *)(uintptr_t)info_boot.mapa_end, info_boot.mapa_qtd * sizeof(regiao_e820_t));
 
     /* H05, H06, H10: interrupções, relógio, memória e paginação. Vêm antes
      * de qualquer texto porque o terminal gráfico (H18) precisa do kmalloc e
@@ -157,6 +170,8 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
     int_liga();
     memfisica_iniciar();
     paginacao_iniciar();
+    void energia_iniciar(void);
+    energia_iniciar();   /* tabelas ACPI: desligar e reiniciar (H36) */
 
     /* H17/H18: terminal gráfico com a fonte própria. Se não houver modo
      * gráfico, o console continua no modo texto e avisa. */
@@ -185,14 +200,23 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
         kprintf("nenhum\n");
     klog("[SAGUI] memoria_mb=%u usavel_mb=%u\n", (uint32_t)(livre >> 20), (uint32_t)(usavel >> 20));
 
+#ifdef __x86_64__
+    /* Mesma quantidade de linhas da 2.x: a tela de 25 linhas não pode rolar (erro 1). */
+    etapa("Modo longo (64 bits): GDT e IDT próprias, PIC remapeado, relógio a 100 Hz");
+#else
     etapa("Interrupções: GDT e IDT próprias, PIC remapeado, relógio a 100 Hz");
+#endif
     {
         char linha[96];
         snformatar(linha, sizeof linha, "Memória física: %u MB gerenciados em páginas de 4 KB, kmalloc pronto",
                    memfisica_livres() / 256);
         etapa(linha);
     }
+#ifdef __x86_64__
+    etapa("Paginação de 4 níveis, páginas de 4 KB, um espaço de endereço por processo");
+#else
     etapa("Paginação: páginas de 4 KB, um espaço de endereço por processo");
+#endif
     if (grafico) {
         char linha[96];
         snformatar(linha, sizeof linha, "Vídeo: %ux%u, %u bits, fonte própria 8x16 com acentos",
@@ -230,7 +254,7 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
 
     /* H08: sistema de arquivos do ramdisk. */
     conferir_ramdisk();
-    if (sgfs_iniciar((const void *)info_boot.ramdisk_inicio, info_boot.ramdisk_bytes)) {
+    if (sgfs_iniciar((const void *)(uintptr_t)info_boot.ramdisk_inicio, info_boot.ramdisk_bytes)) {
         char linha[96];
         vfs_iniciar();
         snformatar(linha, sizeof linha, "Arquivos: SGFS com %u entradas (%u KB) + camada gravável na RAM",
@@ -241,35 +265,13 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
         kprintf("[ERRO] ramdisk SGFS invalido: o sistema segue sem arquivos\n");
         console_cor(COR_CINZA, COR_PRETO);
     }
-    /* Rede: placa Ethernet (Intel 8254x ou AMD PCnet) e endereço por DHCP.
-     * A mesma pilha atende a NAT do VirtualBox e do QEMU (10.0.2.x) e as
-     * redes Bridge/Host-only do VirtualBox, onde o DHCP dá o endereço. */
-    if (rede_iniciar()) {
-        const rede_info_t *r = rede_info();
-        char linha[96];
-        snformatar(linha, sizeof linha,
-                   "Rede: placa %s (%x:%x), MAC %x:%x:%x:%x:%x:%x, link %s",
-                   r->driver, r->id_fabricante, r->id_modelo,
-                   r->mac[0], r->mac[1], r->mac[2], r->mac[3], r->mac[4], r->mac[5],
-                   r->link ? "ligado" : "sem sinal");
-        etapa(linha);
-        snformatar(linha, sizeof linha, "Rede: IP %u.%u.%u.%u/%u.%u.%u.%u (%s), gateway %u.%u.%u.%u, DNS %u.%u.%u.%u",
-                   (r->ip >> 24) & 0xFF, (r->ip >> 16) & 0xFF, (r->ip >> 8) & 0xFF, r->ip & 0xFF,
-                   (r->mascara >> 24) & 0xFF, (r->mascara >> 16) & 0xFF,
-                   (r->mascara >> 8) & 0xFF, r->mascara & 0xFF,
-                   r->dhcp ? "DHCP" : "endereco fixo",
-                   (r->gateway >> 24) & 0xFF, (r->gateway >> 16) & 0xFF,
-                   (r->gateway >> 8) & 0xFF, r->gateway & 0xFF,
-                   (r->dns >> 24) & 0xFF, (r->dns >> 16) & 0xFF,
-                   (r->dns >> 8) & 0xFF, r->dns & 0xFF);
-        etapa(linha);
-    } else {
-        console_cor(COR_AMARELO, COR_PRETO);
-        kprintf("[aviso] Nenhuma placa de rede conhecida (Intel 8254x ou AMD PCnet).\n");
-        console_cor(COR_CINZA, COR_PRETO);
-    }
     /* H29-H31: USB 2.0 (EHCI), hubs e pendrives de dados. */
     usb_iniciar();
+    /* Discos rígidos IDE/ATA. */
+    {
+        int n = ata_iniciar();
+        if (n) { char linha[64]; snformatar(linha, sizeof linha, "Discos: %d disco(s) IDE/ATA", n); etapa(linha); }
+    }
     {
         char linha[96];
         int n = ehci_quantidade();
@@ -282,6 +284,33 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
             console_cor(COR_CINZA, COR_PRETO);
         }
     }
+    /* H40: som pela placa Intel HD Audio, se houver (o bip continua de reserva). */
+    if (hda_iniciar()) {
+        misturador_iniciar();
+        char linha[128];
+        snformatar(linha, sizeof linha, "Som: Intel HD Audio, %s", hda_descricao());
+        etapa(linha);
+    } else {
+        klog("[SOM] sem placa HD Audio: so o bip\n");
+    }
+    /* H50: gerador de números aleatórios (precisa do relógio rodando). */
+    void aleatorio_iniciar(void);
+    aleatorio_iniciar();
+    /* Fase 3 da 2.0: rede com cabo (DHCP na tarefa da rede). */
+    rede_iniciar();
+    if (rede_tem_placa()) {
+        char linha[128], r[80];
+        rede_relatorio(r, sizeof r);
+        snformatar(linha, sizeof linha, "Rede: %s (comandos rede e ping)", r);
+        etapa(linha);
+    }
+    /* H84: resolução nativa do painel pela placa Intel do G470, se a
+     * configuração (lida do pendrive, já montado pelo USB acima) pedir. */
+    if (grafico && video_nativo_tentar()) {
+        char linha[96];
+        snformatar(linha, sizeof linha, "Vídeo: resolução nativa do painel, %ux%u", video_largura(), video_altura());
+        etapa(linha);
+    }
     klog("[SAGUI] boot ok\n");
 
     bool vai_ter_gui = grafico && !(info_boot.opcoes & 2);
@@ -291,13 +320,18 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
         autoteste_executar(info_boot.teste);
 
     /* H20: com vídeo e sem a opção --console, a área de trabalho assume a
-     * tela. Ela nasce limpa: o Terminal (com o sagsh dentro dele) e todos os
-     * programas abrem pelos ícones (D039). */
+     * tela; o shell passa a rodar dentro do programa Terminal (H24). */
     if (grafico && !(info_boot.opcoes & 2) && gui_iniciar()) {
         console_esconder(true);
         klog("[SAGUI] area de trabalho no ar\n");
-        if (info_boot.teste[0] == '/')
+        misturador_som_sistema(SOM_INICIO);
+        if (info_boot.teste[0] == '/') {
             rodar_programa_de_teste(info_boot.teste);   /* testes da fase 5: programa gráfico */
+        } else {
+            char *argv_t[] = { "terminal", NULL };
+            int pid = processo_executar("/bin/terminal", 1, argv_t, NULL);
+            klog("[SAGUI] terminal: %d\n", pid);
+        }
         for (;;)
             cpu_espera();   /* o processo 0 só descansa; o resto são processos e a tarefa das janelas */
     }

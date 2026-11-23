@@ -2,31 +2,82 @@
 
 # 🐒 SaguiOS
 
-**Um sistema operacional escrito do zero por IA**
-para PCs x86 de 32 bits, rodando de verdade num notebook de 2011.
+[![CI](https://github.com/erigobeli/sagui-os/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/erigobeli/sagui-os/actions/workflows/ci.yml)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16936/badge)](https://www.bestpractices.dev/projects/16936)
 
-Feito por Claude (Anthropic) para o projeto do **Eli Rigobeli**.
+**Um sistema operacional escrito do zero por IA, para PCs x86 de 64 bits.**
 
-`1,6 MB` · `sem GRUB` · `sem libc externa` · `sem código de outros sistemas` · `52 testes automáticos`
+`versão 3.0` · `64 bits` · `sem GRUB` · `sem libc` · `núcleo sem código de outros sistemas` · `mais de 120 testes automáticos`
 
-<img src="docs/capturas/B4-3-fase1-corredor.png" width="49%" alt="Sagui 3D, o jogo em primeira pessoa do SaguiOS">
-<img src="docs/capturas/H28-tres-programas.png" width="49%" alt="Área de trabalho do SaguiOS com três programas abertos">
+<img src="docs/v2/capturas/H81-7-menu-titulo.png" width="49%" alt="Área de trabalho do SaguiOS 2.1 com o fundo da Mata Atlântica e o menu da barra de título">
+<img src="docs/v2/capturas/H63-1-wikipedia.png" width="49%" alt="O navegador Cipó mostrando a Wikipédia">
+<img src="docs/v2/capturas/H87-2-tocador.png" width="49%" alt="O Tocador de músicas (WAV e MP3)">
+<img src="docs/v2/capturas/H83-3-fetch.png" width="49%" alt="O Terminal com o fetch, o grep e o uname">
 
 </div>
 
 ---
 
+## SaguiOS 3.0 e 2.2
+
+A **3.0** ([`prd3.md`](prd3.md)) leva o kernel para os **64 bits** (x86-64, modo longo): GDT,
+IDT e paginação de 4 níveis novas, e os programas de antes rodando sem mudança no modo de
+compatibilidade do processador (D076 a D080). A **2.2** é a última versão de 32 bits, para
+quem tem um PC sem 64 bits, e junta tudo o que a comunidade trouxe depois da 2.1:
+
+- **menu Iniciar**, laço de seleção, **Lixeira**, Arquivos com renomear e vários
+  selecionados, **Visualizador** de fotos, **Print Screen**, cantos arredondados (Robson de
+  Lima Barbosa, issue #25);
+- **instalador** em HD com as proteções: o disco só é apagado depois de um resumo e de
+  digitar o nome dele numa caixa do kernel (Robson, D062 a D066);
+- o sistema em **espanhol e inglês** (primeira parte, D073) e o teclado espanhol, comandos de
+  texto ao estilo Unix e compactação (`tar`, `gzip`, `zip`), ideias do fork de Alejandro
+  Anuncibay;
+- **jogos**: Caça-Bananas, Paciência Banana, CHIP-8 e atividades JClic;
+- **Tocador** que não trava a tela e **vídeo** que acompanha o som, com pausa e tela cheia
+  (D070, D071); copiar o texto no **Sagui Code**;
+- `dirname`, `hostname` e `du` (Gabriel), uma janela "Sobre o SaguiOS" com créditos e
+  histórico, e a política de **segurança** ([`SECURITY.md`](SECURITY.md)).
+
+Acompanhe pelo painel [`dashboard/v3/`](dashboard/v3/index.html). Quer contribuir? Leia
+[`CONTRIBUTING.md`](CONTRIBUTING.md); quem já contribuiu está em
+[`CONTRIBUIDORES.md`](CONTRIBUIDORES.md).
+
+## A história do SaguiOS
+
+O SaguiOS começou com uma pergunta do **Eli Rigobeli**: uma IA é capaz de escrever um sistema
+operacional de verdade, a partir de um kernel zerado? Não uma distribuição montada com peças
+prontas, mas o carregador de boot, o kernel, os drivers e os programas, tudo do zero, dando
+boot num notebook comum. O Eli escreveu a especificação ([`prd.md`](prd.md)), o Claude
+(Anthropic) escreveu o código, e cada fase só avançou depois de o Eli testar no Lenovo G470
+dele, um notebook de 2011. Daí em diante:
+
+- **1.0: criado inteiramente por IA.** Escrito do zero pelo Claude (Anthropic), sob a direção
+  do Eli, sem código de outros sistemas e sem bibliotecas prontas.
+- **2.x: a comunidade chega.** O projeto passa a aceitar contribuições da comunidade e, nos
+  aplicativos, bibliotecas de terceiros, desde que livres, com licença compatível e crédito
+  (D041). O núcleo continua do zero.
+- **3.0: 64 bits e evolução contínua.** O kernel passa a rodar em 64 bits
+  (x86-64), com os programas de antes funcionando sem mudança, e o projeto passa a seguir o
+  versionamento MAIOR.MENOR.CORREÇÃO, crescendo com a comunidade.
+
+O que entrou em cada versão, o que está em desenvolvimento e como os números das versões
+funcionam estão em [`VERSOES.md`](VERSOES.md). Dentro do sistema, o mesmo histórico aparece no
+botão "Histórico" da janela "Sobre o SaguiOS", e o botão "Créditos e licenças" mostra os
+textos de todas as licenças.
+
 ## O que é
 
 O SaguiOS é um sistema operacional completo, do carregador de boot ao jogo em 3D, escrito
 inteiro neste projeto, seguindo a especificação em [`prd.md`](prd.md). Ele dá boot por um
-pendrive num **Lenovo G470** (2011), no VirtualBox e no QEMU, e cabe em **1.659.904 bytes**
-úteis.
+pendrive num **Lenovo G470** (2011), no VirtualBox e no QEMU. A versão 1.0 cabia em **575.488
+bytes** (39% de um disquete de 1,44 MB); a 3.0, com o navegador, as fontes de letra e o fundo
+da Mata Atlântica, tem cerca de **8 MB**.
 
 Tudo o que vai dentro da imagem foi escrito aqui: carregador de boot em dois estágios, kernel,
 drivers (teclado ABNT2, touchpad, vídeo VESA, USB 2.0, pendrive), sistema de arquivos FAT32,
-gerenciador de janelas, a biblioteca dos programas (`libsagui`) e uma shim C/POSIX própria
-(`userland/mlibc`, não o mlibc upstream), o shell, os programas, a fonte de letras e todos os desenhos. Cada decisão de projeto está explicada em
+gerenciador de janelas, a biblioteca dos programas (`libsagui`), o shell, os programas, a fonte
+de letras e todos os desenhos. Cada decisão de projeto está explicada em
 [`docs/decisoes.md`](docs/decisoes.md) e cada erro encontrado, com causa e correção, em
 [`docs/erros.md`](docs/erros.md).
 
@@ -73,231 +124,94 @@ coluna com uma "fresta" que estreita a cada passagem, perspectiva sem olho de pe
 arquivos de texto, com texturas e personagens desenhados no próprio código. Explicação completa
 na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 
-## Números
+## Números (da versão 1.0)
 
 | | |
 | --- | --- |
-| Imagem de boot | **1.735.680 bytes** úteis |
-| Linhas de código | boot 903, kernel 12.455, userland 22.110 (mais 4.778 de ferramentas e testes) |
-| Programas | 46 em `/bin`: shell, comandos, servidor de arquivos pela rede, compiladores nativos, `lua` e 8 programas gráficos |
-| Testes automáticos | 52 scripts (50 H + 2 bônus), incluindo o teste do servidor de arquivos pela rede, o dos compiladores nativos e o da biblioteca gráfica do tinycc |
-| Decisões registradas | 42, com o raciocínio de cada uma |
-| Erros registrados | 36, com sintoma, causa e correção |
-| Commits | ~55, um por história |
+| Imagem de boot | **cerca de 8 MB** (3.0, 64 bits), gerada pelo `make` |
+| Linhas de código | boot ~1.100, kernel ~18.600, userland ~92.900 |
+| Programas | 102 em `/bin`: shell, comandos, navegador, compiladores, jogos e programas gráficos |
+| Testes automáticos | 145 scripts no QEMU e no host; o CI roda todos |
+| Decisões registradas | 76 (D001 a D080), com o raciocínio de cada uma |
+| Erros registrados | dezenas, com sintoma, causa e correção |
+| Commits | centenas, um por história |
 
 ## Experimentar
 
-As imagens prontas estão em [`entrega/final/`](entrega/final/):
+As imagens prontas estão nas [Releases](https://github.com/erigobeli/sagui-os/releases) do GitHub:
 
-- **VirtualBox:** `saguios.vdi` (máquina "Other/Unknown", 32 bits, EFI desligado).
+- **3.0 (64 bits)**, para qualquer PC x86 dos últimos 15 anos;
+- **2.2 (32 bits)**, para um PC antigo sem 64 bits (a 3.0 avisa na tela se o processador
+  não tiver).
+
+Em cada uma:
+
+- **VirtualBox:** `saguios.vdi` (máquina "Other/Unknown (64-bit)" para a 3.0, ou
+  "Other/Unknown" para a 2.2; EFI desligado).
 - **PC de verdade:** grave `saguios.img` num pendrive em modo DD (Rufus, balenaEtcher ou `dd`)
-  e dê boot pela BIOS tradicional.
+  e dê boot pela BIOS tradicional. O SaguiOS roda do pendrive e nunca grava no disco
+  interno, a não ser que você abra o instalador, escolha o disco e digite o nome dele.
 
-O passo a passo está em [`docs/como-gravar.md`](docs/como-gravar.md) e, para a rede e a
-máquina virtual, em [`docs/virtualbox.md`](docs/virtualbox.md). No Linux, depois de `make vdi`,
-`tools/rodar-virtualbox.sh --rodar` cria a VM já com a placa Intel e liga o sistema.
+O passo a passo está em [`docs/como-gravar.md`](docs/como-gravar.md).
 
-### Rede (NAT do VirtualBox e do QEMU, Bridge e Host-only)
+## Integração contínua
 
-O SaguiOS fala com as duas placas que o VirtualBox oferece num sistema caseiro:
-**Intel PRO/1000 MT Desktop** (82540EM; também 82545EM e 82543GC) e **AMD
-PCnet-PCI/FAST III**, que é a placa que o VirtualBox escolhe sozinho quando a
-máquina é criada como "Outro/Desconhecido". No QEMU são as `-device e1000` e
-`-device pcnet`.
+Todo push na `main`, nas branches `feat/**`/`fix/**`/`ci/**` e todo pull
+request para a `main` passam pelo **GitHub Actions** num runner **Ubuntu
+24.04**. O workflow compila com o mesmo `make` do projeto e roda a suíte
+inteira no QEMU, sem pular testes: boot, memória, janelas, USB/FAT32, rede,
+DHCP, DNS, HTTPS, SSH com OpenSSH real, Cipó, compilador C, Sagui Code e vídeo
+H.264/AAC. Os testes de internet (H45, H53 e H63) usam a rede de verdade.
 
-Depois de achar a placa (pelo PCI, com MAC e link), o kernel pede endereço por
-**DHCP** e resolve os MACs por **ARP** — não há mais endereço nem MAC de gateway
-fixos no código. Numa NAT (VirtualBox ou QEMU) o DHCP entrega `10.0.2.15/24`,
-gateway `10.0.2.2` e DNS `10.0.2.3`; em "Bridge" e "Host-only" vem o endereço da
-rede de verdade. Se não houver servidor DHCP, o sistema assume o endereço padrão
-da NAT e continua funcionando.
+O desenvolvimento continua no **Windows 11**: não é preciso instalar Ubuntu,
+WSL, Docker ou QEMU na máquina. A validação Linux acontece no runner do
+GitHub. Quando um commit na `main` compila e passa em tudo, o CI publica as
+imagens como artefato por 14 dias:
 
-Por cima disso há uma pilha mínima de IPv4/UDP/TCP com HTTP/1.0 sem TLS: o
-comando `rede` mostra placa, MAC, IP, máscara, gateway, DNS e os contadores, e
-`wget http://IP/caminho [arquivo]` baixa uma página ou arquivo (nomes também
-resolvem, pelo DNS do DHCP). Não há HTTPS/TLS, fragmentação de IPv4,
-redirecionamentos nem `chunked`. Para conferir no VirtualBox, veja
-[`docs/virtualbox.md`](docs/virtualbox.md); `make rodar` e `make rodar-pcnet`
-abrem o sistema no QEMU com cada uma das duas placas.
+1. abra a aba [**Actions**](https://github.com/erigobeli/sagui-os/actions/workflows/ci.yml);
+2. entre na execução da `main`;
+3. baixe o artefato `saguios-<commit>` em **Artifacts**;
+4. confira o SHA-256 antes de gravar: no Linux, `sha256sum -c saguios.img.sha256`
+   (e o do `.vdi`); no PowerShell, `Get-FileHash saguios.img -Algorithm SHA256`
+   e compare com o valor do arquivo `.sha256`.
 
-O caminho inverso também funciona: o comando `servidor` liga o servidor de
-arquivos do SaguiOS na porta 2500, e do Windows o cliente
-`tools\windows\sagui-fs.ps1` lista, baixa e envia arquivos pelo
-redirecionamento de porta da NAT (regra `sagui-arquivos`, aplicada pelos
-scripts que criam a VM):
-`listar`, `info`, `baixar`, `enviar`, `apagar`, `criar-pasta`,
-`remover-pasta` e `renomear`. Para quem prefere o mouse, a mesma conversa
-está na janela `tools\windows\sagui-gui.ps1` (PowerShell 5.1 + WinForms):
-navegar com duplo clique, subir com o botão "↑ Pasta acima", baixar, enviar
-pelo botão ou arrastando do Explorer, criar pasta, renomear e apagar. O botão
-"Ligar servidor" liga a VM e o servidor com um clique, sem precisar abrir o
-Terminal à mão. O guia completo está em
-[`docs/virtualbox.md`](docs/virtualbox.md#arquivos-pela-rede-do-windows).
+Pull requests e branches de trabalho não publicam artefatos de entrega. O
+funcionamento completo, as dependências e o diagnóstico de falhas estão em
+[`docs/ci-cd.md`](docs/ci-cd.md).
 
 ## Compilar e testar
 
-Requisitos (Ubuntu): `nasm gcc gcc-multilib binutils make python3 qemu-system-x86 qemu-utils imagemagick mtools dosfstools fdisk`.
+Requisitos (Ubuntu 24.04): `nasm gcc gcc-multilib binutils make python3
+python3-pil qemu-system-x86 qemu-utils imagemagick mtools dosfstools fdisk
+procps openssl openssh-client openssh-server vim htop ffmpeg`.
 
 ```bash
-make            # build/saguios.img
+make            # build/saguios.img (kernel de 64 bits; os programas continuam de 32)
+make ARQ=32     # build32/saguios.img (o kernel de 32 bits da 2.x)
 make vdi        # build/saguios.vdi (VirtualBox)
 make test       # todos os testes no QEMU (sem janela)
 make rodar      # abre no QEMU com janela
+make run        # idem, com 768 MB, rede (e1000), som (intel-hda) e USB 2.0; SOM=alsa troca o áudio
 ```
 
-### Compilacao nativa de um subconjunto Go (experimental)
-
-A imagem inclui `gosagui`, que compila dentro do SaguiOS um subconjunto minimo
-(`package main`, `func init`/`func main`, bootstrap proprio e importacao de
-`fmt`, `sagui` e `sagui/log`) para ELF32:
-
-```text
-gosagui build -o /go/biblioteca /go/biblioteca.go
-/go/biblioteca
-```
-
-**Nao e a toolchain oficial do Go nem suporta programas Go gerais.** Veja
-[`docs/go.md`](docs/go.md) para limites, bootstrap, bibliotecas, teste nativo e
-o trabalho necessario para portar o Go completo.
-
-### Assembler e compilador C nativos (experimental)
-
-`asagui` monta um subconjunto de x86 i386 com sintaxe inspirada em NASM;
-`csagui` compila um subconjunto pequeno de C e usa `asagui` para gerar ELF32,
-tudo dentro do SaguiOS:
-
-```text
-asagui build -o /tmp/ola-asm /asm/ola.asm
-csagui build -o /tmp/ola-c /c/ola.c
-```
-
-**Nao sao NASM/GCC completos.** Consulte [`docs/asm-c.md`](docs/asm-c.md) para
-a sintaxe aceita, limites, exemplos e o teste nativo.
-
-### tinycc (compilador C completo)
-
-Alem deles, `/bin/tinycc` e um compilador de C de verdade (TinyCC 0.9.28rc) rodando
-dentro do SaguiOS: compila um fonte `.c` para ELF32 i386 e o executa ali mesmo:
-
-```text
-tinycc -o /tmp/ola /tcc/hello-tcc.c
-/tmp/ola
-```
-
-Funciona com C inteiro (sem FPU); veja [`docs/tcc.md`](docs/tcc.md) para o sysroot
-nativo (`/usr`), os limites e o teste `/testes/tinycc`.
-
-Com `libsaguigui.a` (no sysroot, `/usr/lib`), o tinycc tambem compila programas
-graficos para a area de trabalho do SaguiOS — janela, rotulo, caixa de texto e
-botao — usando o mesmo kit grafico `gui.h` dos programas nativos:
-
-```text
-tinycc -o /tmp/ex /tcc/exemplo-gui.c -lsaguigui
-/tmp/ex
-```
-
-Veja o teste `/testes/gui_tinycc` e [`docs/tcc.md`](docs/tcc.md#biblioteca-gráfica-libsaguigui).
-
-O `/bin/make` compila programas descritos em arquivos `.mk` (fonte, saida,
-bibliotecas e opcoes num so lugar). Os jogos graficos ficam em
-`/jogos/grafico` com as receitas prontas:
-
-```text
-make -all /jogos/grafico
-/sudoku
-/tetris
-/velha
-```
-
-Os executaveis sao criados na pasta atual (a partir da raiz, `/sudoku` etc.).
-
-Veja [`docs/jogos.md`](docs/jogos.md#jogos-gráficos-tinycc--libsaguigui) e o
-formato do `.mk` em [`docs/tcc.md`](docs/tcc.md#make-e-arquivos-mk).
-
-### IDE de código
-
-No Terminal, execute `ide` para abrir o editor de código. Os botões carregam
-exemplos Go e Lua; salve com extensão `.go` ou `.lua` e clique em **Executar**.
-Go é compilado no próprio SaguiOS; Lua é interpretado, sem gerar executável.
-Consulte [o guia da IDE](docs/ide.md) para instruções e limitações.
-
-### Lua nativo (experimental)
-
-A imagem tambem inclui `/bin/lua`, um interpretador nativo de um subconjunto de
-Lua escrito em C freestanding, no anel 3. Ele roda scripts direto, sem o Lua
-oficial, sem libc e sem gerar ELF:
-
-```text
-lua /lua/ola.lua
-lua /lua/recursos.lua
-lua -e "print(2 + 3)"
-lua -v
-```
-
-O subconjunto tem valores, variaveis, funcoes com fechamentos e varargs,
-tabelas, os lacos `for`/`while`/`repeat`, e as bibliotecas `string`, `table`,
-`math`, `os` e `io`, alem de `sagui.registrar`, `sagui.executar`,
-`sagui.dormir` e outras ligacoes com o sistema. Numeros sao inteiros de 32 bits
-(o PRD proibe a FPU) e nao ha metatabelas, corrotinas nem coleta de lixo.
-
-**Nao e o Lua oficial.** Veja [`docs/lua.md`](docs/lua.md) para a lista do que
-funciona, os limites, os exemplos em `/lua` e o teste nativo `h38`.
-
-### Gerar a imagem facilmente no Linux
-
-No Ubuntu/Debian, clone o repositório e execute:
-
-```bash
-./tools/gerar-linux.sh
-```
-
-Para instalar as dependências automaticamente (usa `sudo`):
-
-```bash
-./tools/gerar-linux.sh --instalar-dependencias
-```
-
-Para compilar, gerar o VDI e rodar os testes automáticos:
-
-```bash
-./tools/gerar-linux.sh --testar
-```
-
-Os arquivos ficam em `build/saguios.img` (disco raw), `build/saguios.vdi` (VirtualBox) e `build/saguios.vdi.sha256`.
-
-### Gerar a imagem e rodar no Windows
-
-No Windows não é preciso WSL, QEMU nem instalar o compilador cruzado à mão. Com
-**Git para Windows** e **VirtualBox** instalados, clone o repositório e rode:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\windows\build-e-rodar.ps1
-```
-
-Na primeira execução o script baixa GNU make, NASM e o i686-elf GCC para
-`.local\windows-tools\` (ignorado pelo Git; cerca de 750 MB), compila, gera
-`build\saguios.img` e `build\saguios.vdi` e cria/atualiza a VM `saguiOS` com a
-placa Intel em NAT. Opções: `-SemRodar` (não liga), `-SoRodar` (só liga),
-`-Limpar` (apaga `build\`), `-Apagar` (remove a VM) e `-ForcarDownload`.
-
-A toolchain pré-compilada para Windows não tem libiconv, então o script usa
-`tools\windows\cc-latin1.py` como `CC`: ele transforma os acentos dos literais
-em escapes Latin-1 antes de chamar o GCC, gerando os mesmos bytes do build no
-Linux. O restante do shell (`bash`, `find`, `cp`, `sha256sum`) vem do Git para
-Windows.
+O CI chama `make` e `python3 tests/rodar_todos.py`; os mesmos comandos
+funcionam numa máquina Linux ou no WSL2.
 
 ## Estrutura
 
 ```
 boot/        estágio 1 (MBR) e estágio 2 do carregador, em NASM
-kernel/      kernel em C freestanding + NASM: núcleo, memória, drivers, rede, USB, arquivos, janelas
-userland/    libsagui e os programas; userland/sagui3d/ é o jogo do bônus B4
+kernel/      kernel em C freestanding + NASM: núcleo, memória, drivers, USB, arquivos, janelas;
+             kernel/arch/i386 e kernel/arch/x86_64 têm o que muda entre 32 e 64 bits
+userland/    libsagui e os programas; userland/sagui3d/ é o jogo do bônus B4;
+             userland/navegador/ é o Cipó, o navegador; userland/video/ o tocador de vídeo
+terceiros/   o pouco código de terceiros dos aplicativos, cada um com licença e ORIGEM.md
 rootfs/      arquivos que vão para o disco na RAM (textos, fases do Sagui 3D)
 tools/       build (mksgfs.py, mkimagem.py), painel (status.py), verificador de fases
 tests/       testes automáticos no QEMU, um por história
 docs/        histórias, decisões, diário, erros, roteiros de teste e capturas de tela
 dashboard/   painel do projeto (abra dashboard/index.html no navegador)
-entrega/     imagens .img e .vdi de cada fase, com SHA-256
+entrega/     onde o make entrega copia as imagens (elas ficam nas Releases)
 testes_eli/  fotos dos testes do Eli no G470
 ```
 
@@ -306,24 +220,66 @@ testes_eli/  fotos dos testes do Eli no G470
 | Documento | O que tem |
 | --- | --- |
 | [`docs/resumo-final.md`](docs/resumo-final.md) | Resumo do projeto, tempo de cada fase e a tabela de conceitos do livro do Tanenbaum preenchida |
-| [`docs/decisoes.md`](docs/decisoes.md) | As 42 decisões de projeto e a seção do Sagui 3D |
-| [`docs/erros.md`](docs/erros.md) | Os 36 erros encontrados, inclusive os achados no G470 |
-| [`docs/virtualbox.md`](docs/virtualbox.md) | Como ligar a rede no VirtualBox (placas, NAT, Bridge, Host-only) |
+| [`VERSOES.md`](VERSOES.md) | O que entrou em cada versão |
+| [`docs/decisoes.md`](docs/decisoes.md) | As decisões de projeto (D001 a D080), com o raciocínio de cada uma, e a seção do Sagui 3D |
+| [`docs/erros.md`](docs/erros.md) | Os erros encontrados, inclusive os achados no G470, com sintoma, causa e correção |
+| [`docs/diario.md`](docs/diario.md) | O diário do projeto, fase a fase |
+| [`docs/historias/`](docs/historias/), [`docs/v2/`](docs/v2/), [`docs/v3/`](docs/v3/) | Uma página por história (1.0: H01 a H34 e B1 a B4; 2.x: H35 em diante; 3.0: H127 a H138) |
+| [`status.md`](status.md), [`status-v2.md`](status-v2.md), [`status-v3.md`](status-v3.md) e [`dashboard/`](dashboard/index.html) | Situação de cada fase e história |
 | [`docs/go.md`](docs/go.md) | Compilador nativo do subconjunto Go (`gosagui`) |
 | [`docs/asm-c.md`](docs/asm-c.md) | Assembler x86 reduzido (`asagui`) e compilador do subconjunto C (`csagui`) |
-| [`docs/jogos.md`](docs/jogos.md) | Jogos em C dentro do sistema: Sudoku, Pong e Tetris em `/jogos`; Sudoku, Tetris e Velha graficos em `/jogos/grafico` |
+| [`docs/jogos.md`](docs/jogos.md) | Jogos em C dentro do sistema: Sudoku, Pong e Tetris em `/jogos`; Sudoku, Tetris e Velha gráficos em `/jogos/grafico` |
 | [`docs/tcc.md`](docs/tcc.md) | TinyCC como compilador C completo do SaguiOS: sysroot nativo em `/usr`, uso, limites |
 | [`docs/lua.md`](docs/lua.md) | Interpretador nativo do subconjunto de Lua (`lua`) |
 | [`docs/gui-lua.md`](docs/gui-lua.md) | Biblioteca gráfica `gui` no Lua nativo: janelas, botões, caixas, listas e diálogos |
 | [`docs/mlibc.md`](docs/mlibc.md) | Shim C/POSIX do SaguiOS, APIs e limites (não é o upstream) |
-| [`docs/diario.md`](docs/diario.md) | O diário do projeto, fase a fase |
-| [`docs/historias/`](docs/historias/) | Uma página por história (H01 a H35, H48 a H50, B1 a B4) |
-| [`status.md`](status.md) e [`dashboard/`](dashboard/index.html) | Situação de cada fase e história |
+| [`SECURITY.md`](SECURITY.md) | Como relatar uma vulnerabilidade |
 
 ## As regras do projeto
+
+Do [`prd.md`](prd.md): nada de código de outros sistemas operacionais, nada de GRUB ou outro
+carregador pronto, nada de libc ou bibliotecas prontas dentro do sistema, fontes e imagens
+criadas no projeto, nomes e comentários em português explicando o porquê, um teste automático
+por história e cada fase validada pelo Eli no hardware real antes da próxima.
 
 O [`prd.md`](prd.md) proíbe código de outros sistemas operacionais, GRUB e bibliotecas prontas.
 A shim `userland/mlibc` é uma exceção posterior e deliberada: implementação própria do projeto,
 sem importar o mlibc upstream ou outra libc. Fontes e imagens continuam criadas no projeto, com
 nomes/comentários em português e testes automáticos; veja a decisão D037 e os limites em
 [`docs/mlibc.md`](docs/mlibc.md).
+
+## O que não foi escrito aqui
+
+O núcleo do SaguiOS (kernel, drivers, rede, TLS, janelas, libsagui, shell,
+compilador) é todo escrito no projeto. Nos aplicativos, alguns trechos vieram
+de projetos livres (D041, D043), cada um numa pasta de [`terceiros/`](terceiros/)
+com a licença original e um `ORIGEM.md`. A imagem de fundo "Mata Atlântica" foi gerada por
+IA (trazida no pull request #1). A lista completa, com os dados e as fontes de letra, está em
+[`CREDITOS.md`](CREDITOS.md):
+
+| Pasta | De onde | Licença | Quem usa |
+| --- | --- | --- | --- |
+| `terceiros/font-rs/` | rasterizador do font-rs (Raph Levien, Google) | Apache 2.0 | fontes e Canvas do Cipó |
+| `terceiros/libwebp-vp8/` | decodificador VP8 e tabelas do libwebp (Google) | BSD 3 cláusulas + patentes WebM | imagens WebP do Cipó |
+| `terceiros/v8-numeros/` | `DoubleToRadixCString` do V8 | BSD 3 cláusulas | JavaScript do Cipó |
+| `terceiros/ffmpeg-h264-tabelas/` | tabelas CABAC/CAVLC do FFmpeg | LGPL 2.1 ou posterior | tocador de vídeo |
+| `terceiros/faad2-aac-huffman/` | livros de Huffman do FAAD2 (Code from FAAD2 is copyright (c) Nero AG, www.nero.com) | GPL 2 ou posterior | tocador de vídeo |
+
+## Segurança
+
+Achou uma vulnerabilidade? **Não abra uma issue pública**: relate de forma
+privada pela aba **Security** do GitHub (**Report a vulnerability**). O que
+conta como vulnerabilidade, os prazos e as versões que recebem correção estão
+em [`SECURITY.md`](SECURITY.md). As respostas do projeto para o selo OpenSSF
+Best Practices estão em [`docs/openssf.md`](docs/openssf.md).
+
+## Licença
+
+O SaguiOS é software livre, distribuído sob a **GNU General Public License, versão 3**
+([`LICENSE`](LICENSE)), a mesma família de licença do Linux.
+
+Copyright (C) 2026 Eli Rigobeli. Código escrito por Claude (Anthropic) para o projeto do Eli Rigobeli.
+
+Na prática: qualquer pessoa pode usar, estudar, modificar, distribuir e até vender o SaguiOS, desde
+que entregue o código-fonte completo, com as modificações, sob a mesma licença, e mantenha os créditos.
+Ninguém pode fechar o código.

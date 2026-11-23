@@ -49,21 +49,41 @@
 #define SIS_PROXIMO_EVENTO 53   /* (id ou 0 = qualquer janela minha, &evento, esperar) -> 1 se houve */
 #define SIS_TITULO_JANELA  54   /* (id, titulo) */
 /* Dispositivos (fase 6) */
-#define SIS_LISTAR_DISCOS  55   /* (indice, &info_disco) -> 1 achou, 0 fim */
+#define SIS_LISTAR_DISCOS  55   /* (indice, &info_disco, tamanho) -> 1 achou, 0 fim; tamanho 0: estrutura sem "interno" (D062) */
 #define SIS_MONTAR         56   /* (nome, ex.: "usb0") -> monta em /usb */
 #define SIS_DESMONTAR      57   /* (nome) -> grava o que falta e libera para remover */
 /* Som (bônus B3) */
 #define SIS_BIP            58   /* (&notas, quantidade, modo) -> volta na hora; o tique do relógio toca */
 /* Jogos (bônus B4) */
 #define SIS_TECLAS_SEGURADAS 59 /* (&mapa[32]) -> 1 se a janela do processo está em foco */
-/* terminal: modo bruto, sem bloquear: o próximo byte da tecla, ou -1 */
-#define SIS_TECLA_TENTEU     63
-#define SIS_HTTP_OBTER      60 /* (url, buffer, capacidade) -> resposta HTTP bruta */
-#define SIS_REDE_INFO       61 /* (&info_rede) -> 1 se ha placa, 0 se nao */
-#define SIS_TLS             62 /* (base) define base do segmento TLS GS do processo */
-#define SIS_DESLIGAR        64 /* () corta a energia pela ACPI; o menu SaguiOS usa */
-#define SIS_SERVIDOR_ARQUIVOS 65 /* (ms) servidor de arquivos na porta 2500: 1 atendeu, 0 ninguém */
-#define SIS_MAX            66
+/* Versão 2.0 */
+#define SIS_DESLIGAR       60   /* () -> grava os pendrives e desliga pelo ACPI (H36) */
+#define SIS_CONFIG_LER     61   /* (chave, &valor, max) -> tamanho ou ERRO_NAO_EXISTE (H37) */
+#define SIS_CONFIG_GRAVAR  62   /* (chave, valor) -> 1 guardada no pendrive, 0 só até desligar */
+#define SIS_AJUSTAR_DATA   63   /* (&data_t) -> acerta o relógio da placa-mãe (H38) */
+#define SIS_SOM_ABRIR      64   /* () -> fonte de som, ou ERRO_NAO_EXISTE sem placa (H41) */
+#define SIS_SOM_ENVIAR     65   /* (fonte, &quadros, bytes) -> bytes aceitos; 16 bits estéreo 48 kHz */
+#define SIS_SOM_FECHAR     66   /* (fonte) */
+#define SIS_SOM_VOLUME     67   /* (novo 0-100 ou -1) -> volume atual */
+/* Rede (fase 3 da 2.0) */
+#define SIS_REDE_INFO      68   /* (&info_rede_t) -> 0, ou ERRO_NAO_EXISTE sem placa */
+#define SIS_REDE_SOCKET    69   /* (REDE_UDP, REDE_ICMP ou REDE_TCP) -> socket */
+#define SIS_REDE_CONECTAR  70   /* (socket, ip, porta) */
+#define SIS_REDE_ENVIAR    71   /* (socket, &dados, tamanho) -> bytes enviados */
+#define SIS_REDE_RECEBER   72   /* (socket, &dados, max, &ip_origem) -> bytes; 0 = nada ainda */
+#define SIS_REDE_FECHAR    73   /* (socket) */
+#define SIS_ALEATORIO      75   /* (&destino, n) -> n bytes aleatórios (H50) */
+#define SIS_REDE_ESTADO    74   /* (socket TCP) -> 0 conectando, 1 aberta, 2 o outro lado terminou; <0 falhou (H48) */
+#define SIS_JANELA_OPCOES  76   /* (id, opções, larg_min | alt_min << 16) -> 0 (H78) */
+#define SIS_AREA_COPIA     78   /* (0, &texto, n) copia; (1, &buffer, max) cola -> tamanho guardado */
+#define SIS_MENU_JANELA    77   /* (id, x | y << 16, "Item|Item|Item") -> abre um menu na janela; a escolha chega em EV_MENU (H81) */
+#define SIS_LER_TELA       79   /* (&pixels, bytes) -> largura | altura << 16; copia a tela (0x00RRGGBB) se couber */
+#define SIS_DISCO_SETORES  80   /* (&pedido_setores) -> 0; lê ou grava setores crus; gravar só com SIS_DISCO_LIBERAR (D063) */
+#define SIS_DISCO_RELER    81   /* (nome) -> 0; reconhece de novo o formato do disco liberado (depois de gravar a tabela) */
+#define SIS_DISCO_LIBERAR  82   /* (nome, resumo) -> 0 se a pessoa digitou o nome do disco na caixa do kernel; ERRO_ACESSO se não (D063) */
+#define SIS_DISCO_TABELA   83   /* (nome, &tabela_disco_t, tamanho) -> 0; a tabela de partições lida e conferida pelo kernel (D066) */
+#define SIS_JANELA_MODO    84   /* (id, modo) -> 0; JAN_MODO_NORMAL, _MAXIMIZADA ou _TELA_CHEIA (D071) */
+#define SIS_MAX            128   /* espaço para as chamadas da versão 2.0 */
 
 /* Erros (sempre negativos) */
 #define ERRO_INVALIDO      -1
@@ -81,6 +101,9 @@
 #define ERRO_FORMATO      -13   /* não é um executável ELF válido */
 #define ERRO_ACESSO       -14   /* operação não permitida */
 #define ERRO_OCUPADO      -15
+#define ERRO_REDE         -16   /* sem rede configurada, ou o destino não responde */
+#define ERRO_FIM          -17   /* a conexão terminou: o outro lado não manda mais nada */
+#define ERRO_ES           -18   /* o disco não leu ou não gravou */
 
 /* Modos de abrir */
 #define ABRIR_LER       1
@@ -127,11 +150,34 @@ typedef struct {
 #define BIP_SUBSTITUIR 0   /* para o que estiver tocando e começa esta lista */
 #define BIP_ENFILEIRAR 1   /* toca depois do que já está na fila */
 
+/* Rede (fase 3 da 2.0). Endereços IPv4 na ordem da rede: 10.0.2.15 é
+ * 10 | 0 << 8 | 2 << 16 | 15 << 24. */
+#define REDE_UDP  1
+#define REDE_ICMP 2
+#define REDE_TCP  3
+typedef struct {
+    char          placa[32];
+    unsigned char mac[6];
+    unsigned char cabo, configurado, dhcp, reservado;
+    unsigned int  ip, mascara, roteador, dns;
+    unsigned int  pacotes_rx, pacotes_tx;
+} info_rede_t;
+
 /* SIS_INFO_SISTEMA */
 #define INFO_MEMORIA   1
 #define INFO_PROCESSOS 2
 #define INFO_VERSAO    3
 #define INFO_USB       4   /* relatório em texto: controladores, portas e dispositivos */
+#define INFO_PCI       5   /* relatório em texto: dispositivos PCI (H35) */
+/* e_flags dos executáveis feitos pelo cc do SaguiOS: abre janela. Os sem a
+ * marca são programas de texto, abertos dentro de um Terminal pela área de
+ * trabalho e pelo Editor. */
+#define ELF_SAGUI_JANELA 0x4A475301u
+#define ELF_SAGUI_TEXTO  0x54475301u   /* feito pelo cc e sem janela: programa de texto */
+#define INFO_REGISTRO  6   /* o diário do kernel (as últimas linhas do klog), para diagnóstico no hardware */
+/* Espaço dos discos (H83, comando df): um info_espaco_t para "/" e outro para
+ * "/usb", se houver pendrive montado. n = quantos cabem; devolve quantos vieram. */
+#define INFO_DISCOS_ESPACO 7
 
 typedef struct {
     unsigned int ram_total_kb;
@@ -155,7 +201,21 @@ typedef struct {
     unsigned int imagem_bytes;   /* tamanho útil da imagem de boot */
     unsigned int segundos_ligado;
     unsigned int largura, altura;
+    /* H94: 32 ou 64, a largura das palavras do kernel. Foi acrescentado no
+     * fim, e só é preenchido quando o programa pede o tamanho novo: um
+     * programa compilado antes (que pede 48 bytes) continua recebendo só os
+     * campos que conhece, sem ter memória escrita além da sua variável. */
+    unsigned int bits;
 } info_versao_t;
+
+typedef struct {
+    char         ponto[8];         /* "/" ou "/usb" */
+    char         tipo[24];         /* "ramdisk + RAM" ou "FAT32" */
+    char         rotulo[12];       /* rótulo do pendrive (vazio para "/") */
+    unsigned int total_kb;
+    unsigned int usado_kb;
+    unsigned int livre_kb;
+} info_espaco_t;
 
 typedef struct {
     char         nome[8];          /* "usb0" */
@@ -166,19 +226,51 @@ typedef struct {
     unsigned int setores;          /* de 512 bytes */
     unsigned int montado;
     unsigned int suportado;
+    unsigned int interno;          /* disco rígido (hd0...), não pendrive */
+    unsigned int origem;           /* o disco de onde o sistema ligou (D063) */
 } info_disco_t;
 
-/* SIS_REDE_INFO: como a rede está neste boot (placa, MAC, endereço, DHCP). */
+/* SIS_DISCO_SETORES: setores de 512 bytes, até 128 por chamada. Não
+ * grava num disco montado (a FAT dele está em uso). */
 typedef struct {
-    unsigned int  presente;
-    unsigned int  link;
-    unsigned int  dhcp;
-    unsigned char mac[6];
-    char          driver[16];      /* "e1000" ou "pcnet" */
-    unsigned int  fabricante, modelo;   /* identificação PCI da placa */
-    unsigned int  ip, mascara, gateway, dns, servidor;
-    unsigned int  enviados, recebidos, descartados;
-} info_rede_t;
+    char         nome[8];          /* "hd1" */
+    unsigned int lba;
+    unsigned int n;
+    unsigned int escrever;         /* 0 = ler para buf, 1 = gravar buf */
+#ifdef SAGUI_KERNEL
+    unsigned int buf;              /* no kernel de 64 bits, o ponteiro de 32 bits do programa (D079) */
+#else
+    void        *buf;
+#endif
+} pedido_setores_t;
+
+/* SIS_DISCO_TABELA: o que o kernel achou no setor 0 e na cadeia das
+ * partições lógicas, já conferido (D066). */
+#define TABELA_VAZIO        0   /* setor 0 todo zerado */
+#define TABELA_MBR          1   /* tabela de partições MBR */
+#define TABELA_GPT          2   /* GPT (com ou sem a entrada protetora 0xEE) */
+#define TABELA_VBR          3   /* o setor 0 é o setor de boot de um volume, sem tabela */
+#define TABELA_DESCONHECIDA 4   /* sem a assinatura 0x55AA, e não está zerado */
+#define TABELA_ERRO         5   /* o disco não leu */
+#define TABELA_MAX         24
+
+typedef struct {
+    unsigned int  entrada;         /* 1 a 4: primária; 5 em diante: lógica */
+    unsigned int  tipo;            /* o byte de tipo (0x07, 0x83, 0x05...) */
+    unsigned int  ativa;
+    unsigned int  inicio, setores; /* como estão na tabela, sem cortar */
+    char          formato[16];     /* do setor de boot da partição: "NTFS", "FAT32", "ext"... ou "" */
+} particao_t;
+
+typedef struct {
+    unsigned int  estado;          /* TABELA_* */
+    unsigned int  conferida;       /* 1: nada estranho; 0: ver "problema" */
+    char          problema[80];    /* o primeiro problema achado */
+    unsigned int  id_mbr;          /* o identificador do disco (0x1B8) */
+    unsigned int  maior_fim;       /* o maior fim de todas as entradas, inclusive as que passam do disco */
+    unsigned int  n;               /* partições em p[] */
+    particao_t    p[TABELA_MAX];
+} tabela_disco_t;
 
 /* SIS_TECLAS_SEGURADAS: posição de algumas teclas no mapa (código de
  * varredura do conjunto 1; 128 + código para as teclas estendidas E0). */
@@ -220,6 +312,18 @@ typedef struct {
 #define EV_MOVER     3   /* movimento sobre a janela */
 #define EV_TECLA     4   /* "tecla": caractere Latin-1, ou 0x100+ para setas etc. */
 #define EV_FECHAR    5   /* clicaram no X da moldura */
+#define EV_REDIMENSIONAR 6  /* a janela mudou de tamanho: x = largura, y = altura novas (H78) */
+#define EV_MENU      7   /* item escolhido no menu aberto por SIS_MENU_JANELA: tecla = índice (H81) */
+
+/* Opções de janela (SIS_JANELA_OPCOES). */
+#define JAN_REDIMENSIONAVEL 1
+
+/* Modos de janela (SIS_JANELA_MODO, D071). Só para janela redimensionável.
+ * Em tela cheia o conteúdo cobre a tela toda, por cima da barra de cima e
+ * da doca, enquanto a janela estiver na frente. */
+#define JAN_MODO_NORMAL      0
+#define JAN_MODO_MAXIMIZADA  1
+#define JAN_MODO_TELA_CHEIA  2
 
 /* Teclas especiais nos eventos de janela. São os mesmos valores do enum do
  * kernel (teclado.h), que por isso não precisa destas definições. */
@@ -234,7 +338,15 @@ typedef struct {
 #define TECLA_PGDN      0x107
 #define TECLA_INSERT    0x108
 #define TECLA_DELETE    0x109
+#define TECLA_F1        0x10A   /* F1 a F12 seguem em ordem (H92: F2 = partida nova nos jogos) */
+#define TECLA_F2        0x10B
+#define TECLA_F3        0x10C
+#define TECLA_F4        0x10D
+#define TECLA_F5        0x10E
+#define TECLA_F12       0x115
 #define TECLA_ESC       0x116
+#define TECLA_SUPER     0x117   /* tecla Windows: fica no gerenciador de janelas */
+#define TECLA_IMPRIMIR  0x118   /* Print Screen: o gerenciador de janelas abre o /bin/captura */
 #endif
 
 #define JANELA_LARG_MAX 1000

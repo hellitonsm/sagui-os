@@ -28,14 +28,23 @@ typedef struct {
 jan_t *jan_abrir(const char *titulo, int largura, int altura);
 void   jan_fechar(jan_t *j);
 void   jan_mostrar(jan_t *j);                                   /* a janela toda */
+/* H78: a janela pode mudar de tamanho (arrastando a borda, ou maximizando).
+ * Depois, cada EV_REDIMENSIONAR traz o tamanho novo em e.x e e.y: o programa
+ * atualiza j->larg e j->alt (jan_novo_tamanho) e redesenha tudo. */
+bool   jan_redimensionavel(jan_t *j, int larg_min, int alt_min);
+void   jan_novo_tamanho(jan_t *j, const evento_t *e);
 void   jan_mostrar_area(jan_t *j, int x, int y, int l, int a);
+void   jan_menu(jan_t *j, int x, int y, const char *itens);       /* menu próprio; escolha em EV_MENU (H81) */
 void   g_retangulo(jan_t *j, int x, int y, int l, int a, uint32_t cor);
 void   g_moldura(jan_t *j, int x, int y, int l, int a, uint32_t cor);
+void   g_ret_redondo(jan_t *j, int x, int y, int l, int a, int raio, uint32_t topo, uint32_t base);   /* borda suavizada */
+void   g_contorno_redondo(jan_t *j, int x, int y, int l, int a, int raio, uint32_t cor);
 void   g_linha(jan_t *j, int x0, int y0, int x1, int y1, uint32_t cor);
 void   g_texto(jan_t *j, int x, int y, const char *t, uint32_t cor);
 void   g_texto_n(jan_t *j, int x, int y, const char *t, int n, uint32_t cor);
 void   g_desenho(jan_t *j, int x, int y, const char *const *linhas, int l, int a,
                  uint32_t (*paleta)(char), int escala);   /* paleta devolve 0xFF000000 = transparente */
+void   g_imagem(jan_t *j, int x, int y, const uint32_t *px, int l, int a);   /* ARGB com alfa (H92) */
 void   g_relevo(jan_t *j, int x, int y, int l, int a, bool afundado);
 int    g_largura_texto(const char *t);
 #define LETRA_L 8
@@ -65,12 +74,6 @@ bool caixa_tratar(jan_t *j, caixa_t *c, const evento_t *e);   /* true = Enter */
 void caixa_definir(caixa_t *c, const char *texto);
 
 /* ---- área de texto com várias linhas e rolagem ---- */
-
-/* Realce opcional de um trecho da linha. A função recebe a linha inteira, o
- * tamanho, a posição e devolve a cor do trecho, dizendo em *consumir quantos
- * caracteres têm a mesma cor (mínimo 1). Serve para realce de sintaxe. */
-typedef uint32_t (*area_cor_t)(const char *linha, int tam, int pos, int *consumir, void *ctx);
-
 typedef struct {
     int   x, y, l, a;
     char *buf;            /* texto (Latin-1), terminado em zero */
@@ -80,13 +83,8 @@ typedef struct {
     bool  foco;
     bool  modificado;
     bool  somente_leitura;
-    /* Recursos opcionais, desligados por padrão (area_iniciar zera tudo). */
-    bool  numeros_linha;  /* margem com o número de cada linha */
-    bool  auto_indentar;  /* Enter copia a indentação (e abre bloco em { ) */
-    int   marca_ini;      /* trecho destacado (busca); tam 0 = nenhum */
-    int   marca_tam;
-    area_cor_t cor_token; /* realce de sintaxe; NULL = cor normal */
-    void  *cor_ctx;
+    int   sel;            /* seleção: a outra ponta + 1 (0 = nada selecionado); vai do sel-1 ao cursor */
+    bool  arrastando;     /* botão apertado dentro do texto: mover o mouse estende a seleção */
 } area_t;
 bool area_iniciar(area_t *a, int x, int y, int l, int al);
 void area_definir(area_t *a, const char *texto, int n);
@@ -106,9 +104,30 @@ typedef struct {
     int    topo;
     /* Desenha um ícone pequeno (16x16) antes do texto do item, se não for NULL. */
     void (*icone)(jan_t *j, int x, int y, int item);
+    /* D058: seleção de vários itens. Com marc != NULL (um byte por item), o
+     * clique marca um, Ctrl+clique alterna, Shift+clique marca a faixa,
+     * Ctrl+A marca todos, e arrastar no vazio desenha o laço translúcido. */
+    uint8_t *marc;
+    bool laco;
+    int  laco_x0, laco_y0, laco_x1, laco_y1;
+    int  laco_linha;                    /* +1: linha onde o laço começou (soltar sem arrastar a seleciona) */
+    /* D058: o nome editado na própria linha (lista_editar). */
+    bool editando;
+    int  ed_item, ed_cur, ed_marca;     /* ed_marca: início da parte marcada (até o cursor) */
+    char ed_texto[64];
 } lista_t;
 void lista_desenhar(jan_t *j, lista_t *l);
 int  lista_tratar(jan_t *j, lista_t *l, const evento_t *e);
+/* Começa a editar o nome do item i na linha dele, com os primeiros "marcar"
+ * caracteres marcados (o nome sem a extensão, por exemplo): digitar troca a
+ * parte marcada. Enter termina (LISTA_EDITOU, o texto em l->ed_texto), Esc
+ * desiste (LISTA_DESISTIU); clicar fora também termina. */
+void lista_editar(jan_t *j, lista_t *l, int i, int marcar);
+bool lista_marcado(const lista_t *l, int i);
+int  lista_qtd_marcados(const lista_t *l);
+#define LISTA_EDITOU   3
+#define LISTA_DESISTIU 4
+#define LISTA_DEVAGAR  5   /* clique simples no item que já era o único marcado (renomear devagar) */
 #define LISTA_ALTURA_ITEM 20
 
 /* ---- diálogos (janelas próprias, esperam a resposta) ---- */

@@ -35,9 +35,6 @@ static celula_t *grade;
 static int colunas, linhas, col, lin;
 static uint8_t cor_atual = (COR_PRETO << 4) | COR_CINZA;
 static int estado_esc;   /* 0 normal, 1 viu ESC, 2 viu ESC [ */
-static char esc_buf[16];  /* parâmetros da sequência ESC [ ... (SGR) */
-static int esc_len;
-static int negrito;       /* SGR 1 / 22 */
 
 static void desenhar_celula(int x, int y, bool cursor)
 {
@@ -77,6 +74,32 @@ bool termgraf_iniciar(void)
     return true;
 }
 
+/* A resolução mudou (H84, resolução nativa do painel): a grade passa a ter
+ * o tamanho da tela nova, o texto que já estava fica onde estava, e tudo é
+ * redesenhado. Sem memória, a grade antiga continua (num canto da tela). */
+void termgraf_tela_mudou(void)
+{
+    int nc = (int)video_largura() / CEL_L, nl = (int)video_altura() / CEL_A;
+    celula_t *nova = kmalloc((uint32_t)(nc * nl) * sizeof(celula_t));
+    if (!nova) return;
+    for (int i = 0; i < nc * nl; i++) { nova[i].c = ' '; nova[i].cor = cor_atual; }
+    for (int y = 0; y < linhas && y < nl; y++)
+        for (int x = 0; x < colunas && x < nc; x++)
+            nova[y * nc + x] = grade[y * colunas + x];
+    kfree(grade);
+    grade = nova;
+    colunas = nc;
+    linhas = nl;
+    if (col >= colunas) col = colunas - 1;
+    if (lin >= linhas) lin = linhas - 1;
+    video_retangulo(0, 0, (int)video_largura(), (int)video_altura(), paleta[COR_PRETO]);
+    for (int y = 0; y < linhas; y++)
+        for (int x = 0; x < colunas; x++)
+            desenhar_celula(x, y, false);
+    mostrar_cursor(true);
+    video_mostrar();
+}
+
 int termgraf_colunas(void) { return colunas; }
 int termgraf_coluna(void)  { return col; }
 
@@ -111,65 +134,15 @@ static void por(uint8_t c)
     desenhar_celula(col, lin, false);
 }
 
-/* Tabela ANSI -> cores do console: 30 preto, 31 vermelho, 32 verde,
- * 33 amarelo, 34 azul, 35 magenta, 36 ciano, 37 cinza. */
-static const uint8_t sgr_normal[8] = {
-    COR_PRETO, COR_VERMELHO, COR_VERDE, COR_MARROM,
-    COR_AZUL, COR_MAGENTA, COR_CIANO, COR_CINZA,
-};
-static const uint8_t sgr_clara[8] = {
-    COR_CINZA_ESCURO, COR_VERMELHO_CLARO, COR_VERDE_CLARO, COR_AMARELO,
-    COR_AZUL_CLARO, COR_MAGENTA_CLARO, COR_CIANO_CLARO, COR_BRANCO,
-};
-
-static int sgr_valor(int *pos)
-{
-    int v = 0;
-    while (esc_buf[*pos] >= '0' && esc_buf[*pos] <= '9') {
-        v = v * 10 + (esc_buf[*pos] - '0');
-        (*pos)++;
-    }
-    return v;
-}
-
-/* Aplica ESC [ ... m.  O que não é cor (sublinhado etc.) é ignorado. */
-static void aplicar_sgr(void)
-{
-    int frente = cor_atual & 15, fundo = cor_atual >> 4, pos = 0;
-    for (;;) {
-        int v = sgr_valor(&pos);
-        if (v == 0) { frente = COR_CINZA; fundo = COR_PRETO; negrito = 0; }
-        else if (v == 1) negrito = 1;
-        else if (v == 22) negrito = 0;
-        else if (v >= 30 && v <= 37) frente = (negrito ? sgr_clara : sgr_normal)[v - 30];
-        else if (v == 39) frente = COR_CINZA;
-        else if (v >= 40 && v <= 47) fundo = sgr_normal[v - 40];
-        else if (v == 49) fundo = COR_PRETO;
-        else if (v >= 90 && v <= 97) frente = sgr_clara[v - 90];
-        else if (v >= 100 && v <= 107) fundo = sgr_clara[v - 100];
-        if (esc_buf[pos] != ';') break;
-        pos++;
-    }
-    cor_atual = (uint8_t)((fundo << 4) | (frente & 15));
-}
-
 void termgraf_char(char ch)
 {
     uint8_t c = (uint8_t)ch;
     mostrar_cursor(false);
     if (estado_esc == 1) {
         estado_esc = c == '[' ? 2 : 0;
-        if (estado_esc == 2) esc_len = 0;
     } else if (estado_esc == 2) {
-        if ((c >= '0' && c <= '9') || c == ';') {
-            if (esc_len < (int)sizeof esc_buf - 1) esc_buf[esc_len++] = (char)c;
-            mostrar_cursor(true);
-            return;
-        }
         estado_esc = 0;
-        esc_buf[esc_len] = 0;
-        if (c == 'm') aplicar_sgr();
-        else if (c == 'D' && col > 0) col--;
+        if (c == 'D' && col > 0) col--;
         else if (c == 'C' && col < colunas - 1) col++;
         else if (c == 'J') { termgraf_limpar(); return; }
         else if (c == 'K')

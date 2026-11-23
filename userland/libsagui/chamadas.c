@@ -34,16 +34,21 @@ int  dormir(unsigned ms)              { return chamar(SIS_DORMIR, ms, 0, 0); }
 unsigned tempo_ms(void)               { return (unsigned)chamar(SIS_TEMPO, 0, 0, 0); }
 int  ler_data(data_t *d)              { return chamar(SIS_DATA, (unsigned)d, 0, 0); }
 int  info_sistema(int t, void *b, unsigned n) { return chamar(SIS_INFO_SISTEMA, (unsigned)t, (unsigned)b, n); }
-int  http_obter(const char *u, void *b, unsigned n) { return chamar(SIS_HTTP_OBTER, (unsigned)u, (unsigned)b, n); }
-int  servidor_arquivos(unsigned ms)    { return chamar(SIS_SERVIDOR_ARQUIVOS, ms, 0, 0); }
-int  info_rede(info_rede_t *i)        { return chamar(SIS_REDE_INFO, (unsigned)i, 0, 0); }
 void *aumentar_memoria(unsigned n)    { int r = chamar(SIS_AUMENTAR_MEM, n, 0, 0); return (r < 0 && r > -100) ? NULL : (void *)r; }
 void reiniciar(void)                  { chamar(SIS_REINICIAR, 0, 0, 0); }
+int  config_ler(const char *chave, char *valor, int max) { return chamar(SIS_CONFIG_LER, (unsigned)chave, (unsigned)valor, (unsigned)max); }
+int  config_gravar(const char *chave, const char *valor) { return chamar(SIS_CONFIG_GRAVAR, (unsigned)chave, (unsigned)valor, 0); }
+int  ajustar_data(const data_t *d)    { return chamar(SIS_AJUSTAR_DATA, (unsigned)d, 0, 0); }
+int  som_abrir(void)                  { return chamar(SIS_SOM_ABRIR, 0, 0, 0); }
+int  som_enviar(int f, const void *q, unsigned bytes) { return chamar(SIS_SOM_ENVIAR, (unsigned)f, (unsigned)q, bytes); }
+int  som_fechar(int f)                { return chamar(SIS_SOM_FECHAR, (unsigned)f, 0, 0); }
+int  som_volume(int novo)             { return chamar(SIS_SOM_VOLUME, (unsigned)novo, 0, 0); }
+int  bytes_aleatorios(void *destino, unsigned n) { return chamar(SIS_ALEATORIO, (unsigned)destino, n, 0); }
 void desligar(void)                   { chamar(SIS_DESLIGAR, 0, 0, 0); }
 int  modo_terminal(int m)             { return chamar(SIS_MODO_TERMINAL, (unsigned)m, 0, 0); }
 int  limpar_tela(void)                { return chamar(SIS_LIMPAR_TELA, 0, 0, 0); }
 int  registrar_texto(const char *t)   { return chamar(SIS_REGISTRAR, (unsigned)t, 0, 0); }
-int  listar_discos(int i, info_disco_t *d) { return chamar(SIS_LISTAR_DISCOS, (unsigned)i, (unsigned)d, 0); }
+int  listar_discos(int i, info_disco_t *d) { return chamar(SIS_LISTAR_DISCOS, (unsigned)i, (unsigned)d, sizeof *d); }
 int  montar(const char *nome)         { return chamar(SIS_MONTAR, (unsigned)nome, 0, 0); }
 int  desmontar(const char *nome)      { return chamar(SIS_DESMONTAR, (unsigned)nome, 0, 0); }
 int  tocar(const nota_t *notas, int n, int modo) { return chamar(SIS_BIP, (unsigned)notas, (unsigned)n, (unsigned)modo); }
@@ -53,7 +58,6 @@ int  bip(int freq, int ms)
     return tocar(&n, 1, BIP_SUBSTITUIR);
 }
 int  teclas_seguradas(unsigned char mapa[32]) { return chamar(SIS_TECLAS_SEGURADAS, (unsigned)mapa, 0, 0); }
-int  tecla_tentada(void)              { return chamar(SIS_TECLA_TENTEU, 0, 0, 0); }
 void silenciar(void)                  { chamar(SIS_BIP, 0, 0, 0); }
 int  criar_janela(const char *t, int l, int a, uint32_t **px)
                                       { return chamar(SIS_CRIAR_JANELA, (unsigned)t, (unsigned)(l | (a << 16)), (unsigned)px); }
@@ -61,3 +65,13 @@ int  fechar_janela(int id)            { return chamar(SIS_FECHAR_JANELA, (unsign
 int  atualizar_janela(int id, const retangulo_t *r) { return chamar(SIS_ATUALIZAR_JANELA, (unsigned)id, (unsigned)r, 0); }
 int  proximo_evento(int id, evento_t *e, bool esperar) { return chamar(SIS_PROXIMO_EVENTO, (unsigned)id, (unsigned)e, esperar); }
 int  titulo_janela(int id, const char *t) { return chamar(SIS_TITULO_JANELA, (unsigned)id, (unsigned)t, 0); }
+int  disco_setores(pedido_setores_t *p) { return chamar(SIS_DISCO_SETORES, (unsigned)p, 0, 0); }
+int  disco_reler(const char *nome) { return chamar(SIS_DISCO_RELER, (unsigned)nome, 0, 0); }
+int  disco_liberar(const char *nome, const char *resumo) { return chamar(SIS_DISCO_LIBERAR, (unsigned)nome, (unsigned)resumo, 0); }
+int  disco_tabela(const char *nome, tabela_disco_t *t) { return chamar(SIS_DISCO_TABELA, (unsigned)nome, (unsigned)t, sizeof *t); }
+int  area_copia_gravar(const char *t, unsigned n) { return chamar(SIS_AREA_COPIA, 0, (unsigned)t, n); }
+int  area_copia_ler(char *buf, unsigned max) { return chamar(SIS_AREA_COPIA, 1, (unsigned)buf, max); }
+int  menu_janela(int id, int x, int y, const char *itens) { return chamar(SIS_MENU_JANELA, (unsigned)id, (unsigned)(x | (y << 16)), (unsigned)itens); }
+int  janela_modo(int id, int modo) { return chamar(SIS_JANELA_MODO, (unsigned)id, (unsigned)modo, 0); }
+int  janela_opcoes(int id, int opcoes, int larg_min, int alt_min) { return chamar(SIS_JANELA_OPCOES, (unsigned)id, (unsigned)opcoes, (unsigned)(larg_min | (alt_min << 16))); }
+int  ler_tela(uint32_t *px, unsigned bytes) { return chamar(SIS_LER_TELA, (unsigned)px, bytes, 0); }

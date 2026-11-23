@@ -9,7 +9,10 @@
  * lugar de 0 ou 1, executa o programa (que herda 0, 1 e 2) e restaura.
  *
  * A linha é editada pelo próprio shell, com o terminal em modo bruto, para
- * ter histórico (setas) e completar nomes com Tab. */
+ * ter histórico (setas) e completar nomes com Tab.
+ *
+ * As mensagens e a ajuda passam por traduzir() (D073): saem na língua de
+ * "sistema.idioma", com as traduções de /sistema/idiomas/. */
 #include "sagui.h"
 
 #define MAX_LINHA    256
@@ -42,38 +45,85 @@ static const comando_t comandos[] = {
     { "mkdir", "criar-pasta", false, false, "cria pasta", "mkdir <pasta>", "Cria uma pasta nova." },
     { "rmdir", "remover-pasta", false, false, "apaga pasta vazia", "rmdir <pasta>", "Remove uma pasta, se estiver vazia." },
     { "wc", "conta", false, false, "conta linhas", "wc [arquivo]", "Conta linhas, palavras e letras de um arquivo ou da entrada (ex.: ls bin | conta)." },
-    { "grep", "procurar", false, false, "procura um texto", "grep [opções] padrão [arquivo...]", "Procura um padrão nas linhas dos arquivos (ou da entrada), como o grep do Linux: -i, -v, -w, -n, -r, -E, -F, --color e mais (veja grep --help)." },
     { "ps", "processos", false, false, "lista processos", "ps", "Mostra os processos em execução: PID, pai, estado, memória e tempo de CPU." },
+    { "top", "monitor", false, false, "processos ao vivo", "top [-n vezes]", "Mostra os processos, a memória e a %CPU de cada um, atualizando a cada segundo. q sai." },
+    { "grep", "procurar", false, false, "procura texto", "grep [-i] [-n] [-v] [-c] <texto> [arquivo...]", "Mostra as linhas que contêm o texto (ex.: ls bin | grep a). -i ignora maiúsculas, -n numera, -v inverte, -c conta." },
+    { "gzip", "compactar", false, false, "compacta (.gz)", "gzip [-d] [-c] [-k] [-f] [-l] [-1..-9] <arquivo...>", "Compacta cada arquivo em arquivo.gz (e apaga o original; -k guarda). -d descompacta, -c manda para a saída, -l lista, -f substitui." },
+    { "gunzip", "descompactar", false, false, "descompacta .gz", "gunzip [-c] [-k] [-f] <arquivo.gz...>", "Descompacta arquivos .gz (e .tgz, que vira .tar). Não substitui um arquivo que já existe sem -f." },
+    { "tar", "empacotar", false, false, "pacotes .tar", "tar c|x|t [v] [z] [o] f <pacote.tar> [arquivos...] [-C pasta]", "c cria o pacote, x extrai, t lista; v mostra os nomes, z compacta (.tar.gz), o substitui o que já existe. Nomes com \"..\" são recusados." },
+    { "zip", "zipar", false, false, "cria um .zip", "zip [-0..-9] [-q] <pacote.zip> <arquivos ou pastas...>", "Cria um pacote .zip; as pastas entram com tudo dentro. -0 só guarda, -9 compacta mais." },
+    { "unzip", "deszipar", false, false, "abre um .zip", "unzip [-l] [-t] [-o] [-d pasta] <pacote.zip>", "Extrai um .zip na pasta atual (ou na do -d). -l lista, -t confere, -o substitui o que já existe. Nomes com \"..\" são recusados." },
+    /* Utilitários de texto (H91, do fork SaguiOS-Extended do Alejandro Anuncibay). */
+    { "head", "inicio", false, false, "começo do texto", "head [-n N | -N] [-c N] [-q | -v] [arquivo...]", "Mostra as primeiras linhas (10, ou N com -n) de arquivos ou da entrada (ex.: ls bin | head -3). -c conta bytes." },
+    { "tail", "fim", false, false, "fim do texto", "tail [-n [+]N] [-c [+]N] [-f] [arquivo...]", "Mostra as últimas linhas (10, ou N com -n); com +N, da linha N em diante. -f continua mostrando o que for acrescentado." },
+    { "sort", "ordenar", false, false, "ordena linhas", "sort [-rnufbc] [-k N[,M]] [-t C] [-o arquivo] [arquivo...]", "Ordena as linhas. -r inverte, -n compara números, -u tira repetidas, -f ignora maiúsculas, -k ordena pelo campo N, -t escolhe o separador." },
+    { "uniq", "unicos", false, false, "junta repetidas", "uniq [-c] [-d | -u] [-i] [-f N] [entrada [saída]]", "Junta linhas repetidas seguidas (use depois do sort). -c conta, -d só as repetidas, -u só as únicas, -i ignora maiúsculas." },
+    { "cut", "cortar", false, false, "corta colunas", "cut -f LISTA [-d C] [-s] | -c LISTA [arquivo...]", "Mostra só alguns campos (-f, separados por -d; o padrão é Tab) ou colunas (-c) de cada linha. LISTA: 2  1,3  2-4  3-." },
+    { "tr", "trocar", false, false, "troca letras", "tr [-cds] CONJUNTO1 [CONJUNTO2]", "Troca as letras do conjunto 1 pelas do 2 (ex.: tr a-z A-Z ou tr [:lower:] [:upper:]). -d apaga, -s junta repetidas, -c usa o complemento." },
+    { "seq", "sequencia", false, false, "conta números", "seq [-w] [-s SEP] [primeiro [passo]] último", "Escreve uma sequência de números, um por linha (ex.: seq 5, seq 10 -2 0, seq 0 0.5 2). -w iguala a largura, -s troca o separador." },
+    { "rev", "inverter", false, false, "inverte as letras", "rev [arquivo...]", "Escreve cada linha de trás para a frente (sagui vira iugas)." },
+    { "tac", "de-tras", false, false, "inverte a ordem", "tac [arquivo...]", "Escreve as linhas na ordem inversa, da última para a primeira." },
+    { "nl", "numerar", false, false, "numera linhas", "nl [-b a|t] [-n ln|rn|rz] [-w N] [-s SEP] [-v N] [-i N] [arquivo...]", "Numera as linhas com texto (com -b a, todas). -w largura, -s separador, -v primeiro número, -i incremento." },
+    { "diff", "diferencas", false, false, "compara arquivos", "diff [-u] [-q] [-i] [-b] arquivo1 arquivo2", "Mostra as linhas que mudaram de um arquivo para o outro (< saiu, > entrou). -u formato unificado, -q só diz se mudou, -i ignora maiúsculas, -b espaços." },
+    { "find", "procurar-arquivo", false, false, "acha arquivos", "find [pasta...] [-name P] [-iname P] [-type f|d] [-size [+-]N[ck]] [-empty] [-maxdepth N]", "Procura arquivos e pastas, descendo pelas subpastas (ex.: find /usb -name \"*.txt\"). ! inverte a condição seguinte." },
+    { "sed", "editar-fluxo", false, false, "edita texto", "sed [-n] [-E] [-e roteiro]... [roteiro] [arquivo...]", "Edita o texto linha a linha: s/velho/novo/g troca, 3d apaga a linha 3, /^#/d apaga as que começam com #, -n 2,4p mostra só as linhas 2 a 4." },
+    { "tree", "arvore", false, false, "árvore de pastas", "tree [-a] [-d] [-L N] [pasta...]", "Desenha as pastas e os arquivos como uma árvore. -d só pastas, -L N desce até N níveis, -a mostra os escondidos." },
+    { "cal", "calendario", false, false, "calendário", "cal [[mês] ano]", "Mostra o calendário do mês de hoje, de um mês (cal 2 2028) ou do ano inteiro (cal 2027)." },
+    { "bc", "calcular", false, false, "calcula contas", "bc [-l] [-e conta]... [arquivo...]", "Calculadora com números de muitos dígitos: echo \"2^100\" | bc, echo \"scale=2; 10/3\" | bc. Tem + - * / % ^, sqrt(), variáveis e scale (casas)." },
+    { "expr", "expressao", false, false, "calcula expressão", "expr EXPRESSÃO", "Calcula uma expressão com cada parte separada: expr 3 + 4, expr 7 / 2, expr abc = abc, expr length sagui. Código 1 se der 0 ou vazio." },
+    { "base64", NULL, false, false, "codifica base64", "base64 [-d [-i]] [-w N] [arquivo]", "Codifica um arquivo em letras e números (RFC 4648); -d decodifica de volta, -w muda a largura das linhas (0 = uma só)." },
+    { "md5sum", "md5", false, false, "resumo MD5", "md5sum [arquivo...] | md5sum -c lista", "Calcula o resumo MD5 (RFC 1321) de arquivos, para conferir cópias; -c confere uma lista \"resumo  nome\"." },
+    { "od", "octal", false, false, "bytes em números", "od [-A d|o|x|n] [-t TIPO | -b | -c | -d | -o | -x] [-j N] [-N N] [-v] [arquivo...]", "Mostra os bytes de um arquivo como números: octal (padrão), -t x1 hexadecimal, -c letras, -t d2 decimal com sinal..." },
+    { "xxd", "hexa", false, false, "bytes em hexa", "xxd [-c N] [-g N] [-l N] [-s N] [-u] [-p] [-r] [arquivo]", "Mostra os bytes em hexadecimal ao lado das letras; -p só o hexadecimal, -r faz o caminho de volta (do hexadecimal para os bytes)." },
     { "kill", "matar", false, false, "encerra processo", "kill <pid>", "Encerra um processo pelo número (veja os números com ps)." },
     { "clear", "limpar", true, false, "limpa a tela", "clear", "Limpa a tela." },
     { "ajuda", NULL, true, false, "esta ajuda", "ajuda [comando]", "Lista os comandos, ou explica um comando." },
     { "mem", NULL, false, false, "memória", "mem", "Mostra a memória total, usada e livre." },
     { "data", NULL, false, false, "data e hora", "data", "Mostra a data e a hora do relógio da placa-mãe." },
     { "sobre", NULL, false, false, "sobre o SaguiOS", "sobre", "Versão e créditos do SaguiOS." },
+    { "uname", "sistema", false, false, "nome do sistema", "uname [-a | -r | -m]", "Diz o nome do sistema; -a mostra também a versão, a arquitetura e há quanto tempo está ligado." },
+    { "fetch", "ficha", false, false, "ficha do sistema", "fetch", "O sagui desenhado com letras e um resumo do sistema: versão, processador, memória, tela." },
     { "ola", NULL, false, false, "mostra argumentos", "ola [argumentos]", "Imprime os argumentos recebidos (teste do carregador de programas)." },
-    { "lua", NULL, false, false, "interpreta Lua", "lua [arquivo.lua [args]] | lua -e \"codigo\"", "Roda um script no interpretador nativo de um subconjunto de Lua. Sem arquivo, abre o modo interativo." },
     { "contador", NULL, false, false, "conta segundos", "contador [segundos]", "Conta segundos (padrão: 10). Rode com & para ver a multitarefa." },
     { "falha", NULL, false, false, "provoca um erro", "falha [memoria|kernel|divisao|instrucao]", "Faz um erro de propósito: só este programa é encerrado, o sistema continua." },
-    { "reiniciar", NULL, true, false, "reinicia o PC", "reiniciar", "Reinicia o computador." },
+    { "reiniciar", NULL, true, false, "reinicia o PC", "reiniciar", "Grava o que falta nos pendrives e reinicia o computador." },
+    { "poweroff", "desligar", true, false, "desliga o PC", "desligar", "Grava o que falta nos pendrives e desliga o computador." },
     { "sair", NULL, true, false, "fecha o shell", "sair", "Fecha o shell." },
     { "discos", NULL, false, false, "lista os pendrives", "discos", "Mostra os pendrives conectados, o formato e se estão montados." },
+    { "df", "espaco", false, false, "espaço dos discos", "df [-k]", "Mostra o espaço total, usado e livre de / (a memória) e de /usb (o pendrive). -k: tudo em KB." },
     { "montar", NULL, false, false, "monta o pendrive", "montar [usb0]", "Monta o pendrive FAT32 em /usb." },
     { "desmontar", NULL, false, false, "libera o pendrive", "desmontar [usb0]", "Grava tudo o que falta e libera o pendrive para ser removido." },
+    { "captura", NULL, false, false, "salva a tela", "captura [arquivo.png]", "Salva a tela num PNG. Sem nome, vai para /usb/Capturas (com pendrive) ou /capturas. A tecla Print Screen faz o mesmo." },
     { "usb", NULL, false, false, "diagnóstico USB", "usb", "Mostra os controladores USB 2.0, as portas e os dispositivos." },
-    { "rede", NULL, false, false, "placa e endereço IP", "rede", "Mostra a placa de rede, o MAC, o endereço IP, o gateway e o DNS." },
-    { "wget", NULL, false, false, "baixa por HTTP", "wget <url> [arquivo]", "Baixa uma página ou arquivo por HTTP (sem HTTPS), ex.: wget http://10.0.2.2/leia-me.txt" },
-    { "servidor", NULL, false, false, "arquivos na rede", "servidor", "Liga o servidor de arquivos na porta 2500: o Windows conecta com tools/windows/sagui-fs.ps1 (redirecionamento de porta da NAT). Saia com q." },
+    { "pci", NULL, false, false, "lista o hardware", "pci", "Lista os dispositivos PCI (rede, som, USB, vídeo) e o que o SaguiOS já usa." },
+    { "config", NULL, false, false, "configurações", "config [chave [valor]]", "Lê ou muda uma configuração do sistema (guardada no pendrive)." },
+    { "teclado", NULL, false, false, "layout do teclado", "teclado [es | abnt2]", "Mostra ou troca o layout do teclado: abnt2 (português do Brasil) ou es (espanhol). Fica guardado nas configurações." },
+    { "som", NULL, false, false, "placa de som", "som [teste [Hz [ms]] | volume [0-100]]", "Mostra a placa de som, toca um tom de teste ou muda o volume." },
+    { "tocar", NULL, false, false, "toca um .wav", "tocar arquivo.wav", "Toca um arquivo WAV (PCM de 8 ou 16 bits) pela placa de som." },
+    { "rede", NULL, false, false, "mostra a rede", "rede", "Mostra a placa de rede, o endereço IP, o roteador e o DNS." },
+    { "ping", NULL, false, false, "testa a rede", "ping <nome ou IP> [vezes]", "Pergunta a outro computador se ele responde e mede o tempo." },
+    { "dns", NULL, false, false, "IP de um nome", "dns <nome>", "Descobre o endereço IP de um nome (ex.: dns google.com)." },
+    { "baixar", NULL, false, false, "baixa da web", "baixar <url> [arquivo]", "Baixa um arquivo da web (http:// ou https://) para a pasta atual." },
+    { "relogio", NULL, false, false, "hora, pela internet", "relogio [internet [servidor]]", "Mostra a hora, ou acerta o relógio pela internet (NTP)." },
     { "bip", NULL, false, false, "toca um bip", "bip [Hz [ms]] | bip escala", "Toca uma nota no alto-falante do PC (padrão: 880 Hz por 200 ms)." },
     { "arquivos", NULL, false, true, "abre o Arquivos", "arquivos [pasta]", "Abre o Arquivos numa janela." },
     { "editor", NULL, false, true, "editor de texto", "editor [arquivo]", "Abre o Editor de texto numa janela." },
-    { "ide", NULL, false, true, "editor de código", "ide [arquivo]", "Abre a IDE para editar, compilar e executar Go, Lua, C (tinycc) e receitas .mk (make)." },
     { "calculadora", NULL, false, true, "calculadora", "calculadora", "Abre a Calculadora numa janela." },
-    { "tocador", NULL, false, true, "toca .mus/.vid", "tocador [arquivo.mus|arquivo.vid]", "Abre o Tocador: toca música em notas (.mus) e vídeo em quadros (.vid) de /musicas e /videos." },
-    { "loja", NULL, false, true, "loja de apps", "loja [listar|instalar <nome>|executar <nome>|informar <arquivo.loj>|link|configurar <url>|atualizar]", "Abre a Loja: Go compila e empacota .loj, Lua copia .lua, instala em /store e configura o link." },
-    { "gosagui", NULL, false, false, "compila Go", "gosagui build -o destino fonte.go", "Compila um subconjunto de Go nativo para um ELF do SaguiOS." },
-    { "make", "compilar", false, false, "compila .mk", "make <arquivo.mk> | make -all [pasta]", "Compila os programas descritos em arquivos .mk (fonte, saida, bibliotecas, opcoes). Com -all, compila todos os .mk da pasta." },
+    { "visualizador", NULL, false, true, "mostra imagens", "visualizador [imagem]", "Abre imagens PNG, JPEG, GIF, WebP, BMP e SGI. +/- zoom, 0 ajusta, setas passam para a próxima da pasta." },
     { "banana", NULL, false, true, "jogo do sagui", "banana", "Abre o jogo Sagui Pega Banana." },
+    { "configuracoes", NULL, false, true, "abre as Configurações", "configuracoes [aba]", "Abre as Configurações (relógio, aparência, sobre o computador)." },
     { "sagui3d", NULL, false, true, "jogo em 3D", "sagui3d [fase]", "Abre o jogo Sagui 3D (ou só uma fase, dando o arquivo)." },
+    { "jogos", NULL, false, true, "lista de jogos", "jogos", "Abre o lançador de jogos (o item Jogos do menu do sagui)." },
+    { "cacabananas", NULL, false, true, "ache as bombas", "cacabananas [--nivel 1|2|3]", "Abre o Caça-Bananas: ache as bananas-bomba do bananal." },
+    { "paciencia", NULL, false, true, "jogo de cartas", "paciencia [--naipes 1|2|4]", "Abre a Paciência Banana: junte as cartas do rei ao ás." },
+    { "chip8", NULL, false, true, "emulador CHIP-8", "chip8 [-m chip8|schip|xochip] [rom]", "Abre o emulador de CHIP-8 (sem ROM, mostra a lista de /jogos/chip8 e do pendrive)." },
+    { "jclic", NULL, false, true, "atividades JClic", "jclic [projeto.jclic.zip]", "Abre o visor de atividades JClic (sem projeto, mostra a lista de /jogos/jclic e do pendrive)." },
+    { "chip8asm", NULL, false, false, "montador CHIP-8", "chip8asm fonte.asm [-o saida.ch8]", "Monta um programa de CHIP-8 escrito em texto (exemplos em /jogos/chip8)." },
+    { "triangulos", NULL, false, true, "teste de desenho", "triangulos", "Triângulos girando em 3D, com os quadros por segundo: mede a velocidade do desenho. +/- muda a quantidade." },
+    { "chuva", NULL, false, true, "chuva de letras", "chuva", "Abre uma janela com letras verdes caindo. Espaço pausa; Esc fecha." },
+    { "dirname", "pasta-de", false, false, "pasta do caminho", "dirname <caminho>", "Mostra a pasta de um caminho (ex.: dirname /a/b/c.txt mostra /a/b)." },
+    { "hostname", "nome-maquina", false, false, "nome do computador", "hostname [novo]", "Mostra ou muda o nome do computador (guarda nas configurações)." },
+    { "du", "disco-usado", false, false, "espaço usado", "du [caminho...]", "Mostra o espaço usado por arquivos e pastas (soma recursivamente)." },
 };
 #define QTD_COMANDOS (int)(sizeof comandos / sizeof comandos[0])
 
@@ -92,6 +142,19 @@ static char historico[MAX_HIST][MAX_LINHA];
 static int qtd_hist;
 
 static void mostrar(const char *s) { escrever_texto(SAIDA, s); }
+
+/* Uma mensagem traduzida (tr, D073), com o fim de linha. O texto em português
+ * é a chave da tradução, por isso vai sem o \n. */
+static void dizer(const char *fmt_pt, ...)
+{
+    char buf[256];
+    va_list ap;
+    va_start(ap, fmt_pt);
+    formatar_lista(buf, sizeof buf - 1, traduzir(fmt_pt), ap);
+    va_end(ap);
+    junta_texto(buf, "\n", sizeof buf);
+    mostrar(buf);
+}
 
 static void prompt(void)
 {
@@ -154,6 +217,18 @@ static int candidatos(const char *linha, int n, char lista[][NOME_MAX], int max,
             if (comeca_com(comandos[i].nome, palavra)) copia_texto(lista[qtd++], comandos[i].nome, NOME_MAX);
             if (comandos[i].apelido && comeca_com(comandos[i].apelido, palavra) && qtd < max)
                 copia_texto(lista[qtd++], comandos[i].apelido, NOME_MAX);
+        }
+        /* Também os programas de /bin e os instalados no pendrive que não
+         * estão na tabela (o registro, por exemplo, não completava). */
+        static const char *const pastas_prog[] = { "/bin", "/usb/programas" };
+        for (int p = 0; p < 2; p++) {
+            entrada_pasta_t e;
+            for (int i = 0; listar(pastas_prog[p], i, &e) == 1 && qtd < max; i++) {
+                if (e.tipo == TIPO_PASTA || e.nome[0] == '.' || !comeca_com(e.nome, palavra)) continue;
+                bool repetido = false;
+                for (int k = 0; k < qtd && !repetido; k++) repetido = compara_texto(lista[k], e.nome) == 0;
+                if (!repetido) copia_texto(lista[qtd++], e.nome, NOME_MAX);
+            }
         }
         return qtd;
     }
@@ -234,7 +309,10 @@ static int ler_comando(char *linha)
                 bool no_fim = cur == n;
                 memmove(linha + cur - 1, linha + cur, (size_t)(n - cur + 1));
                 n--; cur--;
-                if (no_fim) { mostrar("\b"); continue; }   /* caso comum: só apaga o último */
+                /* Caso comum: só apaga o último. "\b" só volta o cursor (é assim
+                 * nos terminais); o espaço é que apaga a letra, e o segundo "\b"
+                 * volta de novo. Sem o espaço, o Terminal da 2.0 deixava a letra. */
+                if (no_fim) { mostrar("\b \b"); continue; }
                 cursor_esquerda(1);
                 reescrever_de(linha, n, cur, cur);
             }
@@ -266,7 +344,7 @@ static int ler_comando(char *linha)
             linha[0] = 0;
             prompt();
         } else if (t == 12) {                             /* Ctrl+L: limpa a tela */
-            mostrar("\x1b[J");
+            mostrar("\x1b[H\x1b[J");
             prompt();
             reescrever_de(linha, n, 0, cur);
         } else if (t == (0x100 | TECLA_B_CIMA)) {
@@ -306,9 +384,9 @@ typedef struct {
 static bool eh_operador(char c) { return c == '|' || c == '<' || c == '>' || c == '&'; }
 
 /* Separa a linha em palavras e operadores (que podem vir colados nas
- * palavras: "ls bin|conta"). Aspas agrupam palavras com espaços; dentro
- * delas, | > < & são texto comum. As palavras são copiadas, sem as aspas,
- * para um armazém à parte. */
+ * palavras: "ls bin|conta"). Aspas (duplas ou simples) agrupam palavras
+ * com espaços; dentro delas, | > < & são texto comum. As palavras são
+ * copiadas, sem as aspas, para um armazém à parte. */
 static char armazem[MAX_LINHA * 2];
 
 static int separar(const char *linha, token_t *t, int max)
@@ -328,10 +406,12 @@ static int separar(const char *linha, token_t *t, int max)
         }
         char *ini = armazem + usado;
         while (*p && *p != ' ' && !eh_operador(*p) && usado < sizeof armazem - 2) {
-            if (*p == '"') {
-                p++;
-                while (*p && *p != '"' && usado < sizeof armazem - 2) armazem[usado++] = *p++;
-                if (*p == '"') p++;
+            if (*p == '"' || *p == '\'') {
+                /* Aspas simples também (H91): é como os roteiros do sed e
+                 * os conjuntos do tr costumam ser escritos ('s/a/b/'). */
+                char aspa = *p++;
+                while (*p && *p != aspa && usado < sizeof armazem - 2) armazem[usado++] = *p++;
+                if (*p == aspa) p++;
             } else {
                 armazem[usado++] = *p++;
             }
@@ -356,23 +436,26 @@ static void interno_ajuda(int argc, char **argv)
 {
     if (argc > 1) {
         const comando_t *c = achar_comando(argv[1]);
-        if (!c) { imprimir("ajuda: não conheço o comando %s\n", argv[1]); return; }
-        imprimir("Uso: %s\n%s\n", c->uso, c->explicacao);
-        if (c->apelido) imprimir("Apelido em português: %s\n", c->apelido);
-        imprimir("Tipo: %s\n", c->interno ? "comando interno do shell" : "programa em /bin");
+        if (!c) { dizer("ajuda: não conheço o comando %s", argv[1]); return; }
+        imprimir("%s %s\n%s\n", traduzir("Uso:"), c->uso, traduzir(c->explicacao));
+        if (c->apelido) dizer("Apelido em português: %s", c->apelido);
+        imprimir("%s %s\n", traduzir("Tipo:"), traduzir(c->interno ? "comando interno do shell" : "programa em /bin"));
         return;
     }
-    mostrar("Comandos do SaguiOS (nome/apelido):\n");
+    /* Em português, cada comando aparece com os dois nomes (Unix/apelido); nas
+     * outras línguas o apelido em português não ajuda quem lê, e sai só o nome. */
+    bool portugues = compara_texto(idioma(), "pt") == 0;
+    dizer("Comandos do SaguiOS (nome/apelido):");
     for (int i = 0; i < QTD_COMANDOS; i++) {
         char nome[32];
-        formatar_texto(nome, sizeof nome, "%s%s%s", comandos[i].nome, comandos[i].apelido ? "/" : "",
-                       comandos[i].apelido ? comandos[i].apelido : "");
+        bool apelido = portugues && comandos[i].apelido;
+        formatar_texto(nome, sizeof nome, "%s%s%s", comandos[i].nome, apelido ? "/" : "", apelido ? comandos[i].apelido : "");
         /* Duas colunas de 39 caracteres: a linha nunca chega a 80 (a tela
          * pularia uma linha a mais). */
-        imprimir("  %-20s%-17s%s", nome, comandos[i].curta, (i % 2 == 1 || i == QTD_COMANDOS - 1) ? "\n" : "");
+        imprimir("  %-20s%-17s%s", nome, traduzir(comandos[i].curta), (i % 2 == 1 || i == QTD_COMANDOS - 1) ? "\n" : "");
     }
-    mostrar("Arquivo: cmd > arq, >> arq, < arq   Pipe: cmd1 | cmd2   Segundo plano: cmd &\n");
-    mostrar("ajuda <comando> explica um comando. Setas: histórico. Tab: completa nomes.\n");
+    dizer("Arquivo: cmd > arq, >> arq, < arq   Pipe: cmd1 | cmd2   Segundo plano: cmd &");
+    dizer("ajuda <comando> explica um comando. Setas: histórico. Tab: completa nomes.");
 }
 
 static bool executar_interno(const comando_t *c, int argc, char **argv)
@@ -380,19 +463,25 @@ static bool executar_interno(const comando_t *c, int argc, char **argv)
     const char *n = c->nome;
     if (compara_texto(n, "cd") == 0) {
         int r = mudar_pasta(argc > 1 ? argv[1] : "/");
-        if (r < 0) imprimir("cd: %s: %s\n", argc > 1 ? argv[1] : "/", nome_erro(r));
+        if (r < 0) imprimir("cd: %s: %s\n", argc > 1 ? argv[1] : "/", traduzir(nome_erro(r)));
     } else if (compara_texto(n, "pwd") == 0) {
         char p[128];
         pasta_atual(p, sizeof p);
         imprimir("%s\n", p);
     } else if (compara_texto(n, "clear") == 0) {
-        mostrar("\x1b[J");   /* funciona no terminal de tela cheia e no Terminal em janela */
+        mostrar("\x1b[H\x1b[J");   /* cursor ao início e apaga até o fim: serve ao Terminal em janela
+                                     * (só ESC[J apagava do cursor para baixo, e nada sumia) e ao console
+                                     * do kernel (que ignora o ESC[H e limpa tudo com o ESC[J) */
     } else if (compara_texto(n, "ajuda") == 0) {
         interno_ajuda(argc, argv);
     } else if (compara_texto(n, "reiniciar") == 0) {
-        mostrar("Reiniciando...\n");
+        dizer("Reiniciando...");
         dormir(200);
         reiniciar();
+    } else if (compara_texto(n, "desligar") == 0 || compara_texto(n, "poweroff") == 0) {   /* poweroff: do #4 */
+        dizer("Desligando...");
+        dormir(200);
+        desligar();
     } else if (compara_texto(n, "sair") == 0) {
         return false;
     }
@@ -405,7 +494,7 @@ static void recolher_fundo(void)
 {
     int codigo, pid;
     while ((pid = recolher(&codigo)) > 0)
-        imprimir("[%d] terminou (código %d)\n", pid, codigo);
+        dizer("[%d] terminou (código %d)", pid, codigo);
 }
 
 static void caminho_do_programa(const char *nome, char *saida, size_t max)
@@ -413,6 +502,13 @@ static void caminho_do_programa(const char *nome, char *saida, size_t max)
     if (acha_char(nome, '/')) { copia_texto(saida, nome, max); return; }
     const comando_t *c = achar_comando(nome);
     formatar_texto(saida, max, "/bin/%s", c ? c->nome : nome);
+    /* Programas instalados no pendrive (H39): /usb/programas, depois de /bin. */
+    info_arquivo_t inf;
+    if (!c && info_arquivo(saida, &inf) < 0) {
+        char instalado[128];
+        formatar_texto(instalado, sizeof instalado, "/usb/programas/%s", nome);
+        if (info_arquivo(instalado, &inf) >= 0) copia_texto(saida, instalado, max);
+    }
 }
 
 static void rodar(etapa_t *et, int qtd, bool fundo)
@@ -427,7 +523,7 @@ static void rodar(etapa_t *et, int qtd, bool fundo)
         /* Entrada desta etapa. */
         if (i == 0 && et[i].entrada) {
             int fd = abrir(et[i].entrada, ABRIR_LER);
-            if (fd < 0) { imprimir_em(ERROS, "sagsh: %s: %s\n", et[i].entrada, nome_erro(fd)); ok = false; break; }
+            if (fd < 0) { imprimir_em(ERROS, "sagsh: %s: %s\n", et[i].entrada, traduzir(nome_erro(fd))); ok = false; break; }
             duplicar(fd, ENTRADA);
             fechar(fd);
         } else if (leitura_anterior >= 0) {
@@ -440,7 +536,7 @@ static void rodar(etapa_t *et, int qtd, bool fundo)
         /* Saída desta etapa. */
         if (i < qtd - 1) {
             int p[2];
-            if (criar_pipe(p) < 0) { mostrar("sagsh: não consegui criar o pipe\n"); ok = false; break; }
+            if (criar_pipe(p) < 0) { dizer("sagsh: não consegui criar o pipe"); ok = false; break; }
             duplicar(p[1], SAIDA);
             fechar(p[1]);
             leitura_anterior = p[0];
@@ -449,7 +545,7 @@ static void rodar(etapa_t *et, int qtd, bool fundo)
             int fd = abrir(et[i].saida, modo);
             if (fd < 0) {
                 duplicar(guarda1, SAIDA);
-                imprimir("sagsh: %s: %s\n", et[i].saida, nome_erro(fd));
+                imprimir("sagsh: %s: %s\n", et[i].saida, traduzir(nome_erro(fd)));
                 ok = false;
                 break;
             }
@@ -465,9 +561,9 @@ static void rodar(etapa_t *et, int qtd, bool fundo)
             int erro = pids[i];
             duplicar(guarda1, SAIDA);
             if (erro == ERRO_NAO_EXISTE)
-                imprimir("sagsh: comando não encontrado: %s (digite ajuda)\n", et[i].argv[0]);
+                dizer("sagsh: comando não encontrado: %s (digite ajuda)", et[i].argv[0]);
             else
-                imprimir("sagsh: %s: %s\n", et[i].argv[0], nome_erro(erro));
+                imprimir("sagsh: %s: %s\n", et[i].argv[0], traduzir(nome_erro(erro)));
         }
     }
     if (leitura_anterior >= 0) fechar(leitura_anterior);
@@ -480,8 +576,8 @@ static void rodar(etapa_t *et, int qtd, bool fundo)
         if (pids[i] <= 0) continue;
         if (fundo) {
             const comando_t *cg = achar_comando(et[i].argv[0]);
-            if (cg && cg->grafico) imprimir("Abrindo %s (processo %d)...\n", et[i].argv[0], pids[i]);
-            else imprimir("[%d] %s em segundo plano\n", pids[i], et[i].argv[0]);
+            if (cg && cg->grafico) dizer("Abrindo %s (processo %d)...", et[i].argv[0], pids[i]);
+            else dizer("[%d] %s em segundo plano", pids[i], et[i].argv[0]);
             continue;
         }
         int codigo;
@@ -505,46 +601,28 @@ static bool executar_linha(char *linha)
         if (op == 0) {
             if (e->argc < MAX_PALAVRAS - 1) e->argv[e->argc++] = tok[i].texto;
         } else if (op == '|') {
-            if (e->argc == 0 || qtd == MAX_ETAPAS) { mostrar("sagsh: pipe sem comando\n"); return true; }
+            if (e->argc == 0 || qtd == MAX_ETAPAS) { dizer("sagsh: pipe sem comando"); return true; }
             qtd++;
         } else if (op == '&') {
             fundo = true;
         } else {
-            if (i + 1 >= nt || tok[i + 1].op) { mostrar("sagsh: falta o nome do arquivo\n"); return true; }
+            if (i + 1 >= nt || tok[i + 1].op) { dizer("sagsh: falta o nome do arquivo"); return true; }
             char *arq = tok[++i].texto;
             if (op == '<') e->entrada = arq;
             else { e->saida = arq; e->acrescentar = (op == 'A'); }
         }
     }
-    if (et[qtd - 1].argc == 0) { mostrar("sagsh: pipe sem comando\n"); return true; }
+    if (et[qtd - 1].argc == 0) { dizer("sagsh: pipe sem comando"); return true; }
     for (int i = 0; i < qtd; i++) et[i].argv[et[i].argc] = NULL;
-
-    /* Arquivos de código (.go, .lua, .c, .h e .mk) abrem na IDE, nao no
-     * editor de texto nem como binario. "ola.go" vira "ide ola.go" e
-     * "/go/ola.go" vira "ide /go/ola.go". */
-    for (int i = 0; i < qtd; i++) {
-        if (et[i].argc == 0) continue;
-        const char *n = et[i].argv[0];
-        if (!n) continue;
-        if (!eh_codigo_fonte(n)) continue;
-        if (et[i].argc >= MAX_PALAVRAS - 1) {
-            mostrar("sagsh: linha longa demais para abrir no IDE\n");
-            return true;
-        }
-        for (int k = et[i].argc; k >= 1; k--) et[i].argv[k] = et[i].argv[k - 1];
-        et[i].argv[0] = "ide";
-        et[i].argc++;
-        et[i].argv[et[i].argc] = NULL;
-    }
 
     const comando_t *c = achar_comando(et[0].argv[0]);
     if (c && c->interno) {
-        if (qtd > 1) { mostrar("sagsh: comandos internos não funcionam num pipe\n"); return true; }
+        if (qtd > 1) { dizer("sagsh: comandos internos não funcionam num pipe"); return true; }
         return executar_interno(c, et[0].argc, et[0].argv);
     }
     for (int i = 1; i < qtd; i++) {
         const comando_t *ci = achar_comando(et[i].argv[0]);
-        if (ci && ci->interno) { mostrar("sagsh: comandos internos não funcionam num pipe\n"); return true; }
+        if (ci && ci->interno) { dizer("sagsh: comandos internos não funcionam num pipe"); return true; }
     }
     if (qtd == 1 && c && c->grafico) fundo = true;   /* programa gráfico não prende o shell */
     rodar(et, qtd, fundo);
@@ -553,8 +631,14 @@ static bool executar_linha(char *linha)
 
 int principal(int argc, char **argv)
 {
-    (void)argc; (void)argv;
-    imprimir("sagsh: o shell do SaguiOS (processo %d). Digite ajuda para ver os comandos.\n", meu_pid());
+    /* sagsh -c "linha": roda uma linha só e sai (o Sagui Code usa, H70). */
+    if (argc >= 3 && compara_texto(argv[1], "-c") == 0) {
+        char linha[MAX_LINHA];
+        copia_texto(linha, argv[2], sizeof linha);
+        executar_linha(linha);
+        return 0;
+    }
+    dizer("sagsh: o shell do SaguiOS (processo %d). Digite ajuda para ver os comandos.", meu_pid());
     char linha[MAX_LINHA];
     for (;;) {
         recolher_fundo();
@@ -562,8 +646,9 @@ int principal(int argc, char **argv)
         int n = ler_comando(linha);
         if (n < 0) break;
         if (n == 0) continue;
+        idioma_recarregar();   /* "config sistema.idioma es" vale já no próximo comando */
         if (!executar_linha(linha)) break;
     }
-    mostrar("sagsh: até logo!\n");
+    dizer("sagsh: até logo!");
     return 0;
 }

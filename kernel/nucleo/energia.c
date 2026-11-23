@@ -1,180 +1,224 @@
-/* energia.c - reiniciar e desligar a máquina.
+/* energia.c - desligar e reiniciar a máquina (H36).
  *
- * Reiniciar é fácil: o controlador do teclado tem uma linha ligada ao reset
- * da CPU. Desligar exige falar com a ACPI do firmware: achar a RSDP, seguir
- * até a FADT (onde está a porta PM1a_CNT), descobrir no DSDT o SLP_TYP do
- * estado S5 e escrever nele o pedido de dormir para sempre.
+ * Desligar de verdade é coisa do ACPI, a interface que o firmware do PC
+ * oferece para energia. O firmware deixa na memória baixa uma "ponta" (RSDP,
+ * marcada com o texto "RSD PTR ") que leva a uma lista de tabelas. Duas
+ * importam aqui:
+ *   - FACP: diz em que portas fica o registrador de controle de energia
+ *     (PM1a_CNT, às vezes também PM1b_CNT), como ligar o modo ACPI (porta e
+ *     valor) e, nas versões mais novas, um registrador próprio de reset;
+ *   - DSDT: código numa linguagem do firmware (AML). Não precisamos
+ *     interpretar a linguagem: só achar o objeto chamado "_S5_", um pacote
+ *     cujos dois primeiros números são o "tipo de sono" do estado S5
+ *     (desligado) para PM1a e PM1b.
+ * Desligar = escrever (tipo << 10) | bit 13 (SLP_EN) no PM1a_CNT (e no b).
  *
- * O PRD proíbe código de outros sistemas, então nada de biblioteca de ACPI:
- * aqui estão só os 4 campos que o desligamento precisa, com a soma de
- * verificação de cada tabela conferida. Ver D038. */
+ * Reiniciar tenta, em ordem: o registrador de reset do ACPI, a porta 0xCF9
+ * (reset dos chipsets Intel), o pulso pelo controlador de teclado e, por
+ * último, uma falta tripla de propósito.
+ *
+ * Antes das duas coisas, os pendrives montados são desmontados, para tudo o
+ * que estava pendente ser gravado. */
+#include "desenho.h"
+#include "video.h"
 #include "cpu.h"
 #include "console.h"
-#include "paginacao.h"
 #include "portas.h"
 #include "relogio.h"
+#include "paginacao.h"
+#include "disco.h"
 #include "texto.h"
+#include "sistema.h"
+
+static struct {
+    bool     ok;
+    uint16_t pm1a, pm1b;          /* portas de controle */
+    uint16_t slp_a, slp_b;        /* tipos de sono do S5 */
+    uint32_t smi_cmd;
+    uint8_t  ativar;              /* valor para ligar o modo ACPI */
+    bool     tem_reset;
+    uint8_t  reset_espaco;        /* 0 memória, 1 porta, 2 PCI */
+    uint32_t reset_end;
+    uint8_t  reset_valor;
+} acpi;
+
+static bool soma_ok(const uint8_t *p, uint32_t n)
+{
+    uint8_t s = 0;
+    for (uint32_t i = 0; i < n; i++) s = (uint8_t)(s + p[i]);
+    return s == 0;
+}
+
+/* Procura "RSD PTR " alinhado em 16 bytes num pedaço da memória baixa. */
+static const uint8_t *procurar_rsdp(uint32_t ini, uint32_t fim)
+{
+    for (uint32_t a = ini; a + 20 <= fim; a += 16) {
+        const uint8_t *p = (const uint8_t *)(uintptr_t)a;
+        if (memcmp(p, "RSD PTR ", 8) == 0 && soma_ok(p, 20)) return p;
+    }
+    return NULL;
+}
+
+/* Mapeia uma tabela ACPI inteira (o cabeçalho diz o tamanho). */
+static const uint8_t *mapear_tabela(uint32_t fis)
+{
+    if (!fis) return NULL;
+    const uint8_t *cab = fis < 0x38000000u ? (const uint8_t *)(uintptr_t)fis : (const uint8_t *)(uintptr_t)janela_mapear(fis, 36);
+    if (!cab) return NULL;
+    uint32_t tam = *(const uint32_t *)(cab + 4);
+    if (tam < 36 || tam > 1024 * 1024) return NULL;
+    if (fis < 0x38000000u) return cab;
+    return (const uint8_t *)(uintptr_t)janela_mapear(fis, tam);
+}
+
+/* Lê um valor pequeno do AML: 0 (ZeroOp), 1 (OneOp) ou 0x0A seguido do byte. */
+static int aml_numero(const uint8_t **p)
+{
+    uint8_t op = *(*p)++;
+    if (op == 0x0A) return *(*p)++;
+    if (op == 0x00 || op == 0x01) return op;
+    if (op == 0xFF) return 0xFF;
+    return op;   /* alguns firmwares escrevem o número direto */
+}
+
+static void ler_s5(const uint8_t *dsdt)
+{
+    uint32_t tam = *(const uint32_t *)(dsdt + 4);
+    for (uint32_t i = 36; i + 8 < tam; i++) {
+        if (memcmp(dsdt + i, "_S5_", 4) != 0) continue;
+        /* Precisa ser a definição de um nome: NameOp (0x08) antes, talvez com '\'. */
+        if (!(dsdt[i - 1] == 0x08 || (dsdt[i - 2] == 0x08 && dsdt[i - 1] == '\\'))) continue;
+        const uint8_t *p = dsdt + i + 4;
+        if (*p++ != 0x12) continue;                 /* PackageOp */
+        p += 1 + (*p >> 6);                         /* tamanho do pacote: 1 a 4 bytes */
+        p++;                                        /* número de elementos */
+        acpi.slp_a = (uint16_t)aml_numero(&p);
+        acpi.slp_b = (uint16_t)aml_numero(&p);
+        acpi.ok = true;
+        return;
+    }
+}
+
+void energia_iniciar(void)
+{
+    const uint8_t *rsdp = NULL;
+    /* O segmento da EBDA fica na área de dados da BIOS, no endereço 0x40E.
+     * A página 0 fica desmapeada de propósito (pega ponteiro nulo), então a
+     * leitura passa por uma janela do kernel. */
+    const uint16_t *bda = (const uint16_t *)(uintptr_t)janela_mapear(0x40E, 2);
+    uint32_t ebda = bda ? (uint32_t)(*bda) << 4 : 0;
+    if (ebda >= 0x80000 && ebda < 0xA0000) rsdp = procurar_rsdp(ebda, ebda + 1024);
+    if (!rsdp) rsdp = procurar_rsdp(0xE0000, 0x100000);
+    if (!rsdp) { klog("[ACPI] sem RSDP: desligar só manual\n"); return; }
+    const uint8_t *rsdt = mapear_tabela(*(const uint32_t *)(rsdp + 16));
+    if (!rsdt || memcmp(rsdt, "RSDT", 4) != 0) { klog("[ACPI] RSDT invalida\n"); return; }
+    uint32_t n = (*(const uint32_t *)(rsdt + 4) - 36) / 4;
+    const uint8_t *facp = NULL;
+    for (uint32_t i = 0; i < n && !facp; i++) {
+        const uint8_t *t = mapear_tabela(*(const uint32_t *)(rsdt + 36 + i * 4));
+        if (t && memcmp(t, "FACP", 4) == 0) facp = t;
+    }
+    if (!facp) { klog("[ACPI] sem FACP\n"); return; }
+    uint32_t tam = *(const uint32_t *)(facp + 4);
+    acpi.smi_cmd = *(const uint32_t *)(facp + 48);
+    acpi.ativar = facp[52];
+    acpi.pm1a = (uint16_t)*(const uint32_t *)(facp + 64);
+    acpi.pm1b = (uint16_t)*(const uint32_t *)(facp + 68);
+    if (tam >= 129 && (*(const uint32_t *)(facp + 112) & (1u << 10))) {   /* RESET_REG_SUP */
+        acpi.tem_reset = true;
+        acpi.reset_espaco = facp[116];
+        acpi.reset_end = *(const uint32_t *)(facp + 120);
+        acpi.reset_valor = facp[128];
+    }
+    const uint8_t *dsdt = mapear_tabela(*(const uint32_t *)(facp + 40));
+    if (dsdt && memcmp(dsdt, "DSDT", 4) == 0) ler_s5(dsdt);
+    klog("[ACPI] PM1a %x PM1b %x, S5 %s (%u/%u), reset %s\n", acpi.pm1a, acpi.pm1b, acpi.ok ? "ok" : "NAO achado",
+         acpi.slp_a, acpi.slp_b, acpi.tem_reset ? "pelo ACPI" : "pela porta 0xCF9");
+}
+
+/* Grava o que estiver pendente nos pendrives. */
+static void guardar_discos(void)
+{
+    for (int i = 0; i < MAX_DISCOS; i++) {
+        disco_t *d = disco_indice(i);
+        if (d && d->montado) disco_desmontar(d);
+    }
+}
+
+/* Tela "pode desligar" (H83, ideia do pull request #4 de Clayton): quando o
+ * ACPI não desliga a placa (computadores antigos, alguns emuladores), a
+ * pessoa vê na tela inteira que já pode tirar da tomada, em vez da área de
+ * trabalho parada. */
+static void tela_pode_desligar(void)
+{
+    if (!video_ativo()) return;
+    int vl = (int)video_largura(), va = (int)video_altura();
+    superficie_t s;
+    sup_iniciar(&s, video_buffer(), vl, va);
+    sup_degrade(&s, 0, 0, vl, va, 0x0E1A14, 0x050807);
+    video_cursor(0, 0, false);
+    int esc = 4, mx = (vl - 32 * esc) / 2, my = va / 2 - 32 * esc - 20;
+    sup_desenho(&s, mx, my, &arte_sagui, esc);
+    const char *m1 = "O SaguiOS terminou com segurança.";
+    const char *m2 = "Já pode desligar o computador.";
+    sup_texto_forte(&s, (vl - texto_largura(m1)) / 2, va / 2 + 10, m1, 0xFFDF4A);
+    sup_texto(&s, (vl - texto_largura(m2)) / 2, va / 2 + 40, m2, 0xFFFFFF);
+    sup_retangulo(&s, vl / 2 - 60, va / 2 + 70, 40, 3, 0x0B7A3E);
+    sup_retangulo(&s, vl / 2 - 20, va / 2 + 70, 40, 3, 0xE8BE30);
+    sup_retangulo(&s, vl / 2 + 20, va / 2 + 70, 40, 3, 0x2A6FD8);
+    video_mostrar_tudo();
+    klog("[SAGUI] tela: pode desligar\n");
+}
+
+SEM_RETORNO void maquina_desligar(void)
+{
+    guardar_discos();
+    klog("[SAGUI] desligando\n");
+    if (acpi.ok && acpi.pm1a) {
+        /* Liga o modo ACPI, se o firmware ainda não ligou (bit SCI_EN). */
+        if (!(porta_le16(acpi.pm1a) & 1) && acpi.smi_cmd && acpi.ativar) {
+            porta_escreve8((uint16_t)acpi.smi_cmd, acpi.ativar);
+            for (int i = 0; i < 300 && !(porta_le16(acpi.pm1a) & 1); i++) relogio_dormir_ms(10);
+        }
+        int_desliga();
+        porta_escreve16(acpi.pm1a, (uint16_t)((acpi.slp_a << 10) | (1u << 13)));
+        if (acpi.pm1b) porta_escreve16(acpi.pm1b, (uint16_t)((acpi.slp_b << 10) | (1u << 13)));
+        for (volatile int i = 0; i < 10000000; i++) ;
+    }
+    /* Não desligou: avisa e para (o pendrive já foi gravado). */
+    tela_pode_desligar();
+    kprintf("\nO SaguiOS terminou. Pode desligar o computador.\n");
+    klog("[SAGUI] desligar pelo ACPI nao funcionou\n");
+    parar_maquina();
+}
 
 SEM_RETORNO void maquina_reiniciar(void)
 {
+    guardar_discos();
     klog("[SAGUI] reiniciando\n");
     int_desliga();
+    if (acpi.tem_reset && acpi.reset_espaco == 1) {
+        porta_escreve8((uint16_t)acpi.reset_end, acpi.reset_valor);
+        for (volatile int i = 0; i < 1000000; i++) ;
+    }
+    /* Chipsets Intel: porta 0xCF9, 0x02 prepara e 0x06 dispara o reset completo. */
+    porta_escreve8(0xCF9, 0x02);
+    for (volatile int i = 0; i < 1000; i++) ;
+    porta_escreve8(0xCF9, 0x06);
+    for (volatile int i = 0; i < 1000000; i++) ;
     /* O controlador de teclado tem uma linha ligada ao reset da CPU: o
      * comando 0xFE dá um pulso nela. */
     for (int i = 0; i < 100000 && (porta_le8(0x64) & 2); i++) ;
     porta_escreve8(0x64, 0xFE);
     for (volatile int i = 0; i < 1000000; i++) ;
     /* Se não funcionou: IDT vazia + interrupção = falta tripla, que também reinicia. */
-    struct EMPACOTADO { uint16_t limite; uint32_t base; } vazia = { 0, 0 };
+    struct EMPACOTADO { uint16_t limite; uintptr_t base; } vazia = { 0, 0 };
     __asm__ volatile("lidt %0; int3" : : "m"(vazia));
     parar_maquina();
 }
 
-/* ------------------------------------------------------------ desligar (ACPI) */
-
-/* Em AML, o pacote do \_S5 é montado com um byte de tamanho, um byte com a
- * quantidade de elementos e os elementos: Zero (0x00), One (0x01) ou
- * constante de 1 byte (0x0A + valor). */
-static bool elemento_aml(const uint8_t *d, uint32_t n, uint32_t p, int *valor)
+int32_t sis_desligar(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e)
 {
-    if (p >= n) return false;
-    if (d[p] == 0x00 || d[p] == 0x01) { *valor = d[p]; return true; }
-    if (d[p] == 0x0A && p + 1 < n) { *valor = d[p + 1]; return true; }
-    return false;
-}
-
-/* Soma de verificação de uma tabela ACPI: os bytes têm que somar zero. */
-static bool soma_acpi(const uint8_t *t, uint32_t n)
-{
-    uint8_t soma = 0;
-    for (uint32_t i = 0; i < n; i++) soma = (uint8_t)(soma + t[i]);
-    return soma == 0;
-}
-
-/* Procura "nome" seguido de um pacote AML com dois valores (o \_S5 do DSDT:
- * Name(_S5_, Package(){SLP_TYPa, SLP_TYPb, 0, 0})). Sem interpretar AML
- * inteiro: o desligamento só precisa destes dois números. */
-static bool s5_na_tabela(const uint8_t *t, int *typ_a, int *typ_b)
-{
-    if (!t || memcmp(t, "DSDT", 4) != 0) return false;
-    uint32_t n = *(const uint32_t *)(t + 4);
-    if (n > 256u * 1024u) return false;   /* sanidade: DSDT grande demais */
-    for (uint32_t i = 0; i + 8 < n; i++) {
-        if (memcmp(t + i, "_S5_", 4) != 0 || t[i + 4] != 0x12) continue;   /* PackageOp */
-        uint32_t p = i + 5;
-        if (t[p] & 0xC0) return false;   /* pacote com tamanho de vários bytes: fora do nosso caso */
-        p++;   /* tamanho do pacote */
-        p++;   /* quantidade de elementos */
-        if (!elemento_aml(t, n, p, typ_a)) return false;
-        int b;
-        if (elemento_aml(t, n, p + 2, &b) || elemento_aml(t, n, p + 1, &b)) *typ_b = b;
-        else *typ_b = 0;
-        klog("[ACPI] S5 na tabela: slp_typ %d/%d\n", *typ_a, *typ_b);
-        return true;
-    }
-    return false;
-}
-
-/* A RSDP fica na EBDA (o BIOS diz o segmento dela em 0x40E) ou entre
- * 0xE0000 e 0xFFFFF. A página 0 é mantida desligada para pegar ponteiro
- * nulo, então ela é mapeada num endereço alto por um instante, só para
- * ler o ponteiro da EBDA. Só endereços baixos são lidos: o mapeamento 1:1
- * do kernel vai até KERNEL_JANELAS. */
-static bool rsdp_aqui(const uint8_t *r)
-{
-    return memcmp(r, "RSD PTR ", 8) == 0 && soma_acpi(r, 20) && *(const uint32_t *)(r + 16);
-}
-
-static const uint8_t *achar_rsdp(void)
-{
-    uint32_t base = janela_mapear(0, 8);
-    if (base) {
-        uint32_t ebda = (uint32_t)(*(const uint16_t *)(base + 0x40E)) << 4;
-        if (ebda >= 0x1000 && ebda < 0xE0000)   /* ponteiro da EBDA com cara de verdade */
-            for (uint32_t a = ebda; a < ebda + 1024; a += 16)
-                if (rsdp_aqui((const uint8_t *)a)) return (const uint8_t *)a;
-    }
-    for (uint32_t a = 0xE0000; a <= 0x100000 - 32; a += 16)
-        if (rsdp_aqui((const uint8_t *)a)) return (const uint8_t *)a;
-    return NULL;
-}
-
-/* Da RSDP até a FADT: a RSDT lista as tabelas do sistema em entradas de
- * 4 bytes depois do cabeçalho padrão de 36. */
-static const uint8_t *achar_fadt(const uint8_t *rsdp)
-{
-    uint32_t rsdt_end = *(const uint32_t *)(rsdp + 16);
-    if (!rsdt_end || rsdt_end >= KERNEL_JANELAS) return NULL;
-    const uint8_t *rsdt = (const uint8_t *)rsdt_end;
-    if (memcmp(rsdt, "RSDT", 4) != 0) return NULL;
-    uint32_t n = *(const uint32_t *)(rsdt + 4);
-    if (n < 40 || n > 256u * 1024u || !soma_acpi(rsdt, n)) return NULL;
-    for (uint32_t o = 36; o + 4 <= n; o += 4) {
-        uint32_t end = *(const uint32_t *)(rsdt + o);
-        if (!end || end >= KERNEL_JANELAS) continue;
-        const uint8_t *t = (const uint8_t *)end;
-        if (memcmp(t, "FACP", 4) != 0) continue;
-        uint32_t tf = *(const uint32_t *)(t + 4);
-        if (tf < 128 || tf > 1024 || !soma_acpi(t, tf)) continue;
-        return t;
-    }
-    return NULL;
-}
-
-/* Escreve o pedido do estado S5: bit 13 (SLP_EN) e o SLP_TYP nos bits 10-12
- * da porta de controle PM1a (e PM1b, quando a placa tem segunda). */
-static void dormir_s5(uint32_t porta, int typ)
-{
-    porta_escreve16((uint16_t)porta, (uint16_t)((typ & 7) << 10 | 1u << 13));
-}
-
-SEM_RETORNO void maquina_desligar(void)
-{
-    klog("[SAGUI] desligando\n");
-    int_desliga();
-
-    const uint8_t *rsdp = achar_rsdp();
-    if (!rsdp) {
-        klog("[ACPI] RSDP nao encontrada\n");
-        /* Sem ACPI: só restam as portas que os emuladores usam. */
-        porta_escreve16(0x604, 0x2000);    /* QEMU: PM1a_CNT, SLP_TYP 0 */
-        porta_escreve16(0x4004, 0x3400);    /* VirtualBox: PM1a_CNT, SLP_TYP 5 */
-        for (volatile int i = 0; i < 1000000; i++) ;
-    } else {
-        const uint8_t *fadt = achar_fadt(rsdp);
-        if (!fadt) {
-            klog("[ACPI] RSDP em %p mas sem FADT\n", rsdp);
-        } else {
-            uint32_t pm1a = *(const uint32_t *)(fadt + 72);   /* PM1a_CNT_BLK */
-            uint32_t pm1b = *(const uint32_t *)(fadt + 76);   /* PM1b_CNT_BLK */
-            int typ_a = 0, typ_b = 0;
-            bool s5 = s5_na_tabela((const uint8_t *)(*(const uint32_t *)(fadt + 40)), &typ_a, &typ_b);
-            klog("[ACPI] RSDP %p FADT %p pm1a %x pm1b %x%s\n", rsdp, fadt, pm1a, pm1b,
-                 s5 ? " com _S5" : "");
-            if (s5) {
-                if (pm1a) dormir_s5(pm1a, typ_a);
-                if (pm1b) dormir_s5(pm1b, typ_b);
-                for (volatile int i = 0; i < 1000000; i++) ;
-            } else if (pm1a == 0x604) {
-                klog("[ACPI] sem _S5: valor do QEMU na porta %x\n", pm1a);
-                porta_escreve16(0x604, 0x2000);
-                for (volatile int i = 0; i < 1000000; i++) ;
-            } else if (pm1a == 0x4004) {
-                klog("[ACPI] sem _S5: valor do VirtualBox na porta %x\n", pm1a);
-                porta_escreve16(0x4004, 0x3400);
-                for (volatile int i = 0; i < 1000000; i++) ;
-            }
-        }
-    }
-
-    /* Nada cortou a energia (BIOS sem ACPI ou com um \_S5 diferente): para a
-     * CPU e avisa na tela que o desligamento tem de ser no botão. */
-    console_esconder(false);   /* a mensagem aparece mesmo com a área de trabalho no ar */
-    console_cor(COR_VERDE_CLARO, COR_VERDE);
-    console_limpar();
-    kprintf("\n  O SaguiOS terminou.\n\n");
-    console_cor(COR_BRANCO, COR_VERDE);
-    kprintf("  Não consegui cortar a energia pela ACPI deste\n");
-    kprintf("  computador: pode desligar no botão do gabinete.\n");
-    parar_maquina();
+    (void)a; (void)b; (void)c; (void)d; (void)e;
+    maquina_desligar();
 }

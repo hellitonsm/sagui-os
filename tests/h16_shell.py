@@ -13,9 +13,10 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qemu import Maquina, verificar, RAIZ, imagem_console  # noqa: E402
+from qemu import Maquina, verificar, RAIZ, imagem_console, versao_esperada  # noqa: E402
 
-PROGRAMAS = sorted([f[:-2] for f in os.listdir(os.path.join(RAIZ, "userland", "programas")) if f.endswith(".c")] + ["sagui3d"])   # o Sagui 3D (B4) fica em userland/sagui3d
+PROGRAMAS = sorted([f[:-2] for f in os.listdir(os.path.join(RAIZ, "userland", "programas")) if f.endswith(".c")] + ["sagui3d", "navegador", "cipo", "video", "saguicode", "saguicode-janela", "cc", "visualizador", "tocador", "mp3info"]
+                   + os.listdir(os.path.join(RAIZ, "userland", "jogos")))   # programas de várias partes, em pastas próprias (cipo e video: H82; tocador e mp3info: H86/H87; saguicode-janela: H89; cada pasta de userland/jogos: H92)
 
 
 def main():
@@ -23,7 +24,10 @@ def main():
         m.esperar_serial("[SAGUI] shell iniciado: processo", 120)
         m.esperar_serial("sagui:/$", 30)
         s = m.serial()
-        verificar("executar /bin/sagsh -> processo 1" in s, "o kernel inicia /bin/sagsh como primeiro processo (PID 1)")
+        # As tarefas do kernel (USB, rede) também têm número de processo e nascem
+        # antes; o sagsh tem que ser o primeiro programa do usuário a rodar.
+        execs = re.findall(r"\[SAGUI\] executar (\S+) -> processo", s)
+        verificar(execs and execs[0] == "/bin/sagsh", "o kernel inicia /bin/sagsh como primeiro programa (ring 3)")
         verificar("Terminal provis" not in s, "o terminal provisório do kernel foi removido")
 
         out = m.comando("ajuda")
@@ -88,7 +92,7 @@ def main():
         out = m.comando("contador 4 &")
         pid = int(re.search(r"\[(\d+)\] contador em segundo plano", out).group(1))
         out = m.comando("ps")
-        verificar(re.search(rf"^\s*{pid}\s+1\s+\w+.*contador", out, re.M), f"ps mostra o contador (PID {pid}) rodando junto")
+        verificar(re.search(rf"^\s*{pid}\s+\d+\s+\w+.*contador", out, re.M), f"ps mostra o contador (PID {pid}) rodando junto")
         verificar("sagsh" in out and "ocioso" in out and "ps" in out, "ps mostra sagsh, ocioso e o próprio ps")
         m.captura("H16-contador-e-ps")
         out = m.comando("processos")
@@ -105,7 +109,7 @@ def main():
         verificar(f"Processo {pid} encerrado" in out, "kill encerra o contador")
         m.comando("contador 60 &")
         out = m.comando("ps")
-        pid2 = int(re.findall(r"^\s*(\d+)\s+1\s+\w+.*contador", out, re.M)[0])
+        pid2 = int(re.findall(r"^\s*(\d+)\s+\d+\s+\w+.*contador", out, re.M)[0])
         out = m.comando(f"matar {pid2}")
         verificar(f"Processo {pid2} encerrado" in out, "matar (apelido de kill)")
         out = m.comando("ps")
@@ -124,15 +128,17 @@ def main():
         out = m.comando("data")
         verificar(re.search(r"\d\d/\d\d/20\d\d \d\d:\d\d:\d\d", out), "data")
         out = m.comando("sobre")
-        verificar("SaguiOS 1.0" in out and "processos" in out, "sobre")
+        verificar(("SaguiOS " + versao_esperada()) in out and "processos" in out, "sobre")
 
         # Histórico (seta para cima) e completar com Tab.
         out = m.comando("", teclas_finais=("up", "ret"))
-        verificar("SaguiOS 1.0" in out, "seta para cima repete o último comando (sobre)")
+        verificar(("SaguiOS " + versao_esperada()) in out, "seta para cima repete o último comando (sobre)")
         out = m.comando("cat /his", teclas_finais=("tab", "l", "i", "tab", "ret"))
         verificar("cat /historia/linux.txt" in out and "Minix" in out, "Tab completa /his -> /historia/ e li -> linux.txt")
         out = m.comando("sob", teclas_finais=("tab", "ret"))
-        verificar("executar /bin/sobre" in out and "SaguiOS 1.0" in out, "Tab completa nomes de comandos (sob -> sobre)")
+        verificar("executar /bin/sobre" in out and ("SaguiOS " + versao_esperada()) in out, "Tab completa nomes de comandos (sob -> sobre)")
+        out = m.comando("regis", teclas_finais=("tab", "ret"))
+        verificar("executar /bin/registro" in out, "Tab completa programas de /bin fora da tabela do shell (regis -> registro)")
         out = m.comando("conta", teclas_finais=("d", "tab", "1", "ret"))
         verificar("1 de 1 segundos" in out, "Tab completa contad -> contador (\"con\" é ambíguo com conta)")
         m.comando("limpar")

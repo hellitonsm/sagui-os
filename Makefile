@@ -1,12 +1,18 @@
 # Makefile do SaguiOS
 #
 # Alvos principais:
-#   make            -> gera build/saguios.img (imagem para pendrive)
+#   make            -> gera build/saguios.img (imagem para pendrive), com o
+#                      kernel em 64 bits (3.0, D076)
+#   make ARQ=32     -> a imagem com o kernel de 32 bits da 2.x, em build32/
+#                      (fica até a 3.0 ser aprovada no G470)
 #   make vdi        -> gera também build/saguios.vdi (VirtualBox)
 #   make test       -> roda todos os testes automáticos no QEMU
 #   make rodar      -> abre o sistema no QEMU com a placa Intel e1000
 #   make rodar-pcnet-> abre no QEMU com a placa AMD PCnet (a padrão do VirtualBox)
 #   make vbox       -> gera o .vdi e mostra como ligar a rede no VirtualBox
+#   make run        -> abre no QEMU como um PC completo: 768 MB, rede e1000,
+#                      som intel-hda e USB 2.0 (EHCI). O som sai pelo
+#                      PulseAudio; troque com SOM=alsa (ou SOM=none)
 #   make entrega FASE=N -> copia .img, .vdi e SHA-256 para entrega/faseN/
 #   make vazio      -> alvo vazio (critério da H01)
 #   make limpar     -> apaga build/
@@ -21,48 +27,158 @@ AS      := nasm
 LD      := ld
 PY      := python3
 
-CFLAGS  := -m32 -march=i686 -std=gnu11 -O2 -g \
+# ARQ escolhe o kernel: 64 (padrão da 3.0, modo longo) ou 32 (o da 2.x).
+# Os programas de usuário são os mesmos ELF32 nos dois (prd3.md, fase 1).
+ARQ ?= 64
+ifeq ($(ARQ),32)
+B         := build32
+ARQ_DIR   := i386
+KARQ      := -m32 -march=i686
+KLD_ARQ   := -m elf_i386
+KASM_FMT  := elf32
+QEMU      := qemu-system-i386
+else ifeq ($(ARQ),64)
+B         := build
+ARQ_DIR   := x86_64
+# -mno-red-zone: no modo longo a CPU empilha o quadro da interrupção logo
+# abaixo do RSP, por cima dos 128 bytes que a ABI deixaria a função usar
+# sem mexer no RSP ("zona vermelha"); no kernel ela não pode existir.
+# -mcmodel=kernel não serve: o kernel fica em 1 MB (D076), endereços baixos,
+# e o modelo "small" (tudo abaixo de 2 GB) é o certo para isso.
+KARQ      := -m64 -march=x86-64 -mcmodel=small -mno-red-zone
+KLD_ARQ   := -m elf_x86_64 -z max-page-size=4096
+KASM_FMT  := elf64
+QEMU      := qemu-system-x86_64
+else
+$(error ARQ deve ser 32 ou 64)
+endif
+
+CFLAGS  := $(KARQ) -std=gnu11 -O2 -g \
            -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie \
            -fno-stack-protector -fno-asynchronous-unwind-tables \
            -mgeneral-regs-only -fno-omit-frame-pointer \
            -Wall -Wextra -Werror=implicit-function-declaration \
            -finput-charset=UTF-8 -fexec-charset=ISO-8859-1 \
            -DSAGUI_KERNEL -Ikernel/inc
-LDFLAGS := -m elf_i386 -nostdlib --no-dynamic-linker -z noexecstack --no-warn-rwx-segments
+LDFLAGS := $(KLD_ARQ) -nostdlib --no-dynamic-linker -z noexecstack --no-warn-rwx-segments
 
-B       := build
-
-KERNEL_C   := $(shell find kernel -name '*.c' | sort)
-KERNEL_ASM := $(shell find kernel -name '*.asm' | sort)
+# O código que muda com a arquitetura fica em kernel/arch/i386 e
+# kernel/arch/x86_64; só a pasta do ARQ escolhido entra no build.
+KERNEL_C   := $(shell find kernel -name '*.c' -not -path 'kernel/arch/i386/*' -not -path 'kernel/arch/x86_64/*' | sort) \
+              $(sort $(wildcard kernel/arch/$(ARQ_DIR)/*.c))
+KERNEL_ASM := $(shell find kernel -name '*.asm' -not -path 'kernel/arch/i386/*' -not -path 'kernel/arch/x86_64/*' | sort) \
+              $(sort $(wildcard kernel/arch/$(ARQ_DIR)/*.asm))
 KERNEL_OBJ := $(patsubst %.c,$(B)/%.o,$(KERNEL_C)) $(patsubst %.asm,$(B)/%.asm.o,$(KERNEL_ASM)) \
-              $(B)/gerado/fonte8x16.o
+              $(B)/gerado/fonte8x16.o $(B)/gerado/arte_icones.o
 KERNEL_HDR := $(shell find kernel -name '*.h')
 ROOTFS     := $(shell find rootfs -type f | sort)
 
 # Programas de usuário: libsagui + shim POSIX local (userland/mlibc) + um .c
 # por programa em userland/programas/ (/bin) ou userland/testes/ (/testes).
 # asagui e csagui entram pelo wildcard; csagui executa /bin/asagui no convidado.
-UCFLAGS := -m32 -march=i686 -std=gnu11 -O2 \
+# H80: os programas podem usar ponto flutuante (o kernel salva a FPU de cada
+# processo); o kernel continua com -mgeneral-regs-only. As contas vão pelo
+# SSE2 (double exato, IEEE 754, como o JavaScript pede), e não pela FPU x87,
+# que calcula com 80 bits por dentro e dá resultados que mudam conforme o
+# compilador guarda ou não os valores na memória.
+# -mstackrealign: com o SSE2, o gcc guarda valores de 16 bytes na pilha com
+# instruções que exigem alinhamento. Cada função alinha a própria pilha ao
+# entrar, então uma pilha trocada à mão (motor, JavaScript, compilador) não
+# derruba o programa num movdqa, mesmo quando quem chama é código da libsagui.
+UCFLAGS := -m32 -march=i686 -msse2 -mfpmath=sse -std=gnu11 -O2 \
+           -mstackrealign \
            -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie \
-           -fno-stack-protector -fno-asynchronous-unwind-tables -mgeneral-regs-only \
+           -fno-stack-protector -fno-asynchronous-unwind-tables \
            -ffunction-sections -fdata-sections \
            -Wall -Wextra -Werror=implicit-function-declaration \
            -finput-charset=UTF-8 -fexec-charset=ISO-8859-1 \
            -Iuserland/inc -Iuserland/mlibc/inc -idirafter kernel/inc
-ULDFLAGS := -m elf_i386 -nostdlib --gc-sections -z max-page-size=4096 \
+ULDFLAGS := -m elf_i386 -nostdlib -T userland/programa.ld --gc-sections -z max-page-size=4096 \
             -z noexecstack --no-warn-rwx-segments
 MLIBC_SRC := $(wildcard userland/mlibc/*.c)
 MLIBC_OBJ := $(patsubst userland/mlibc/%.c,$(B)/userland/mlibc/%.o,$(MLIBC_SRC))
-LIBSAGUI_OBJ := $(B)/userland/fonte8x16.o \
+# A criptografia (H50-H52) e o TLS (H53) entram na libsagui; só o que cada
+# programa usa vai para ele (--gc-sections).
+CRIPTO_OBJ := $(patsubst userland/%.c,$(B)/userland/%.o,$(wildcard userland/cripto/*.c) $(wildcard userland/tls/*.c) $(wildcard userland/ssh/*.c))
+LIBSAGUI_OBJ := $(CRIPTO_OBJ) $(B)/userland/fonte8x16.o \
                 $(patsubst userland/libsagui/%.c,$(B)/userland/libsagui/%.o,$(wildcard userland/libsagui/*.c)) \
-                $(MLIBC_OBJ) \
                 $(patsubst userland/libsagui/%.asm,$(B)/userland/libsagui/%.asm.o,$(wildcard userland/libsagui/*.asm))
-USER_HDR  := $(wildcard userland/inc/*.h) $(shell find userland/mlibc -name '*.h' -type f | sort) kernel/inc/abi.h
+# (userland/programas/*.h: código dividido entre dois programas, como o motor
+# de expressões do sed e do expr, H91.)
+USER_HDR  := $(wildcard userland/inc/*.h) $(wildcard userland/cripto/*.h) $(wildcard userland/tls/*.h) $(wildcard userland/ssh/*.h) \
+            $(wildcard userland/programas/*.h) kernel/inc/abi.h
 PROGRAMAS := $(patsubst userland/programas/%.c,$(B)/userland/bin/%,$(wildcard userland/programas/*.c))
 # O Sagui 3D (B4) tem vários arquivos, numa pasta própria.
 SAGUI3D_OBJ := $(patsubst userland/sagui3d/%.c,$(B)/userland/sagui3d/%.o,$(wildcard userland/sagui3d/*.c))
 PROGRAMAS += $(B)/userland/bin/sagui3d
+# O navegador (fase 6 da 2.0), que na 2.1 é o Cipó (H82): o motor de páginas,
+# as fontes, o JavaScript e os gráficos ficam em subpastas, e o código de
+# terceiros que ele usa fica em terceiros/ (D041, D043).
+NAVEGADOR_C   := $(wildcard userland/navegador/*.c userland/navegador/*/*.c) \
+                 terceiros/font-rs/acumulador.c terceiros/libwebp-vp8/vp8.c terceiros/v8-numeros/numero_base.c
+NAVEGADOR_OBJ := $(patsubst %.c,$(B)/nav/%.o,$(NAVEGADOR_C))
+NAVEGADOR_HDR := $(wildcard userland/navegador/*.h userland/navegador/*/*.h terceiros/*/*.h) $(B)/gerado/js_base.h
+PROGRAMAS += $(B)/userland/bin/navegador $(B)/userland/bin/cipo
+# O visualizador de imagens usa os decodificadores do Cipó (PNG, JPEG, GIF e
+# WebP); o DEFLATE vem da libsagui.
+IMAGENS_OBJ := $(patsubst %.c,$(B)/nav/%.o,userland/navegador/imagens.c userland/navegador/png.c \
+                 userland/navegador/jpeg.c terceiros/libwebp-vp8/vp8.c)
+VISUALIZADOR_OBJ := $(B)/nav/userland/visualizador/visualizador.o $(IMAGENS_OBJ)
+PROGRAMAS += $(B)/userland/bin/visualizador
+# O tocador de vídeo (H82): MP4 com H.264 e AAC, do pull request #6.
+VIDEO_OBJ := $(patsubst %.c,$(B)/nav/%.o,$(wildcard userland/video/*.c))
+PROGRAMAS += $(B)/userland/bin/video
+# O decodificador de MP3 do Tocador (H86), escrito do zero (D047), e o
+# mp3info, o comando que o testa. (A janela do Tocador usa o mesmo mp3.o.)
+MP3INFO_OBJ := $(B)/userland/tocador/mp3info.o $(B)/userland/tocador/mp3.o
+PROGRAMAS += $(B)/userland/bin/mp3info
+# O Sagui Code (fase 8): o núcleo do agente (ia.c e agente.c) com duas
+# interfaces, o Terminal (saguicode) e a janela (saguicode-janela, H89).
+SAGUICODE_NUCLEO := $(B)/userland/saguicode/ia.o $(B)/userland/saguicode/agente.o
+SAGUICODE_OBJ := $(SAGUICODE_NUCLEO) $(B)/userland/saguicode/saguicode.o
+SAGUICODE_JANELA_OBJ := $(SAGUICODE_NUCLEO) $(B)/userland/saguicode/janela.o
+PROGRAMAS += $(B)/userland/bin/saguicode $(B)/userland/bin/saguicode-janela
+# O Tocador de músicas (H87): a janela e, quando chegar, o decodificador de MP3.
+TOCADOR_OBJ := $(B)/userland/tocador/tocador.o $(B)/userland/tocador/mp3.o
+PROGRAMAS += $(B)/userland/bin/tocador
+# O compilador C do SaguiOS (fase 7 da versão 2.0): o comando cc, a libsagui
+# num objeto só (o que o cc liga aos programas) e os cabeçalhos que ele lê.
+COMPILADOR_OBJ := $(patsubst userland/compilador/%.c,$(B)/userland/compilador/%.o,$(wildcard userland/compilador/*.c))
+PROGRAMAS += $(B)/userland/bin/cc
+CC_LIB := $(B)/userland/libsagui.o
+CC_INC := userland/inc/sagui.h userland/inc/gui.h userland/inc/http.h kernel/inc/abi.h
+# Os jogos com vários arquivos (H92): cada pasta de userland/jogos/ vira um
+# programa com o nome dela. As regras de cada jogo ficam num arquivo à parte,
+# que os testes também compilam no computador de desenvolvimento.
+JOGOS := $(notdir $(wildcard userland/jogos/*))
+PROGRAMAS += $(addprefix $(B)/userland/bin/,$(JOGOS))
+# O visor de JClic usa o DEFLATE e as imagens (PNG, JPEG) do Cipó.
+JOGO_EXTRA_jclic := $(B)/nav/userland/navegador/png.o $(B)/nav/userland/navegador/jpeg.o
+JCLIC_EXEMPLO := $(wildcard userland/jogos/jclic/exemplo/*)
 PROG_TESTE := $(patsubst userland/testes/%.c,$(B)/userland/testes/%,$(wildcard userland/testes/*.c))
+
+# Programas do fork que ainda dependem da API antiga (pré-3.0) ou do mlibc/
+# toolchain (FORK_TOOLCHAIN). Ficam no repositório, mas fora do build padrão
+# até serem portados para o kernel/ABI da 3.0 do upstream.
+FORK_ADIADOS := asagui csagui ide ldagui loja servidor tocador upstream-teste wget
+PROGRAMAS := $(filter-out $(addprefix $(B)/userland/bin/,$(FORK_ADIADOS)),$(PROGRAMAS))
+PROG_TESTE := $(filter-out $(B)/userland/testes/mlibc_nativo,$(PROG_TESTE))
+
+# Cadeia do fork que exige ferramentas do Windows (PowerShell) e o mlibc:
+# mlibc upstream, tinycc e o sysroot completo de /usr. Desligada por padrão;
+# ligue com make FORK_TOOLCHAIN=1 (no Windows).
+FORK_TOOLCHAIN ?= 0
+
+# Sysroot mínimo sem o toolchain do fork: só os cabeçalhos públicos; /usr/lib
+# fica vazio. Com FORK_TOOLCHAIN=1 a regra de baixo a substitui.
+$(B)/sysroot:
+	rm -rf $(B)/sysroot
+	mkdir -p $(B)/sysroot/include $(B)/sysroot/lib
+	cp userland/inc/sagui.h $(B)/sysroot/include/sagui.h
+	cp userland/inc/gui.h $(B)/sysroot/include/gui.h
+	cp kernel/inc/abi.h $(B)/sysroot/include/abi.h
+
+ifeq ($(FORK_TOOLCHAIN),1)
 
 # ---------- mlibc upstream (opcional: make LIBC=upstream) ----------
 # Vendorizado em .local/mlibc; construido por tools/mlibc-sagui/setup.ps1;
@@ -206,7 +322,9 @@ $(B)/sysroot: $(SAGUI_LIBC_OBJ) $(SAGUI_GUI_OBJ) $(TINYCC_CRT1) $(B)/tinycc/libt
 	   $(TINYCC_DIR)/include/tccdefs.h $(B)/sysroot/lib/tcc/include/
 PROGRAMAS += $(B)/userland/bin/tinycc
 
-.PHONY: all vazio vdi test rodar rodar-pcnet vbox entrega limpar dashboard
+endif  # FORK_TOOLCHAIN
+
+.PHONY: all vazio vdi test rodar rodar-pcnet vbox run entrega limpar dashboard
 
 all: $(B)/saguios.img
 
@@ -229,7 +347,7 @@ $(B)/kernel/%.o: kernel/%.c $(KERNEL_HDR)
 
 $(B)/kernel/%.asm.o: kernel/%.asm
 	@mkdir -p $(dir $@)
-	$(AS) -f elf32 -I kernel/arch/ -o $@ $<
+	$(AS) -f $(KASM_FMT) -I kernel/arch/ -o $@ $<
 
 # A fonte é desenhada em texto (tools/fonte/) e vira C no build.
 $(B)/gerado/fonte8x16.c: tools/fonte/sagui8x16.txt tools/mkfonte.py
@@ -237,6 +355,14 @@ $(B)/gerado/fonte8x16.c: tools/fonte/sagui8x16.txt tools/mkfonte.py
 	$(PY) tools/mkfonte.py $< $@
 
 $(B)/gerado/fonte8x16.o: $(B)/gerado/fonte8x16.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Os ícones (H81, do Robson) são descritos em tools/mkarte.py e viram C no build.
+$(B)/gerado/arte_icones.c: tools/mkarte.py
+	@mkdir -p $(dir $@)
+	$(PY) tools/mkarte.py $@
+
+$(B)/gerado/arte_icones.o: $(B)/gerado/arte_icones.c kernel/inc/arte.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(B)/kernel.elf: $(KERNEL_OBJ) kernel/ligacao.ld
@@ -260,8 +386,37 @@ $(B)/userland/libsagui/%.asm.o: userland/libsagui/%.asm
 
 $(B)/userland/bin/%: $(B)/userland/programas/%.o $(LIBSAGUI_OBJ) userland/programa.ld
 	@mkdir -p $(dir $@)
-	$(LD) $(ULDFLAGS) -T userland/programa.ld -o $@.elf $< $(LIBSAGUI_OBJ)
+	$(LD) $(ULDFLAGS) -o $@.elf $< $(LIBSAGUI_OBJ)
 	objcopy --strip-all $@.elf $@
+
+# O lançador de jogos (H92) mostra os mesmos ícones da área de trabalho: o C
+# gerado por tools/mkarte.py entra nele (só os ícones usados, --gc-sections).
+$(B)/userland/arte_icones.o: $(B)/gerado/arte_icones.c kernel/inc/arte.h
+	@mkdir -p $(dir $@)
+	$(CC) $(UCFLAGS) -c -o $@ $<
+
+$(B)/userland/bin/jogos: $(B)/userland/programas/jogos.o $(B)/userland/arte_icones.o $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $< $(B)/userland/arte_icones.o $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+# O instalador mostra os ícones dos discos (D064).
+$(B)/userland/bin/instalar: $(B)/userland/programas/instalar.o $(B)/userland/arte_icones.o $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $< $(B)/userland/arte_icones.o $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/userland/jogos/%.o: userland/jogos/%.c $(wildcard userland/jogos/*/*.h) $(USER_HDR)
+	@mkdir -p $(dir $@)
+	$(CC) $(UCFLAGS) -c -o $@ $<
+
+define REGRA_JOGO
+$(B)/userland/bin/$(1): $$(patsubst %.c,$(B)/%.o,$$(wildcard userland/jogos/$(1)/*.c)) $$(JOGO_EXTRA_$(1)) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $$(dir $$@)
+	$(LD) $(ULDFLAGS) -o $$@.elf $$(filter %.o,$$^)
+	objcopy --strip-all $$@.elf $$@
+endef
+$(foreach j,$(JOGOS),$(eval $(call REGRA_JOGO,$(j))))
 
 $(B)/userland/sagui3d/%.o: userland/sagui3d/%.c userland/sagui3d/jogo.h $(USER_HDR)
 	@mkdir -p $(dir $@)
@@ -269,26 +424,134 @@ $(B)/userland/sagui3d/%.o: userland/sagui3d/%.c userland/sagui3d/jogo.h $(USER_H
 
 $(B)/userland/bin/sagui3d: $(SAGUI3D_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
 	@mkdir -p $(dir $@)
-	$(LD) $(ULDFLAGS) -T userland/programa.ld -o $@.elf $(SAGUI3D_OBJ) $(LIBSAGUI_OBJ)
+	$(LD) $(ULDFLAGS) -o $@.elf $(SAGUI3D_OBJ) $(LIBSAGUI_OBJ)
 	objcopy --strip-all $@.elf $@
+
+# -fno-math-errno: sqrt vira a instrução do SSE2 (não há libm).
+NAV_CFLAGS := $(UCFLAGS) -fno-math-errno -Iuserland/navegador -I$(B)/gerado
+
+$(B)/nav/%.o: %.c $(NAVEGADOR_HDR) $(USER_HDR)
+	@mkdir -p $(dir $@)
+	$(CC) $(NAV_CFLAGS) -c -o $@ $<
+
+# O JavaScript embutido (Promise, classes do DOM...) vira uma string em C.
+$(B)/gerado/js_base.h: userland/navegador/js/js_base.js tools/mkjsbase.py
+	@mkdir -p $(dir $@)
+	$(PY) tools/mkjsbase.py $< $@
+
+$(B)/userland/bin/navegador: $(NAVEGADOR_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(NAVEGADOR_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/nav/userland/video/%.o: userland/video/%.c $(wildcard userland/video/*.h terceiros/*/*.h) $(USER_HDR)
+	@mkdir -p $(dir $@)
+	$(CC) $(NAV_CFLAGS) -c -o $@ $<
+
+$(B)/nav/userland/visualizador/%.o: userland/visualizador/%.c $(USER_HDR) userland/inc/compactar.h $(wildcard userland/video/*.h)
+	@mkdir -p $(dir $@)
+	$(CC) $(NAV_CFLAGS) -c -o $@ $<
+
+$(B)/userland/bin/visualizador: $(VISUALIZADOR_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(VISUALIZADOR_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/userland/bin/video: $(VIDEO_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(VIDEO_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+# /bin/cipo é o mesmo programa com o nome novo (H82).
+$(B)/userland/bin/cipo: $(B)/userland/bin/navegador
+	cp $< $@
+
+# -mstackrealign: o MP3 faz contas em float com SSE2, e o gcc pode guardar
+# valores alinhados em 16 bytes na pilha (como no navegador).
+$(B)/userland/tocador/%.o: userland/tocador/%.c $(wildcard userland/tocador/*.h) $(USER_HDR)
+	@mkdir -p $(dir $@)
+	$(CC) $(UCFLAGS) -mstackrealign -c -o $@ $<
+
+$(B)/userland/bin/tocador: $(TOCADOR_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(TOCADOR_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/userland/bin/mp3info: $(MP3INFO_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(MP3INFO_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/userland/saguicode/%.o: userland/saguicode/%.c userland/saguicode/ia.h userland/saguicode/agente.h $(USER_HDR)
+	@mkdir -p $(dir $@)
+	$(CC) $(UCFLAGS) -c -o $@ $<
+
+$(B)/userland/bin/saguicode: $(SAGUICODE_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(SAGUICODE_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/userland/bin/saguicode-janela: $(SAGUICODE_JANELA_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(SAGUICODE_JANELA_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+# -Os: o cc vai dentro da imagem, e o tamanho pesa mais que a velocidade.
+$(B)/userland/compilador/%.o: userland/compilador/%.c $(wildcard userland/compilador/*.h) $(USER_HDR)
+	@mkdir -p $(dir $@)
+	$(CC) $(UCFLAGS) -Os -c -o $@ $<
+
+$(B)/userland/bin/cc: $(COMPILADOR_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(COMPILADOR_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+# A libsagui inteira num objeto relocável: cada função continua na sua seção,
+# e o ligador do cc só leva para o programa as que ele usa.
+$(CC_LIB): $(LIBSAGUI_OBJ)
+	@mkdir -p $(dir $@)
+	$(LD) -m elf_i386 -r -z noexecstack -o $@ $(LIBSAGUI_OBJ)
+	objcopy --strip-unneeded -R .comment -R .note.GNU-stack $@
 
 $(B)/userland/testes/%: $(B)/userland/testes/%.o $(LIBSAGUI_OBJ) userland/programa.ld
 	@mkdir -p $(dir $@)
-	$(LD) $(ULDFLAGS) -T userland/programa.ld -o $@.elf $< $(LIBSAGUI_OBJ)
+	$(LD) $(ULDFLAGS) -o $@.elf $< $(LIBSAGUI_OBJ)
 	objcopy --strip-all $@.elf $@
 
 # ---------- ramdisk (SGFS) ----------
 # O ramdisk é montado a partir de uma cópia do rootfs/ com os programas em
 # /bin e os programas de teste em /testes.
-$(B)/ramdisk.sgfs: $(ROOTFS) $(PROGRAMAS) $(PROG_TESTE) $(B)/sysroot tools/mksgfs.py
+# H94: as licenças vão para /sistema/licencas, copiadas dos lugares onde já
+# estão no repositório (tools/mklicencas.py), e o histórico de versões para
+# /sistema/ajuda/versoes.md (o botão "Histórico" da janela Sobre).
+LICENCAS_FONTES := LICENSE CONTRIBUIDORES.md CREDITOS.md VERSOES.md $(shell find terceiros -type f | sort) \
+                   userland/navegador/motor/LICENCA-Unicode.txt tools/mklicencas.py docs/licencas/MPL-2.0.txt
+
+$(B)/ramdisk.sgfs: $(ROOTFS) $(PROGRAMAS) $(PROG_TESTE) $(B)/sysroot $(CC_LIB) $(CC_INC) docs/c-do-sagui.md tools/mksgfs.py $(B)/host/chip8asm $(JCLIC_EXEMPLO) tools/mkzip.py $(LICENCAS_FONTES)
 	rm -rf $(B)/rootfs
 	cp -r rootfs $(B)/rootfs
+	for f in rootfs/jogos/chip8/*.asm; do $(B)/host/chip8asm $$f $(B)/rootfs/jogos/chip8/$$(basename $$f .asm).ch8 || exit 1; done
+	mkdir -p $(B)/rootfs/jogos/jclic
+	$(PY) tools/mkzip.py $(B)/rootfs/jogos/jclic/sagui.jclic.zip $(JCLIC_EXEMPLO)
 	mkdir -p $(B)/rootfs/usr/lib
 	cp -r $(B)/sysroot/include $(B)/rootfs/usr/include
 	cp -r $(B)/sysroot/lib/. $(B)/rootfs/usr/lib/
 	$(if $(PROGRAMAS),cp $(PROGRAMAS) $(B)/rootfs/bin/)
 	$(if $(PROG_TESTE),mkdir -p $(B)/rootfs/testes && cp $(PROG_TESTE) $(B)/rootfs/testes/)
+	mkdir -p $(B)/rootfs/sistema/lib $(B)/rootfs/sistema/inc $(B)/rootfs/sistema/ajuda
+	cp $(CC_LIB) $(B)/rootfs/sistema/lib/libsagui.o
+	cp $(CC_INC) $(B)/rootfs/sistema/inc/
+	cp docs/c-do-sagui.md $(B)/rootfs/sistema/ajuda/   # o manual que o Sagui Code manda para a IA (H71)
+	cp VERSOES.md $(B)/rootfs/sistema/ajuda/versoes.md
+	$(PY) tools/mklicencas.py . $(B)/rootfs/sistema/licencas
 	$(PY) tools/mksgfs.py $(B)/rootfs $@
+
+# O montador de CHIP-8 (H92) também roda aqui, no computador de
+# desenvolvimento: as ROMs de exemplo de /jogos/chip8 saem dos .asm de
+# rootfs/jogos/chip8 na hora do build (nenhum binário pronto no repositório).
+$(B)/host/chip8asm: tools/chip8asm.c userland/jogos/chip8asm/montador.c userland/jogos/chip8asm/montador.h
+	@mkdir -p $(dir $@)
+	gcc -O2 -Wall -Wextra -DTESTE_HOSPEDEIRO -Iuserland/jogos/chip8asm -o $@ tools/chip8asm.c userland/jogos/chip8asm/montador.c
 
 # ---------- imagem final ----------
 $(B)/saguios.img: $(B)/boot/mbr.bin $(B)/boot/estagio2.bin $(B)/kernel.bin $(B)/ramdisk.sgfs tools/mkimagem.py
@@ -314,11 +577,11 @@ test: $(B)/saguios.img
 # As duas placas que o VirtualBox oferece (e o QEMU imita) precisam do mesmo
 # driver genérico: e1000 -> Intel 8254x, pcnet -> AMD PCnet-FAST III.
 rodar: $(B)/saguios.img
-	qemu-system-i386 -m 512M -drive format=raw,file=$< -serial stdio \\
+	qemu-system-i386 -m 512M -drive format=raw,file=$< -serial stdio \
 	    -netdev user,id=net0 -device e1000,netdev=net0
 
 rodar-pcnet: $(B)/saguios.img
-	qemu-system-i386 -m 512M -drive format=raw,file=$< -serial stdio \\
+	qemu-system-i386 -m 512M -drive format=raw,file=$< -serial stdio \
 	    -netdev user,id=net0 -device pcnet,netdev=net0
 
 # Liga a imagem no VirtualBox: anexa o .vdi e explica a configuração da rede.
@@ -330,6 +593,16 @@ vbox: $(B)/saguios.vdi
 	@echo "     (aceita também \"Bridge\" e \"Host-only\", que usam DHCP):"
 	@echo "       Intel PRO/1000 MT Desktop  ou  PCnet-FAST III"
 	@echo "  3. Ligue a máquina. O boot mostra a placa e o IP; no shell: rede / wget"
+
+# Do pull request #7: o sistema com as placas que ele sabe usar, como no
+# G470. "snapshot=on": o que for gravado no disco some ao fechar o QEMU (o
+# SaguiOS roda na memória; a imagem fica como saiu do make).
+SOM ?= pa
+run: $(B)/saguios.img
+	$(QEMU) -m 768M -drive format=raw,file=$<,snapshot=on -serial stdio \
+	    -nic user,model=e1000 \
+	    -audiodev $(SOM),id=som -device intel-hda -device hda-duplex,audiodev=som \
+	    -device usb-ehci,id=ehci
 
 entrega: $(B)/saguios.img $(B)/saguios.vdi
 	@test -n "$(FASE)" || (echo "use: make entrega FASE=N" && false)

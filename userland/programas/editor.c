@@ -3,12 +3,19 @@
  * Uma barra de botões (Novo, Abrir, Salvar, Salvar como) e a área de texto
  * do kit gráfico. Ctrl+S salva. O título mostra o nome do arquivo e um "*"
  * quando há alteração não salva; fechar com alterações pergunta se quer
- * salvar. O texto é Latin-1, como em todo o sistema. */
+ * salvar. O texto é Latin-1, como em todo o sistema.
+ *
+ * H67: "Compilar e rodar" salva, chama o cc e, se deu certo, abre o
+ * programa; se deu erro, mostra a mensagem do compilador e leva o cursor
+ * para a linha do erro. "Instalar" compila direto para /usb/programas, e o
+ * programa ganha um ícone na área de trabalho. */
 #include "sagui.h"
 #include "gui.h"
 
-#define LARG 700
-#define ALT  480
+/* Tamanho inicial; a janela pode mudar (H78). */
+static int larg_jan = 700, alt_jan = 480;
+#define LARG larg_jan
+#define ALT  alt_jan
 #define BARRA 40
 
 static jan_t *j;
@@ -33,10 +40,36 @@ static void atualizar_titulo(void)
     registrar("editor: titulo %s\n", t);
 }
 
+/* "Compilar e rodar" e "Instalar" só aparecem para programas em C: para um
+ * texto qualquer (uma nota, um chaves.txt) o Editor é um editor de texto
+ * simples, e os botões de compilar só confundiriam. */
+static botao_t bt[6] = {
+    { 8, 7, 64, 26, "Novo", false }, { 78, 7, 64, 26, "Abrir", false },
+    { 148, 7, 70, 26, "Salvar", false }, { 224, 7, 104, 26, "Salvar como", false },
+    { 340, 7, 142, 26, "Compilar e rodar", false }, { 488, 7, 80, 26, "Instalar", false },
+};
+
+static bool eh_programa_c(void)
+{
+    size_t n = tam_texto(caminho);
+    return n > 2 && caminho[n - 2] == '.' && (caminho[n - 1] == 'c' || caminho[n - 1] == 'C');
+}
+
+static void desenhar_barra(void)
+{
+    g_retangulo(j, 0, 0, LARG, BARRA, 0xE6E9EC);
+    g_retangulo(j, 0, BARRA - 1, LARG, 1, COR_BORDA);
+    int botoes = eh_programa_c() ? 6 : 4;
+    if (LARG >= 690) rotulo(j, botoes == 6 ? 580 : 340, 12, "Ctrl+S salva", COR_TEXTO_FRACO);
+    for (int i = 0; i < botoes; i++) botao_desenhar(j, &bt[i]);
+}
+
 static void forcar_titulo(void)
 {
     modificado_mostrado = !area.modificado;
     atualizar_titulo();
+    desenhar_barra();
+    jan_mostrar_area(j, 0, 0, LARG, BARRA);
 }
 
 static bool abrir_arquivo(const char *c)
@@ -82,6 +115,115 @@ static bool salvar(void)
     return true;
 }
 
+/* ------------------------------------------------------------ compilar (H67) */
+
+/* Roda o cc com a saída num pipe; devolve o código de saída. */
+static int rodar_cc(const char *fonte, const char *saida, char *msg, int max)
+{
+    int p[2];
+    if (criar_pipe(p) < 0) { copia_texto(msg, "não consegui criar o pipe", (size_t)max); return -1; }
+    int g1 = duplicar(SAIDA, 15), g2 = duplicar(ERROS, 16);   /* g < 0: a saída não estava aberta */
+    duplicar(p[1], SAIDA);
+    duplicar(p[1], ERROS);
+    char *argv[] = { "cc", (char *)fonte, "-o", (char *)saida, NULL };
+    int pid = executar("/bin/cc", argv);
+    if (g1 >= 0) { duplicar(g1, SAIDA); fechar(g1); } else fechar(SAIDA);
+    if (g2 >= 0) { duplicar(g2, ERROS); fechar(g2); } else fechar(ERROS);
+    fechar(p[1]);
+    int n = 0;
+    msg[0] = 0;
+    if (pid < 0) { fechar(p[0]); formatar_texto(msg, (size_t)max, "não consegui rodar o cc (%s)", nome_erro(pid)); return -1; }
+    /* Lê até o pipe acabar, ou até o cc terminar (se o Editor não tinha a
+     * saída de erros aberta, uma ponta do pipe fica com ele e o pipe nunca
+     * "acaba": por isso também olha se o cc já terminou). */
+    int codigo = 0;
+    bool terminou = false;
+    for (;;) {
+        int d = disponivel(p[0]);
+        if (d > 0) {
+            char buf[256];
+            int k = ler(p[0], buf, sizeof buf);
+            for (int i = 0; i < k && n < max - 1; i++) msg[n++] = buf[i];
+            msg[n] = 0;
+            continue;
+        }
+        if (d < 0 || terminou) break;
+        int c, r = recolher(&c);
+        if (r == pid) { terminou = true; codigo = c; continue; }   /* uma última leitura do que sobrou */
+        dormir(10);
+    }
+    fechar(p[0]);
+    if (!terminou) esperar(pid, &codigo);
+    return codigo;
+}
+
+/* Leva o cursor para a linha "arquivo:LINHA:coluna" da mensagem. */
+static void ir_para_erro(const char *msg)
+{
+    const char *p = msg;
+    while (*p && *p != ':') p++;                        /* depois do nome do arquivo */
+    if (*p != ':') return;
+    int linha = texto_para_int(p + 1);
+    if (linha <= 0) return;
+    int pos = 0;
+    for (int l = 1; l < linha && pos < area.tam; pos++) if (area.buf[pos] == '\n') l++;
+    area.cursor = pos;
+    int vis = area_linhas_visiveis(&area);
+    area.topo = linha - 1 - vis / 2 > 0 ? linha - 1 - vis / 2 : 0;
+    area_desenhar(j, &area);
+}
+
+static void compilar(bool instalar)
+{
+    if (!caminho[0] || area.modificado) { if (!salvar()) return; }
+    char saida[160], msg[2048];
+    const char *nome = nome_curto();
+    char base[64];
+    copia_texto(base, nome, sizeof base);
+    size_t t = tam_texto(base);
+    if (t > 2 && base[t - 2] == '.' && base[t - 1] == 'c') base[t - 2] = 0;
+    if (instalar) {
+        info_arquivo_t i;
+        /* Pendrive conectado mas não montado: monta o primeiro (como o Arquivos). */
+        info_disco_t d;
+        for (int k = 0; listar_discos(k, &d) == 1; k++)
+            if (d.suportado && !d.montado) { montar(d.nome); break; }
+        criar_pasta("/usb/programas");                  /* se já existe, tudo bem */
+        if (info_arquivo("/usb/programas", &i) < 0) { mensagem("Instalar", "Conecte o pendrive para instalar o programa."); return; }
+        formatar_texto(saida, sizeof saida, "/usb/programas/%s", base);
+    } else formatar_texto(saida, sizeof saida, "/tmp/%s", base);
+    registrar("editor: compilando %s -> %s", caminho, saida);
+    int r = rodar_cc(caminho, saida, msg, sizeof msg);
+    if (r != 0) {
+        registrar("editor: erro de compilacao (%d)", r);
+        ir_para_erro(msg);
+        mensagem("Erro ao compilar", msg[0] ? msg : "o compilador falhou sem dizer por quê");
+        return;
+    }
+    if (instalar) {
+        char m[220];
+        formatar_texto(m, sizeof m, "Instalado em %s.\nO ícone aparece na área de trabalho.", saida);
+        registrar("editor: instalado %s", saida);
+        mensagem("Instalar", m);
+        return;
+    }
+    /* Programa de texto (o cc marca no e_flags): roda dentro de um Terminal,
+     * para a pessoa ver o que ele escreve. Programa com janela: direto. */
+    unsigned char cab[40] = { 0 };
+    int fd = abrir(saida, ABRIR_LER);
+    if (fd >= 0) { ler(fd, cab, sizeof cab); fechar(fd); }
+    unsigned flags = (unsigned)cab[36] | ((unsigned)cab[37] << 8) | ((unsigned)cab[38] << 16) | ((unsigned)cab[39] << 24);
+    int pid;
+    if (flags == ELF_SAGUI_TEXTO) {
+        char *argv[] = { "terminal", "-e", saida, NULL };
+        pid = executar("/bin/terminal", argv);
+    } else {
+        char *argv[] = { base, NULL };
+        pid = executar(saida, argv);
+    }
+    registrar("editor: compilou e abriu %s%s (processo %d)", flags == ELF_SAGUI_TEXTO ? "no Terminal " : "", saida, pid);
+}
+
 static bool salvar_como(void)
 {
     char c[160];
@@ -106,14 +248,8 @@ int principal(int argc, char **argv)
 {
     j = jan_abrir("Editor - sem nome", LARG, ALT);
     if (!j || !area_iniciar(&area, 6, BARRA + 4, LARG - 12, ALT - BARRA - 10)) return 1;
-    botao_t bt[4] = {
-        { 8, 7, 80, 26, "Novo", false }, { 96, 7, 80, 26, "Abrir", false },
-        { 184, 7, 80, 26, "Salvar", false }, { 272, 7, 110, 26, "Salvar como", false },
-    };
-    g_retangulo(j, 0, 0, LARG, BARRA, 0xE6E9EC);
-    g_retangulo(j, 0, BARRA - 1, LARG, 1, COR_BORDA);
-    rotulo(j, 400, 12, "Ctrl+S salva", COR_TEXTO_FRACO);
-    for (int i = 0; i < 4; i++) botao_desenhar(j, &bt[i]);
+    jan_redimensionavel(j, 580, 200);
+    desenhar_barra();
     area.foco = true;
     if (argc > 1) abrir_arquivo(argv[1]);
     else forcar_titulo();
@@ -126,6 +262,19 @@ int principal(int argc, char **argv)
         if (proximo_evento(j->id, &e, true) != 1) continue;
         if (e.tipo == EV_FECHAR) {
             if (pode_descartar()) break;
+            continue;
+        }
+        if (e.tipo == EV_REDIMENSIONAR) {                   /* H78: a área de texto acompanha a janela */
+            jan_novo_tamanho(j, &e);
+            larg_jan = j->larg;
+            alt_jan = j->alt;
+            g_retangulo(j, 0, 0, LARG, ALT, COR_FUNDO);
+            desenhar_barra();
+            area.l = LARG - 12;
+            area.a = ALT - BARRA - 10;
+            area_desenhar(j, &area);
+            jan_mostrar(j);
+            registrar("editor: tamanho %dx%d", LARG, ALT);
             continue;
         }
         if (e.tipo == EV_TECLA && e.tecla == 19) {          /* Ctrl+S */
@@ -144,6 +293,23 @@ int principal(int argc, char **argv)
         }
         if (botao_tratar(j, &bt[2], &e)) salvar();
         if (botao_tratar(j, &bt[3], &e)) salvar_como();
+        bool c = eh_programa_c();
+        if (c && botao_tratar(j, &bt[4], &e)) { compilar(false); area.foco = true; area_desenhar(j, &area); continue; }
+        if (c && botao_tratar(j, &bt[5], &e)) { compilar(true); area.foco = true; area_desenhar(j, &area); continue; }
+        if (c && e.tipo == EV_TECLA && e.tecla == 18 && (e.modificadores & 2)) { compilar(false); continue; }   /* Ctrl+R */
+        /* Botão direito: menu do Editor (H81). */
+        if (e.tipo == EV_CLIQUE && (e.botoes & 2)) {
+            jan_menu(j, e.x, e.y, c ? "Salvar (Ctrl+S)|Salvar como...|Compilar e rodar (Ctrl+R)|Instalar no pendrive"
+                                    : "Salvar (Ctrl+S)|Salvar como...");
+            continue;
+        }
+        if (e.tipo == EV_MENU) {
+            registrar("editor: menu %u", e.tecla);
+            if (e.tecla == 0) salvar();
+            else if (e.tecla == 1) salvar_como();
+            else if (e.tecla == 2 || e.tecla == 3) { compilar(e.tecla == 3); area.foco = true; area_desenhar(j, &area); }
+            continue;
+        }
         area_tratar(j, &area, &e);
         atualizar_titulo();
     }

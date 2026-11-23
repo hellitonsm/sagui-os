@@ -2,8 +2,12 @@
 /build/
 # Ferramentas baixadas localmente no Windows (download-windows-tools.ps1)
 /.local/
+/build32/
 # Lixo de editores e Python
 __pycache__/
 *.pyc
 *.swp
 .vscode/
+# Imagens geradas (ficam nas Releases do GitHub; entrega/LEIA-ME.md explica)
+/entrega/*
+!/entrega/LEIA-ME.md

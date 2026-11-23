@@ -1,10 +1,10 @@
 // Gerado por tools/status.py a partir de status.json. Não editar.
 window.SAGUI_STATUS = {
   "titulo": "SaguiOS: um sistema operacional escrito do zero por IA",
-  "atualizado": "2026-11-11T22:50:03",
-  "situacao": "Trabalhando na H50: grep com os recursos do grep do Linux",
+  "atualizado": "2026-11-23T08:44:58",
+  "situacao": "Fase 7 confirmada no hardware. Seguindo para a fase 8.",
   "fase_atual": 7,
-  "historia_atual": "H50",
+  "historia_atual": null,
   "bloqueio": "",
   "mensagem_fase": "",
   "fases": [
@@ -55,7 +55,8 @@ window.SAGUI_STATUS = {
       "nome": "Bônus (B3 bip, B4 Sagui 3D)",
       "estado": "feito",
       "progresso": 100.0,
-      "confirmado": "2026-11-04T00:19:30"
+      "confirmado": "2026-11-04T00:19:30",
+      "opcional": true
     }
   ],
   "historias": [
@@ -552,58 +553,6 @@ window.SAGUI_STATUS = {
       "fim": "2026-11-03T23:45:56",
       "minutos": 43,
       "resultado": "Sagui 3D: motor 2,5D próprio, três fases em texto, macacos-prego, sementes, cascas, porteira da banana, cacho dourado, sons com o bip; teste automático e capturas"
-    },
-    {
-      "id": "H35",
-      "fase": 7,
-      "titulo": "Rede no VirtualBox (e1000, PCnet, DHCP, ARP)",
-      "objetivo": "Funcionar a rede nas placas do VirtualBox (Intel PRO/1000 e AMD PCnet), com endereço por DHCP e ARP de verdade.",
-      "aceite": "Boot reconhece a placa e pega IP por DHCP; rede mostra placa, MAC, IP, gateway e DNS; wget baixa página nas duas placas; sem placa o sistema avisa e continua.",
-      "estado": "feito",
-      "bonus": false,
-      "inicio": "2026-11-05T12:00:00",
-      "fim": "2026-11-05T15:40:00",
-      "minutos": 220,
-      "resultado": "Drivers e1000 (82540EM/82545EM/82543GC) e pcnet (Am79C970A/973), DHCP com reserva 10.0.2.x, ARP com cache, DNS, camada pacotes.c, chamada SIS_REDE_INFO e o programa rede; teste h35 nas duas placas"
-    },
-    {
-      "id": "H48",
-      "fase": 7,
-      "titulo": "Arquivos do SaguiOS pela rede, do Windows",
-      "objetivo": "Um programa no Windows que conecta ao sistema de arquivos do SaguiOS pela rede, com o VirtualBox fazendo o redirecionamento de porta que permite ao host conectar a maquina.",
-      "aceite": "Com o servidor ligado no convidado, o cliente do Windows lista, consulta, baixa, envia, apaga, cria, remove e renomeia arquivos e pastas, com o conteudo byte a byte; o encaminhamento 127.0.0.1:2500 e aplicado pelos scripts que criam a VM; ao encerrar o servidor, o wget volta a funcionar.",
-      "estado": "feito",
-      "bonus": false,
-      "inicio": "2026-11-10T21:43:38",
-      "fim": "2026-11-10T22:08:02",
-      "minutos": 24,
-      "resultado": "servidor de arquivos SAGUI/1 na porta 2500 (kernel, syscall 65, comando servidor) + cliente sagui-fs.ps1 no Windows + encaminhamento sagui-arquivos na NAT; validado ao vivo na VM do VirtualBox com 18 conexoes do host, GET byte a byte, PUT, pastas e wget depois do q (erros 33 e 34 corrigidos no caminho)"
-    },
-    {
-      "id": "H49",
-      "fase": 7,
-      "titulo": "Janela de arquivos do SaguiOS no Windows",
-      "objetivo": "Transformar o cliente de arquivos do Windows numa janela: navegar pelas pastas, baixar, enviar (inclusive arrastando do Explorer), criar pasta, renomear, apagar e remover pasta.",
-      "aceite": "A janela lista e navega na arvore do SaguiOS, baixa e envia byte a byte, cria/renomeia/apaga pastas e arquivos, aceita arrastar-e-soltar, mostra progresso e erros; o botao \"Ligar servidor\" liga a VM e o servidor com um clique; os modos -Autoteste, -AutotesteJanela e -AutotesteLigar passam.",
-      "estado": "feito",
-      "bonus": false,
-      "inicio": "2026-11-11T19:55:31",
-      "fim": "2026-11-11T19:55:34",
-      "minutos": 1,
-      "resultado": "tools/windows/sagui-gui.ps1: janela WinForms autocontida com navegacao, GET/PUT, pastas, renomear, apagar, arrastar-e-soltar, barra de progresso, o botao \"Pasta acima\" (desabilitado na raiz) e o botao \"Ligar servidor\" (liga a VM, abre o Terminal e digita servidor); -Autoteste, -AutotesteJanela e -AutotesteLigar passaram ao vivo na VM, inclusive com a VM desligada (18 entradas na raiz)"
-    },
-    {
-      "id": "H50",
-      "fase": 7,
-      "titulo": "grep com os recursos do grep do Linux",
-      "objetivo": "Ter no SaguiOS um comando grep com os mesmos recursos do grep do Linux: expressoes regulares (BRE e ERE), opcoes de selecao, prefixos, contexto, recursao, cores e codigos de saida.",
-      "aceite": "O /bin/grep casa BRE, ERE e literais (-F), entende -e/-f, -i, -v, -w, -x, -n, -b, -c, -l, -L, -o, -q, -s, -r/-R, -H/-h, -A/-B/-C e -NUM, -m, --color, --include/--exclude, arquivos binarios e entrada padrao; o teste h50 no convidado passa sem falhas e o shell o oferece como grep/procurar.",
-      "estado": "feito",
-      "bonus": false,
-      "inicio": "2026-11-11T20:20:00",
-      "fim": "2026-11-11T22:44:36",
-      "minutos": 145,
-      "resultado": "userland/programas/grep.c com motor de expressoes proprio (userland/libsagui/expressao.c: parser BRE/ERE, NFA de Thompson e Pike VM para o casamento mais a esquerda e mais longo), 53 verificacoes no convidado (RESULTADO h50_grep: SUCESSO), cores SGR no terminal do kernel e na janela Terminal, entrada no sagsh como grep/procurar e teste tests/h50_grep.py"
     }
   ],
   "tanenbaum": [
@@ -687,50 +636,6 @@ window.SAGUI_STATUS = {
     }
   ],
   "acoes": [
-    {
-      "data": "2026-11-11T22:44:37",
-      "texto": "H50 concluida: grep com os recursos do Linux, 53 verificacoes no convidado e cores SGR nos terminais"
-    },
-    {
-      "data": "2026-11-11T22:44:36",
-      "texto": "H50 concluída"
-    },
-    {
-      "data": "2026-11-11T20:16:38",
-      "texto": "H49: botao 'Pasta acima' movido para a barra de acoes (desabilitado na raiz) e validado no -AutotesteJanela"
-    },
-    {
-      "data": "2026-11-11T20:10:20",
-      "texto": "H49: botao Ligar servidor validado com a VM desligada (liga, espera boot, abre Terminal, digita servidor e lista 18 entradas)"
-    },
-    {
-      "data": "2026-11-11T19:55:34",
-      "texto": "H49 concluída: tools/windows/sagui-gui.ps1: janela WinForms autocontida com navegacao, GET/PUT, pastas, renomear, apagar, arrastar-e-soltar e barra de progresso; -Autoteste e -AutotesteJanela passaram ao vivo na VM (18 entradas, ida e volta byte a byte)"
-    },
-    {
-      "data": "2026-11-11T19:55:31",
-      "texto": "Início da H49: Janela de arquivos do SaguiOS no Windows"
-    },
-    {
-      "data": "2026-11-10T22:08:02",
-      "texto": "H48 concluída: servidor de arquivos SAGUI/1 na porta 2500 (kernel, syscall 65, comando servidor) + cliente sagui-fs.ps1 no Windows + encaminhamento sagui-arquivos na NAT; validado ao vivo na VM do VirtualBox com 18 conexoes do host, GET byte a byte, PUT, pastas e wget depois do q (erros 33 e 34 corrigidos no caminho)"
-    },
-    {
-      "data": "2026-11-10T22:07:11",
-      "texto": "Erro corrigido: sagui-fs.ps1 listar mostrava a ajuda; com listar certo, Nao e possivel indexar em uma matriz nula"
-    },
-    {
-      "data": "2026-11-10T22:07:11",
-      "texto": "Erro corrigido: No Terminal em janela, o servidor encerrava sozinho (0 conexoes) logo depois do banner, sem ninguem apertar Esc"
-    },
-    {
-      "data": "2026-11-10T21:43:38",
-      "texto": "Início da H48: Arquivos do SaguiOS pela rede, do Windows"
-    },
-    {
-      "data": "2026-11-05T15:40:00",
-      "texto": "H35 concluída: rede nas placas do VirtualBox (Intel PRO/1000 e AMD PCnet), DHCP, ARP, DNS e comando rede"
-    },
     {
       "data": "2026-11-04T00:19:30",
       "texto": "Eli confirmou: funcionou tudo perfeitamente (bônus)"
@@ -926,21 +831,53 @@ window.SAGUI_STATUS = {
     {
       "data": "2026-11-03T18:53:31",
       "texto": "H21 concluída: Gerenciador de janelas no kernel, memória compartilhada, eventos por janela; arrastar e fechar testados"
+    },
+    {
+      "data": "2026-11-03T18:53:30",
+      "texto": "Erro corrigido: Rastros ao arrastar janelas"
+    },
+    {
+      "data": "2026-11-03T18:46:46",
+      "texto": "Início da H21: Gerenciador de janelas"
+    },
+    {
+      "data": "2026-11-03T18:46:46",
+      "texto": "H20 concluída: Área de trabalho com degradê do Brasil, mascote em pixel art, barra com relógio e ícones"
+    },
+    {
+      "data": "2026-11-03T18:46:46",
+      "texto": "Erro corrigido: Boot não terminava com a área de trabalho no ar"
+    },
+    {
+      "data": "2026-11-03T18:38:00",
+      "texto": "Início da H20: Área de trabalho"
+    },
+    {
+      "data": "2026-11-03T18:37:28",
+      "texto": "Eli confirmou: fase 4 ok"
+    },
+    {
+      "data": "2026-11-03T18:27:00",
+      "texto": "Fase 4 entregue. Aguardando teste do Eli."
+    },
+    {
+      "data": "2026-11-03T18:27:00",
+      "texto": "H19 concluída: Mouse/touchpad PS/2; H19-fix: módulo i8042 único, teclado independente do touchpad"
+    },
+    {
+      "data": "2026-11-03T18:12:39",
+      "texto": "Erro corrigido: G470: teclado parou e o touchpad não respondeu (fase 4)"
+    },
+    {
+      "data": "2026-11-03T18:08:12",
+      "texto": "Bloqueio: G470: teclado não responde na fase 4 e o touchpad não respondeu (correção em andamento: H19-fix)"
+    },
+    {
+      "data": "2026-11-03T17:40:18",
+      "texto": "Fase 4 entregue. Aguardando teste do Eli."
     }
   ],
   "erros": [
-    {
-      "data": "2026-11-10T22:07:11",
-      "sintoma": "sagui-fs.ps1 listar mostrava a ajuda; com listar certo, Nao e possivel indexar em uma matriz nula",
-      "causa": "o cliente nunca tinha rodado: o argumento posicional batia em -Maquina pela ordem do param, e o -match do Esperar enchia o  so no escopo da funcao",
-      "correcao": "posicoes explicitas no param (Comando na 0) e Esperar devolve a tabela de grupos para quem chamou"
-    },
-    {
-      "data": "2026-11-10T22:07:11",
-      "sintoma": "No Terminal em janela, o servidor encerrava sozinho (0 conexoes) logo depois do banner, sem ninguem apertar Esc",
-      "causa": "o Terminal ecoa na serial o que o shell escreve; essa escrita no console arma o redesenho do kernel (ESC R), e o quer_sair do servidor lia o 27 solto pelo tecla_tentada como se fosse Esc",
-      "correcao": "quer_sair le pares como o sagsh (so 27,27 sai; setas e o R do redesenho sao ignorados) e o caminho das teclas e decidido pelo stdin: disponivel so funciona em pipe, no Terminal em janela vem pelo pipe e no console pelo modo bruto"
-    },
     {
       "data": "2026-11-03T21:55:57",
       "sintoma": "G470: com dois pendrives, o de dados não aparece; usb mostra hub do EHCI 0 parado na configuração",
@@ -1018,433 +955,440 @@ window.SAGUI_STATUS = {
     {
       "arquivo": "docs/capturas/H16-ajuda.png",
       "nome": "H16-ajuda.png",
-      "data": "2026-11-06T14:13:39"
+      "data": "2026-11-23T08:37:42"
     },
     {
       "arquivo": "docs/capturas/H16-arquivos-redirecionamento-pipe.png",
       "nome": "H16-arquivos-redirecionamento-pipe.png",
-      "data": "2026-11-06T14:13:39"
+      "data": "2026-11-23T08:37:42"
     },
     {
       "arquivo": "docs/capturas/H16-contador-e-ps.png",
       "nome": "H16-contador-e-ps.png",
-      "data": "2026-11-06T14:13:39"
+      "data": "2026-11-23T08:37:42"
     },
     {
       "arquivo": "docs/capturas/H16-falha-protecao.png",
       "nome": "H16-falha-protecao.png",
-      "data": "2026-11-06T14:13:39"
+      "data": "2026-11-23T08:37:42"
     },
     {
       "arquivo": "docs/capturas/H16-tab-historico.png",
       "nome": "H16-tab-historico.png",
-      "data": "2026-11-06T14:13:39"
+      "data": "2026-11-23T08:37:42"
     },
     {
       "arquivo": "docs/capturas/H25-aviso-ao-fechar.png",
       "nome": "H25-aviso-ao-fechar.png",
-      "data": "2026-11-06T14:13:39"
+      "data": "2026-11-23T08:37:42"
     },
     {
       "arquivo": "docs/capturas/H25-editor-digitando.png",
       "nome": "H25-editor-digitando.png",
-      "data": "2026-11-06T14:13:39"
+      "data": "2026-11-23T08:37:42"
     },
     {
       "arquivo": "docs/capturas/H25-editor-reaberto.png",
       "nome": "H25-editor-reaberto.png",
-      "data": "2026-11-06T14:13:39"
-    },
-    {
-      "arquivo": "docs/capturas/H38-lua-nativo.png",
-      "nome": "H38-lua-nativo.png",
-      "data": "2026-11-06T14:13:39"
+      "data": "2026-11-23T08:37:42"
     },
     {
       "arquivo": "docs/capturas/B3-comando-bip.png",
       "nome": "B3-comando-bip.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/B4-1-tela-de-inicio.png",
       "nome": "B4-1-tela-de-inicio.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/B4-2-fase1-clareira.png",
       "nome": "B4-2-fase1-clareira.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/B4-3-fase1-corredor.png",
       "nome": "B4-3-fase1-corredor.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/B4-4-porteira-aberta.png",
       "nome": "B4-4-porteira-aberta.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/B4-5-vitoria.png",
       "nome": "B4-5-vitoria.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/B4-6-macaco-tonto.png",
       "nome": "B4-6-macaco-tonto.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/B4-7-macaco-escorregou.png",
       "nome": "B4-7-macaco-escorregou.png",
-      "data": "2026-11-05T14:48:55"
-    },
-    {
-      "arquivo": "docs/capturas/G470-fase1-tela-final.png",
-      "nome": "G470-fase1-tela-final.png",
-      "data": "2026-11-05T14:48:55"
-    },
-    {
-      "arquivo": "docs/capturas/G470-fase2-tela-inicial.png",
-      "nome": "G470-fase2-tela-inicial.png",
-      "data": "2026-11-05T14:48:55"
-    },
-    {
-      "arquivo": "docs/capturas/G470-fase3-contador-ps.png",
-      "nome": "G470-fase3-contador-ps.png",
-      "data": "2026-11-05T14:48:55"
-    },
-    {
-      "arquivo": "docs/capturas/G470-fase4-grafico-touchpad.png",
-      "nome": "G470-fase4-grafico-touchpad.png",
-      "data": "2026-11-05T14:48:55"
-    },
-    {
-      "arquivo": "docs/capturas/G470-fase5-janelas.png",
-      "nome": "G470-fase5-janelas.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H02-mbr-ide.png",
       "nome": "H02-mbr-ide.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H02-mbr-usb.png",
       "nome": "H02-mbr-usb.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H03-estagio2-ide.png",
       "nome": "H03-estagio2-ide.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H03-estagio2-usb.png",
       "nome": "H03-estagio2-usb.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H03-kernel-ide.png",
       "nome": "H03-kernel-ide.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H03-kernel-usb.png",
       "nome": "H03-kernel-usb.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H04-boot-vdi.png",
       "nome": "H04-boot-vdi.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H04-fix-memoria-6g.png",
       "nome": "H04-fix-memoria-6g.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H05-tela-de-erro-divisao.png",
       "nome": "H05-tela-de-erro-divisao.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H06-autoteste-memoria.png",
       "nome": "H06-autoteste-memoria.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H07-teclado-abnt2.png",
       "nome": "H07-teclado-abnt2.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H08-sgfs-lista.png",
       "nome": "H08-sgfs-lista.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H09-ajuda.png",
       "nome": "H09-ajuda.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H09-cat-sagui.png",
       "nome": "H09-cat-sagui.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H09-ls-cd.png",
       "nome": "H09-ls-cd.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H09-mem-data.png",
       "nome": "H09-mem-data.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H09-tela-inicial-ide.png",
       "nome": "H09-tela-inicial-ide.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H09-tela-inicial-usb.png",
       "nome": "H09-tela-inicial-usb.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H10-dois-espacos.png",
       "nome": "H10-dois-espacos.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H10-tela-falta-de-pagina.png",
       "nome": "H10-tela-falta-de-pagina.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H11-tarefas-A-B.png",
       "nome": "H11-tarefas-A-B.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H12-anel3-protecao.png",
       "nome": "H12-anel3-protecao.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H13-ola-argumentos.png",
       "nome": "H13-ola-argumentos.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H14-arquivos-gravaveis.png",
       "nome": "H14-arquivos-gravaveis.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H15-pipes.png",
       "nome": "H15-pipes.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H17-formas-ide.png",
       "nome": "H17-formas-ide.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H18-edicao-e-segundo-plano.png",
       "nome": "H18-edicao-e-segundo-plano.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H18-fonte-acentos.png",
       "nome": "H18-fonte-acentos.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H19-cursor-movido.png",
       "nome": "H19-cursor-movido.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H20-area-de-trabalho.png",
       "nome": "H20-area-de-trabalho.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H21-duas-janelas.png",
       "nome": "H21-duas-janelas.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H21-janela-arrastada.png",
       "nome": "H21-janela-arrastada.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H21-janela-fechada.png",
       "nome": "H21-janela-fechada.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H22-componentes-em-uso.png",
       "nome": "H22-componentes-em-uso.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H22-componentes.png",
       "nome": "H22-componentes.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H22-dialogo-confirmar.png",
       "nome": "H22-dialogo-confirmar.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H23-arquivos-raiz.png",
       "nome": "H23-arquivos-raiz.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H23-confirmar-apagar.png",
       "nome": "H23-confirmar-apagar.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H23-linux-no-editor.png",
       "nome": "H23-linux-no-editor.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H23-nota-reaberta.png",
       "nome": "H23-nota-reaberta.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H24-terminal-ps-conta.png",
       "nome": "H24-terminal-ps-conta.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H26-calculadora-3-5.png",
       "nome": "H26-calculadora-3-5.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H26-calculadora-50.png",
       "nome": "H26-calculadora-50.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H26-calculadora-divisao-por-zero.png",
       "nome": "H26-calculadora-divisao-por-zero.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H27-banana-fim-de-jogo.png",
       "nome": "H27-banana-fim-de-jogo.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H27-banana-inicio.png",
       "nome": "H27-banana-inicio.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H27-banana-jogando.png",
       "nome": "H27-banana-jogando.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H28-programas-abertos.png",
       "nome": "H28-programas-abertos.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H28-tres-programas.png",
       "nome": "H28-tres-programas.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H29-diagnostico-usb.png",
       "nome": "H29-diagnostico-usb.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H29-dois-controladores.png",
       "nome": "H29-dois-controladores.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H30-conexao-a-quente.png",
       "nome": "H30-conexao-a-quente.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H32-ls-pendrive.png",
       "nome": "H32-ls-pendrive.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H33-pendrive-gravado.png",
       "nome": "H33-pendrive-gravado.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H34-1-pendrive-conectado.png",
       "nome": "H34-1-pendrive-conectado.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H34-2-arquivos-no-pendrive.png",
       "nome": "H34-2-arquivos-no-pendrive.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H34-3-editor-salvou-no-pendrive.png",
       "nome": "H34-3-editor-salvou-no-pendrive.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H34-4-pode-remover.png",
       "nome": "H34-4-pode-remover.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H34-5-pendrive-removido.png",
       "nome": "H34-5-pendrive-removido.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H34-6-removido-sem-desmontar.png",
       "nome": "H34-6-removido-sem-desmontar.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H34-7-terminal.png",
       "nome": "H34-7-terminal.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
     },
     {
       "arquivo": "docs/capturas/H34-8-um-pendrive-so.png",
       "nome": "H34-8-um-pendrive-so.png",
-      "data": "2026-11-05T14:48:55"
+      "data": "2026-11-23T08:36:33"
+    },
+    {
+      "arquivo": "docs/capturas/H38-lua-nativo.png",
+      "nome": "H38-lua-nativo.png",
+      "data": "2026-11-06T09:00:43"
+    },
+    {
+      "arquivo": "docs/capturas/G470-fase1-tela-final.png",
+      "nome": "G470-fase1-tela-final.png",
+      "data": "1980-01-02T00:00:00"
+    },
+    {
+      "arquivo": "docs/capturas/G470-fase2-tela-inicial.png",
+      "nome": "G470-fase2-tela-inicial.png",
+      "data": "1980-01-02T00:00:00"
+    },
+    {
+      "arquivo": "docs/capturas/G470-fase3-contador-ps.png",
+      "nome": "G470-fase3-contador-ps.png",
+      "data": "1980-01-02T00:00:00"
+    },
+    {
+      "arquivo": "docs/capturas/G470-fase4-grafico-touchpad.png",
+      "nome": "G470-fase4-grafico-touchpad.png",
+      "data": "1980-01-02T00:00:00"
+    },
+    {
+      "arquivo": "docs/capturas/G470-fase5-janelas.png",
+      "nome": "G470-fase5-janelas.png",
+      "data": "1980-01-02T00:00:00"
     }
   ],
   "linhas": {
-    "boot": 903,
-    "kernel": 12455,
-    "userland": 22110,
-    "ferramentas": 4778
+    "boot": 1083,
+    "kernel": 18645,
+    "userland": 92901,
+    "ferramentas": 20232
   },
   "imagem": {
-    "bytes_util": 1735680,
-    "bytes_arquivo": 1736704
+    "bytes_util": 8277504,
+    "bytes_arquivo": 8290304,
+    "meta_bytes": 1474560
   },
-  "progresso_geral": 100.0
+  "progresso_geral": 100.0,
+  "links": [
+    {
+      "texto": "Painel da versão 2.0",
+      "url": "v2/index.html"
+    }
+  ]
 };
