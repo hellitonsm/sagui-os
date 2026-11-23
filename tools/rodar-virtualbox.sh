@@ -19,6 +19,17 @@ VDI="$REPO_DIR/build/saguios.vdi"
 NIC_TYPE="82540EM"
 NIC_MODE="nat"
 
+# Tipo de SO no VirtualBox: Other_64 ("Outro/Desconhecido (64-bit)") para a
+# imagem 3.0 de 64 bits (padrão); Other (32 bits) para a 2.x (make ARQ=32).
+# É o ostype que libera o modo longo para o convidado; com "Other" o VirtualBox
+# esconde o 64 bits e o estágio 2 do SaguiOS recusa a imagem 3.0.
+ARQ="${ARQ:-64}"
+if [[ "$ARQ" == "32" ]]; then
+    OSTYPE="Other"
+else
+    OSTYPE="Other_64"
+fi
+
 if ! command -v VBoxManage >/dev/null 2>&1; then
     echo "ERRO: VBoxManage não encontrado no PATH." >&2
     echo "      Instale o VirtualBox (o VBoxManage vem com ele) ou ajuste o PATH." >&2
@@ -52,7 +63,7 @@ esac
 # --- cria a VM (só na primeira vez) ---------------------------------------
 if ! VBoxManage showvminfo "$VM_NAME" >/dev/null 2>&1; then
     echo "Criando VM '$VM_NAME'..."
-    VBoxManage createvm --name "$VM_NAME" --ostype Other --register >/dev/null
+    VBoxManage createvm --name "$VM_NAME" --ostype "$OSTYPE" --register >/dev/null
     # 512 MB, BIOS tradicional (o SaguiOS não tem suporte a EFI), mouse e
     # teclado PS/2 (é o que o sistema tem driver para ler) e 16 MB de vídeo
     # para o VESA 1024x768x32 da área de trabalho.
@@ -69,6 +80,21 @@ if ! VBoxManage showvminfo "$VM_NAME" >/dev/null 2>&1; then
         --boot3 none \
         --boot4 none >/dev/null
     VBoxManage storagectl "$VM_NAME" --name "IDE Controller" --add ide --controller ICH6 >/dev/null
+fi
+
+# Garante o tipo de SO certo mesmo numa VM criada antes (32 bits -> 64 bits, ou
+# vice-versa). É ele que libera o modo longo para convidados de 64 bits.
+if ! VBoxManage modifyvm "$VM_NAME" --ostype "$OSTYPE" >/dev/null 2>&1; then
+    echo "AVISO: não consegui ajustar o tipo de SO para $OSTYPE." >&2
+fi
+
+# Modo longo e PAE explícitos: numa VM criada como 32 bits e convertida depois,
+# o VirtualBox pode deixar esses recursos desligados mesmo com o ostype 64 bits
+# (o estágio 2 do SaguiOS então aborta com "este processador nao tem 64 bits").
+if ! VBoxManage modifyvm "$VM_NAME" --x86-long-mode on --x86-pae on \
+        >/dev/null 2>&1; then
+    # Ok em versões antigas do VirtualBox, sem essas opções.
+    true
 fi
 
 # --- rede: aplicada sempre ------------------------------------------------
