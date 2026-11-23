@@ -786,7 +786,8 @@ void area_icone_abrir(int i)
         bool janela = true;
         if (vfs_ler_inteiro(caminho, &img, &tam) == 0 && tam >= 52) {
             uint32_t flags = (uint32_t)img[36] | ((uint32_t)img[37] << 8) | ((uint32_t)img[38] << 16) | ((uint32_t)img[39] << 24);
-            janela = flags == ELF_SAGUI_JANELA;
+            /* TEXTO = feito pelo cc sem janela; 0 = host-built (abre direto). */
+            janela = flags != ELF_SAGUI_TEXTO;
         }
         if (img) kfree(img);
         int pid;
@@ -809,7 +810,8 @@ void area_icone_abrir(int i)
     bool janela = true;
     if (vfs_ler_inteiro((char *)icones[i].programa, &img, &tam) == 0 && tam >= 52) {
         uint32_t flags = (uint32_t)img[36] | ((uint32_t)img[37] << 8) | ((uint32_t)img[38] << 16) | ((uint32_t)img[39] << 24);
-        janela = (flags & ELF_SAGUI_JANELA) == ELF_SAGUI_JANELA;
+        /* TEXTO = feito pelo cc sem janela; 0 = host-built (abre direto). */
+        janela = flags != ELF_SAGUI_TEXTO;
     }
     if (img) kfree(img);
     int pid;
