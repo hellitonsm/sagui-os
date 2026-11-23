@@ -23,6 +23,12 @@ versão é lançada, o que estava lá vira a seção dessa versão.
 
 ## Em desenvolvimento
 
+- **Jogos de terminal (sudoku, pong, tetris e tabuada):** de volta na 3.0,
+  compilados dentro do sistema pelo `csagui` (que foi portado para o kernel/ABI
+  de 64 bits, com a syscall `SIS_TECLA_TENTEU` = 85 para leitura de tecla sem
+  bloquear, e ganhou suporte a `int a, b, c;` global e a `for` com incremento).
+  Ganharam ícones na área de trabalho e entrada no menu Iniciar; programas de
+  texto abertos por ícone rodam dentro de um Terminal.
 - **Segurança (Cipó):** uma fonte WOFF2 malformada, vinda de uma página, podia
   fazer o navegador ler memória fora da fonte (os tamanhos das partes somavam
   mais de 4 GB e a conta "dava a volta"). Agora a fonte é recusada.

@@ -102,7 +102,8 @@ MLIBC_OBJ := $(patsubst userland/mlibc/%.c,$(B)/userland/mlibc/%.o,$(MLIBC_SRC))
 CRIPTO_OBJ := $(patsubst userland/%.c,$(B)/userland/%.o,$(wildcard userland/cripto/*.c) $(wildcard userland/tls/*.c) $(wildcard userland/ssh/*.c))
 LIBSAGUI_OBJ := $(CRIPTO_OBJ) $(B)/userland/fonte8x16.o \
                 $(patsubst userland/libsagui/%.c,$(B)/userland/libsagui/%.o,$(wildcard userland/libsagui/*.c)) \
-                $(patsubst userland/libsagui/%.asm,$(B)/userland/libsagui/%.asm.o,$(wildcard userland/libsagui/*.asm))
+                $(patsubst userland/libsagui/%.asm,$(B)/userland/libsagui/%.asm.o,$(wildcard userland/libsagui/*.asm)) \
+                $(B)/userland/programas/apoio_libc.o
 # (userland/programas/*.h: código dividido entre dois programas, como o motor
 # de expressões do sed e do expr, H91.)
 USER_HDR  := $(wildcard userland/inc/*.h) $(wildcard userland/cripto/*.h) $(wildcard userland/tls/*.h) $(wildcard userland/ssh/*.h) \
@@ -160,8 +161,10 @@ PROG_TESTE := $(patsubst userland/testes/%.c,$(B)/userland/testes/%,$(wildcard u
 # Programas do fork que ainda dependem da API antiga (pré-3.0) ou do mlibc/
 # toolchain (FORK_TOOLCHAIN). Ficam no repositório, mas fora do build padrão
 # até serem portados para o kernel/ABI da 3.0 do upstream.
-FORK_ADIADOS := asagui csagui ide ldagui loja servidor tocador upstream-teste wget
+FORK_ADIADOS := ide loja servidor tocador upstream-teste wget
 PROGRAMAS := $(filter-out $(addprefix $(B)/userland/bin/,$(FORK_ADIADOS)),$(PROGRAMAS))
+# apoio_libc.c é uma biblioteca (shim de libc das ferramentas), não um programa.
+PROGRAMAS := $(filter-out $(B)/userland/bin/apoio_libc,$(PROGRAMAS))
 PROG_TESTE := $(filter-out $(B)/userland/testes/mlibc_nativo,$(PROG_TESTE))
 
 # Cadeia do fork que exige ferramentas do Windows (PowerShell) e o mlibc:

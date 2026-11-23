@@ -70,5 +70,6 @@ int32_t sis_disco_liberar(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_disco_tabela(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_area_copia(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_ler_tela(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int32_t sis_tecla_tenteu(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
 #endif

@@ -38,6 +38,7 @@ static const chamada_t tabela[SIS_MAX] = {
     [SIS_AUMENTAR_MEM] = sis_aumentar_memoria, [SIS_REINICIAR] = sis_reiniciar,
     [SIS_REGISTRAR] = sis_registrar,
     [SIS_MODO_TERMINAL] = sis_modo_terminal,   [SIS_LIMPAR_TELA] = sis_limpar_tela,
+    [SIS_TECLA_TENTEU] = sis_tecla_tenteu,
     [SIS_CRIAR_JANELA] = sis_criar_janela,     [SIS_FECHAR_JANELA] = sis_fechar_janela,
     [SIS_ATUALIZAR_JANELA] = sis_atualizar_janela, [SIS_PROXIMO_EVENTO] = sis_proximo_evento,
     [SIS_TITULO_JANELA] = sis_titulo_janela,

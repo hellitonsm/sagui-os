@@ -58,14 +58,22 @@ modo bruto, redesenha a tela a cada quadro e leem o teclado sem bloquear.
 
 - **Múltiplos declaradores globais**: `int a, b, c;` declara vários de uma vez.
 
-## A chamada de sistema `SIS_TECLA_TENTEU` (63)
+## A chamada de sistema `SIS_TECLA_TENTEU` (85)
 
-`tecla_tentada()` usa a chamada 63 (`int 0x80`, `SIS_TECLA_TENTEU`), nova
-desde esta versão. Ela devolve o próximo byte do teclado **sem bloquear**
+`tecla_tentada()` usa a chamada 85 (`int 0x80`, `SIS_TECLA_TENTEU`), na 3.0
+com a ABI de 64 bits. Ela devolve o próximo byte do teclado **sem bloquear**
 (ou `-1` se não há tecla; fora do modo bruto devolve `-1`) e respeita o
 protocolo de teclas especiais (ESC + letra, como o shell usa). O modo linha
 continua entregando linhas inteiras com eco; a leitura normal por `tecla()`
 em modo bruto continua bloqueante, como antes.
+
+## Ícones e menu
+
+Os quatro jogos têm ícone na área de trabalho e entrada no menu Iniciar
+(`kernel/gui/area_trabalho.c` + `tools/mkarte.py`). O ícone abre
+`/bin/sudoku` (etc.), um lançador que compila o jogo com o `csagui` e o
+executa; como o jogo é de texto, a área de trabalho o abre **dentro de um
+Terminal** (mesma regra dos programas instalados sem marca de janela).
 
 Internamente: `kernel/dispositivos/terminal_es.c` ganhou `terminal_tentar()`
 (mesma máquina de estado do `ler_bruto`, sem espera); `kernel/fs/arquivos.c`

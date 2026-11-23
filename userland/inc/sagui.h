@@ -91,6 +91,7 @@ int      tcp_conectar(unsigned ip, int porta, unsigned ms);     /* socket pronto
 int      tcp_enviar_tudo(int s, const void *dados, unsigned n);
 int      modo_terminal(int modo);
 int      limpar_tela(void);
+int      tecla_tentada(void);   /* modo bruto: o próximo byte da tecla, ou -1 se não há */
 
 /* ---- janelas (as funções de desenho e os componentes estão em gui.h) ---- */
 int  criar_janela(const char *titulo, int largura, int altura, uint32_t **pixels);

@@ -747,6 +747,40 @@ def instalar_sistema(t):
     t.poligono([(27, 9), (37, 9), (37, 18.5), (42.5, 18.5), (32, 27.5), (21.5, 18.5), (27, 18.5)], seta)
 
 
+def sudoku(t):
+    """Sudoku: uma grade 9x9 resumida (4x4 linhas) em branco, na caixa azul."""
+    estilo_app(t, 0x4FA6F8, 0x1A56C0)
+    for x in (22, 27, 32, 37, 42):
+        t.traco([(x, 22), (x, 42)], 1.8 if x in (22, 42) else 0.9, 0xFFFFFF, 0.9)
+    for y in (22, 27, 32, 37, 42):
+        t.traco([(22, y), (42, y)], 1.8 if y in (22, 42) else 0.9, 0xFFFFFF, 0.9)
+
+
+def pong(t):
+    """Pong: a bola, a linha central e as duas raquetes, na caixa escura."""
+    estilo_app(t, 0x2A2A2A, 0x050505)
+    t.disco(32, 31, 3, 0xFFFFFF)
+    t.traco([(32, 22), (32, 40)], 0.8, 0xFFFFFF, 0.45)
+    t.ret(17, 25, 19, 37, 2, 0xFFFFFF)
+    t.ret(45, 25, 47, 37, 2, 0xFFFFFF)
+
+
+def tetris(t):
+    """Tetris: uma peça T (o tetrominó) em branco, na caixa vermelha."""
+    estilo_app(t, 0xF0564A, 0xA8121E)
+    t.ret(20, 24, 28, 32, 1.5, 0xFFFFFF)
+    t.ret(28, 24, 36, 32, 1.5, 0xFFFFFF)
+    t.ret(36, 24, 44, 32, 1.5, 0xFFFFFF)
+    t.ret(28, 32, 36, 40, 1.5, 0xFFFFFF)
+
+
+def tabuada(t):
+    """Tabuada: um "×" de traços grossos, na caixa verde."""
+    estilo_app(t, 0x55D654, 0x0E980C)
+    t.traco([(24, 24), (40, 38)], 4.2, 0xFFFFFF, 0.95)
+    t.traco([(40, 24), (24, 38)], 4.2, 0xFFFFFF, 0.95)
+
+
 ICONES = [("arquivos", arquivos), ("terminal", terminal), ("editor", editor), ("calculadora", calculadora),
           ("banana", banana), ("sagui3d", sagui3d), ("sobre", sobre), ("pendrive", pendrive),
           ("configuracoes", configuracoes), ("cipo", cipo), ("instalado", instalado), ("tocador", tocador),
@@ -754,7 +788,8 @@ ICONES = [("arquivos", arquivos), ("terminal", terminal), ("editor", editor), ("
           ("chip8", chip8), ("jclic", jclic),
           ("chuva", chuva), ("triangulos", triangulos), ("componentes", componentes), ("energia", energia),
           ("lupa", lupa), ("lixeira", lixeira), ("lixeira_cheia", lixeira_cheia),
-          ("visualizador", visualizador), ("disco", disco), ("instalar_sistema", instalar_sistema)]
+          ("visualizador", visualizador), ("disco", disco), ("instalar_sistema", instalar_sistema),
+          ("sudoku", sudoku), ("pong", pong), ("tetris", tetris), ("tabuada", tabuada)]
 TAMANHOS = [(64, ""), (40, "_40"), (20, "_20")]   # 20: o rodapé e a busca do menu Iniciar
 
 

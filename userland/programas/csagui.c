@@ -339,8 +339,11 @@ static int pre_analisar(void)
         if (!ler_tipo()) return 0;
         if (!eh(T_ID)) { falhar(tk()->linha, "esperado nome de funcao ou declaracao global"); return 0; }
         int nome = (int)cursor;
-        /* Declaracao global: int nome;  int nome[N];  int nome[N] = {...}; */
-        if (tokens[cursor + 1].kind == ';' || tokens[cursor + 1].kind == '[') {
+        /* Declaracao global: int nome;  int nome[N];  int nome[N] = {...};
+         * e os múltiplos declaradores: int a, b, c; (a vírgula roteia para
+         * cá também, senão a linha vira assinatura de função e falha). */
+        if (tokens[cursor + 1].kind == ';' || tokens[cursor + 1].kind == '[' ||
+            tokens[cursor + 1].kind == ',') {
             if (!ler_global(nome)) return 0;
             continue;
         }
@@ -965,9 +968,14 @@ static void instrucao(void)
         cursor = (unsigned)incr_fim;
         exigir(')', "esperado ')' no for");
         instrucao();
+        unsigned depois_corpo = cursor;   /* o que vem depois do corpo do for */
         asm_emitir("L%u:\n", incr);
         cursor = incr_ini;
-        if (incr_ini < (unsigned)incr_fim) gerar_expressao();
+        if (incr_ini < (unsigned)incr_fim) {
+            gerar_expressao();
+            exigir(')', "esperado ')' no for");   /* reconsome o ')' do incremento */
+        }
+        cursor = depois_corpo;            /* volta para depois do corpo, não para o corpo */
         asm_emitir("    jmp L%u\nL%u:\n", inicio, fim);
         desempilhar_laco();
     } else if (atual_igual("break")) {
@@ -1090,11 +1098,12 @@ static int gravar_e_montar(const char *destino, const char *entrada)
     if (pid < 0) { (void)unlink(temporario); fprintf(stderr, "csagui: nao foi possivel executar /bin/asagui\n"); return 0; }
     int codigo = -1;
     int esperado = esperar(pid, &codigo);
-    (void)unlink(temporario);
     if (esperado != pid || codigo != 0) {
         fprintf(stderr, "csagui: asagui falhou (status %d)\n", codigo);
+        (void)unlink(temporario);
         return 0;
     }
+    (void)unlink(temporario);
     return 1;
 }
 

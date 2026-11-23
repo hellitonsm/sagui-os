@@ -46,6 +46,10 @@ static const icone_t icones[] = {
     { "Sagui 3D",    "/bin/sagui3d",     arte_px_sagui3d, NULL, NULL },   /* bônus B4 */
     { "Configurações", "/bin/configuracoes", arte_px_configuracoes, NULL, NULL },   /* H38 */
     { "Sobre",       "/bin/sobre-o-sistema",   arte_px_sobre, NULL, NULL },
+    { "Sudoku",      "/bin/sudoku",      arte_px_sudoku, NULL, NULL },
+    { "Pong",        "/bin/pong",        arte_px_pong, NULL, NULL },
+    { "Tetris",      "/bin/tetris",      arte_px_tetris, NULL, NULL },
+    { "Tabuada",     "/bin/tabuada",     arte_px_tabuada, NULL, NULL },
     { "Lixeira",     "/bin/arquivos",    arte_px_lixeira, "/.lixeira", "lixeira" },   /* a lixeira do Arquivos */
 };
 #define QTD_ICONES (int)(sizeof icones / sizeof icones[0])
@@ -797,7 +801,24 @@ void area_icone_abrir(int i)
         return;
     }
     const char *arg = i == ICONE_LIXEIRA ? lixeira_abrir : icones[i].arg;
-    char *argv[] = { (char *)icones[i].programa + 5, (char *)arg, NULL };
-    int pid = processo_executar(icones[i].programa, arg ? 2 : 1, argv, NULL);
+    /* Programas de texto (sem a marca de janela, como os jogos do csagui)
+     * abrem dentro de um Terminal: senão rodavam sem janela e nada aparecia
+     * na tela. Mesma regra dos programas instalados do pendrive, abaixo. */
+    uint8_t *img = NULL;
+    uint32_t tam = 0;
+    bool janela = true;
+    if (vfs_ler_inteiro((char *)icones[i].programa, &img, &tam) == 0 && tam >= 52) {
+        uint32_t flags = (uint32_t)img[36] | ((uint32_t)img[37] << 8) | ((uint32_t)img[38] << 16) | ((uint32_t)img[39] << 24);
+        janela = (flags & ELF_SAGUI_JANELA) == ELF_SAGUI_JANELA;
+    }
+    if (img) kfree(img);
+    int pid;
+    if (janela) {
+        char *argv[] = { (char *)icones[i].programa + 5, (char *)arg, NULL };
+        pid = processo_executar(icones[i].programa, arg ? 2 : 1, argv, NULL);
+    } else {
+        char *argv[] = { "terminal", "-e", (char *)icones[i].programa, NULL };
+        pid = processo_executar("/bin/terminal", 3, argv, NULL);
+    }
     klog("[GUI] icone %s -> %s (pid %d)\n", icones[i].nome, icones[i].programa, pid);
 }

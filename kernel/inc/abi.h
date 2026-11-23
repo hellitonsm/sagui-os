@@ -42,6 +42,10 @@
 #define SIS_MODO_TERMINAL  46   /* (TERM_LINHA ou TERM_BRUTO) */
 #define SIS_LIMPAR_TELA    47   /* () */
 #define SIS_REGISTRAR      48   /* (texto) -> escreve no log do sistema (serial), não na tela */
+/* Modo bruto, sem bloquear: o próximo byte da tecla (0..255), ou -1 se não há
+ * nenhuma pendente. Só vale no modo bruto (fora dele devolve -1). Usado pelos
+ * jogos de terminal compilados pelo csagui (sudoku/pong/tetris fazem polling). */
+#define SIS_TECLA_TENTEU   85
 /* Janelas (fase 5) */
 #define SIS_CRIAR_JANELA   50   /* (titulo, largura | altura << 16, &pixels) -> id */
 #define SIS_FECHAR_JANELA  51   /* (id) */

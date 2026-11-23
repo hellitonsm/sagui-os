@@ -27,6 +27,7 @@ ARTE_PX(saguicode) ARTE_PX(jogos) ARTE_PX(cacabananas) ARTE_PX(paciencia) ARTE_P
 ARTE_PX(jclic) ARTE_PX(chuva) ARTE_PX(triangulos) ARTE_PX(componentes) ARTE_PX(energia)
 ARTE_PX(lupa) ARTE_PX(lixeira) ARTE_PX(lixeira_cheia) ARTE_PX(visualizador)
 ARTE_PX(disco) ARTE_PX(instalar_sistema)
+ARTE_PX(sudoku) ARTE_PX(pong) ARTE_PX(tetris) ARTE_PX(tabuada)
 #undef ARTE_PX
 
 #endif
