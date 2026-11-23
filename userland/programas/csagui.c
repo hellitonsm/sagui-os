@@ -951,9 +951,11 @@ static void instrucao(void)
         unsigned inicio = etiqueta_nova(), fim = etiqueta_nova(), incr = etiqueta_nova();
         empilhar_laco(incr, fim);            /* continue vai para o incremento */
         asm_emitir("L%u:\n", inicio);
-        if (!eh(';')) gerar_expressao();     /* condicao vazia = sempre verdadeira */
+        if (!eh(';')) {                      /* condicao vazia = sempre verdadeira */
+            gerar_expressao();
+            asm_emitir("    cmp eax, 0\n    je L%u\n", fim);
+        }
         exigir(';', "esperado ';' apos a condicao do for");
-        asm_emitir("    cmp eax, 0\n    je L%u\n", fim);
         /* O incremento so e emitido depois do corpo; guarda a faixa de tokens. */
         unsigned incr_ini = cursor;
         int prof = 0, incr_fim = -1;
